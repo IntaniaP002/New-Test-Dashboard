@@ -1,0 +1,6 @@
+{
+  "name": "Water Washing Monitoring",
+  "description": "Professional web-based Water Washing monitoring and recommendation application for gas turbine compressors with automated deterioration tracking, 3-out-of-4 threshold logic, and performance recovery analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
