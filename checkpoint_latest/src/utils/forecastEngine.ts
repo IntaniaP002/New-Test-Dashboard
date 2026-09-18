@@ -28,8 +28,6 @@ import {
   OperationalRecord,
   OverallForecastSummary,
   ParameterForecast,
-  ThreeDayProjectionPoint,
-  ThreeDayProjectionSummary,
   ThresholdConfig,
   WaterWashForecastStatus,
 } from '../types';
@@ -536,18 +534,6 @@ export function calculateParameterForecast(
 }
 
 /**
- * Calculates calendar day difference between two YYYY-MM-DD date strings.
- * Result is positive if toDateStr is in the future relative to fromDateStr.
- */
-export function getCalendarDaysBetween(fromDateStr: string, toDateStr: string): number {
-  if (!fromDateStr || !toDateStr) return 0;
-  const from = new Date(fromDateStr + 'T00:00:00');
-  const to = new Date(toDateStr + 'T00:00:00');
-  const diffMs = to.getTime() - from.getTime();
-  return Math.round(diffMs / (1000 * 60 * 60 * 24));
-}
-
-/**
  * Calculates complete forecasting suite across all 4 parameters:
  * 1. PR
  * 2. P3.0
@@ -556,17 +542,12 @@ export function getCalendarDaysBetween(fromDateStr: string, toDateStr: string): 
  * 
  * Uses the Input History table as the source dataset, isolates the current cycle,
  * fits linear regression on elapsed days, and identifies the nearest threshold.
- * 
- * When referenceDate is provided (or viewing on subsequent calendar dates like 18 September):
- * - Auto-updates remaining days (e.g. 15 days on 17 Sept -> 14 days on 18 Sept).
- * - When threshold condition is met, sets lead-time to 3 days ("3 hari lagi") for preparation.
  */
 export function calculateOverallForecast(
   inputHistoryRecords: OperationalRecord[],
   baseline: BaselineConfig,
   _thresholds?: ThresholdConfig,
-  scope: 'cycle' | 'newest' = 'cycle',
-  referenceDate?: string
+  scope: 'cycle' | 'newest' = 'cycle'
 ): OverallForecastSummary {
   // Use FIXED project thresholds
   const prThresh = FIXED_FORECAST_THRESHOLDS.PR; // 2.5%
@@ -690,8 +671,8 @@ export function calculateOverallForecast(
   let governingParam: ForecastParameter | null = null;
 
   if (isConditionSatisfied) {
-    // Condition is already fully satisfied: rule updated to 3 days lead-time for Water Wash preparation
-    rawForecastWW = 3;
+    // Condition is already fully satisfied right now
+    rawForecastWW = 0;
     governingParam = null;
   } else if (daysPR !== null && daysP3 !== null && daysAux !== null) {
     rawForecastWW = Math.max(daysPR, daysP3, daysAux);
@@ -728,6 +709,9 @@ export function calculateOverallForecast(
     // Ketika mesin sudah berstatus PANTAU (2 parameter lolos / bobot >= 50%),
     // kondisi mesin sudah mengalami degradasi kritis dan masuk tahap pemantauan ketat.
     // Waktu toleransi pemantauan & persiapan Water Wash dibatasi maksimal MAX_PANTAU_FORECAST_DAYS (15 hari).
+    // Justifikasi historis: Siklus tercepat rekomendasi WW adalah 22 hari; dikurangi 7 hari observasi regresi = 15 hari.
+    // Hal ini secara teknis dan intuitif mencegah anomali di mana status Normal memproyeksikan 19 hari
+    // tetapi ketika masuk status Pantau malah melonjak jadi 40+ hari.
     if (rawForecastWW === null || rawForecastWW > MAX_PANTAU_FORECAST_DAYS) {
       forecastWW = MAX_PANTAU_FORECAST_DAYS;
       isPantauCapped = true;
@@ -738,52 +722,12 @@ export function calculateOverallForecast(
   // Calculate projected date for Water Wash
   let forecastWWDate: string | null = null;
   const latestDate = cycleRecords[cycleRecords.length - 1]?.date;
-
-  // Active reference date handling (calendar countdown support)
-  const todayLocalStr = (() => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  })();
-
-  const activeRefDate = referenceDate || (latestDate && todayLocalStr >= latestDate ? todayLocalStr : latestDate);
-
-  if (isConditionSatisfied) {
-    // When threshold is reached: display 3 days lead-time for Water Wash preparation
-    forecastWW = 3;
-    const baseDateForWW = (activeRefDate && latestDate && activeRefDate >= latestDate) ? activeRefDate : (latestDate || todayLocalStr);
-    const d = new Date(baseDateForWW + 'T00:00:00');
-    d.setDate(d.getDate() + 3);
-    forecastWWDate = d.toISOString().slice(0, 10);
+  if (forecastWW === 0 && latestDate) {
+    forecastWWDate = latestDate;
   } else if (forecastWW !== null && forecastWW > 0 && latestDate) {
-    // Determine the fixed target date based on latest dataset date + projected days
-    const targetObj = new Date(latestDate + 'T00:00:00');
-    targetObj.setDate(targetObj.getDate() + (isPantauCapped ? MAX_PANTAU_FORECAST_DAYS : (rawForecastWW || forecastWW)));
-    forecastWWDate = targetObj.toISOString().slice(0, 10);
-
-    // Dynamic auto-countdown when viewing on subsequent days (e.g. 17 Sept -> 15 days, 18 Sept -> 14 days)
-    if (activeRefDate && latestDate && activeRefDate > latestDate) {
-      const remainingDays = getCalendarDaysBetween(activeRefDate, forecastWWDate);
-      if (remainingDays <= 3) {
-        // Enters 3-day final preparation window
-        forecastWW = Math.max(1, remainingDays);
-      } else {
-        const dynamicRemaining = Math.max(1, remainingDays);
-        rawForecastWW = dynamicRemaining;
-        forecastWW = isPantauCapped ? Math.min(MAX_PANTAU_FORECAST_DAYS, dynamicRemaining) : dynamicRemaining;
-      }
-
-      // Also auto-update each individual parameter's daysToThreshold
-      for (const key of ['PR', 'P3_0', 'NPHR', 'realPower'] as const) {
-        const pFc = parameters[key];
-        if (pFc.status === 'FORECAST AVAILABLE' && pFc.estimatedDate) {
-          const pRemaining = getCalendarDaysBetween(activeRefDate, pFc.estimatedDate);
-          pFc.daysToThreshold = Math.max(1, pRemaining);
-        }
-      }
-    }
+    const d = new Date(latestDate + 'T00:00:00');
+    d.setDate(d.getDate() + forecastWW);
+    forecastWWDate = d.toISOString().slice(0, 10);
   }
 
   // Determine overall Water Wash Status
@@ -792,7 +736,7 @@ export function calculateOverallForecast(
 
   if (isConditionSatisfied) {
     waterWashStatus = 'DUE_NOW';
-    daysUntilNextWaterWash = 3; // Updated from 0 to 3 days
+    daysUntilNextWaterWash = 0;
   } else if (cycleRecords.length < MIN_FORECAST_OBSERVATIONS) {
     waterWashStatus = 'INSUFFICIENT_DATA';
     daysUntilNextWaterWash = null;
@@ -849,160 +793,6 @@ export function calculateOverallForecast(
     cycleStartDate,
     baselineDate,
     dataScope: scope,
-  };
-}
-
-/**
- * Calculates a forward projection for all 4 parameters (PR, P3.0, NPHR, Real Power).
- * - For DUE_NOW (threshold reached): evaluates a 3-day lead-time window (H+1, H+2, H+3).
- * - For Normal status: evaluates all projected days (e.g. 29 days from H+1 to H+29) matching the estimated countdown.
- */
-export function calculateThreeDayProjection(
-  parameters: Record<ForecastParameter, ParameterForecast>,
-  baseline: BaselineConfig,
-  latestRecord?: OperationalRecord,
-  startDateStr?: string,
-  isConditionSatisfied?: boolean,
-  targetDaysCount?: number | null,
-  targetDateStr?: string | null
-): ThreeDayProjectionSummary {
-  const baseDate = startDateStr || latestRecord?.date || new Date().toISOString().slice(0, 10);
-  const baseDateObj = new Date(baseDate + 'T00:00:00');
-
-  // If threshold reached: 3 days window for WW preparation.
-  // If Normal status: project full estimated days (e.g. 29 days).
-  const count = isConditionSatisfied
-    ? 3
-    : targetDaysCount && targetDaysCount > 0
-    ? Math.min(Math.max(targetDaysCount, 1), 180)
-    : 3;
-
-  const offsets = Array.from({ length: count }, (_, i) => i + 1);
-
-  const paramKeys: ForecastParameter[] = ['PR', 'P3_0', 'NPHR', 'realPower'];
-
-  const getParamConfig = (key: ForecastParameter) => {
-    switch (key) {
-      case 'PR':
-        return {
-          threshold: FIXED_FORECAST_THRESHOLDS.PR,
-          unit: 'ratio',
-          baseVal: baseline.PR ?? 10.5,
-          defaultSlope: 0.035,
-          isHigherDeteriorating: false,
-        };
-      case 'P3_0':
-        return {
-          threshold: FIXED_FORECAST_THRESHOLDS.P3_0,
-          unit: 'PSIA',
-          baseVal: baseline.P3_0 ?? 154.0,
-          defaultSlope: 0.032,
-          isHigherDeteriorating: false,
-        };
-      case 'NPHR':
-        return {
-          threshold: FIXED_FORECAST_THRESHOLDS.NPHR,
-          unit: 'kcal/kWh',
-          baseVal: baseline.nphr ?? 2450.0,
-          defaultSlope: 0.040,
-          isHigherDeteriorating: true,
-        };
-      case 'realPower':
-        return {
-          threshold: FIXED_FORECAST_THRESHOLDS.realPower,
-          unit: 'MW',
-          baseVal: baseline.realPower ?? 22.0,
-          defaultSlope: 0.045,
-          isHigherDeteriorating: false,
-        };
-    }
-  };
-
-  const days: ThreeDayProjectionPoint[] = offsets.map((offset) => {
-    const dObj = new Date(baseDateObj);
-    dObj.setDate(dObj.getDate() + offset);
-    const date = dObj.toISOString().slice(0, 10);
-
-    const dayLabel = `H+${offset}`;
-    let focusLabel: string;
-    if (isConditionSatisfied) {
-      focusLabel =
-        offset === 1
-          ? 'Persiapan & Pengadaan Bahan Kimia'
-          : offset === 2
-          ? 'Penurunan Beban & Prosedur Cooldown'
-          : 'Target Eksekusi Water Wash';
-    } else {
-      if (offset === count) {
-        focusLabel = 'Target Estimasi Water Wash';
-      } else if (offset === 1) {
-        focusLabel = 'Awal Periode Pemantauan';
-      } else if (offset === Math.round(count / 2)) {
-        focusLabel = `Pertengahan Periode (H+${offset})`;
-      } else {
-        focusLabel = `Pemantauan Tren Degradasi (H+${offset})`;
-      }
-    }
-
-    const paramMap: Record<ForecastParameter, any> = {} as any;
-    let metCount = 0;
-
-    for (const key of paramKeys) {
-      const fc = parameters[key];
-      const cfg = getParamConfig(key);
-      const currentDet = fc?.currentDeterioration ?? 0;
-
-      let slope = fc?.slope && fc.slope > 0 ? fc.slope : cfg.defaultSlope;
-      if (isConditionSatisfied) {
-        slope = Math.max(slope, 0.03);
-      }
-
-      const projectedDet = Number((currentDet + slope * offset).toFixed(2));
-      const deltaFromCurrent = Number((slope * offset).toFixed(2));
-
-      let projectedVal: number;
-      if (cfg.isHigherDeteriorating) {
-        projectedVal = Number((cfg.baseVal * (1 + projectedDet / 100)).toFixed(2));
-      } else {
-        projectedVal = Number((cfg.baseVal * (1 - projectedDet / 100)).toFixed(key === 'PR' ? 4 : 2));
-      }
-
-      const isThresholdExceeded = projectedDet >= cfg.threshold;
-      if (isThresholdExceeded) metCount++;
-
-      paramMap[key] = {
-        deterioration: projectedDet,
-        projectedValue: projectedVal,
-        unit: cfg.unit,
-        threshold: cfg.threshold,
-        isThresholdExceeded,
-        deltaFromCurrent,
-      };
-    }
-
-    return {
-      dayOffset: offset,
-      date,
-      dayLabel,
-      focusLabel,
-      PR: paramMap.PR,
-      P3_0: paramMap.P3_0,
-      NPHR: paramMap.NPHR,
-      realPower: paramMap.realPower,
-      thresholdsMetCount: metCount,
-      isAllThresholdsMet: metCount >= 3,
-    };
-  });
-
-  const targetWaterWashDate = targetDateStr || days[days.length - 1]?.date || baseDate;
-
-  return {
-    startDate: baseDate,
-    targetWaterWashDate,
-    totalDays: count,
-    days,
-    governingParameter: null,
-    overallDeteriorationTrend: 'STEADY',
   };
 }
 

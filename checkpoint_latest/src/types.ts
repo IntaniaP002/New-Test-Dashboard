@@ -165,40 +165,6 @@ export interface ParameterForecast {
 
 export type WaterWashForecastStatus = 'DUE_NOW' | 'PROJECTED' | 'STABLE' | 'INSUFFICIENT_DATA';
 
-export interface DailyParamProjection {
-  deterioration: number; // %
-  projectedValue: number; // engineering unit
-  unit: string;
-  threshold: number; // %
-  isThresholdExceeded: boolean;
-  deltaFromCurrent: number; // percentage points
-}
-
-export interface ThreeDayProjectionPoint {
-  dayOffset: number; // 1, 2, 3
-  date: string; // YYYY-MM-DD
-  dayLabel: string; // "H+1", "H+2", "H+3"
-  focusLabel: string; // e.g. "Persiapan", "Cooldown", "Eksekusi WW"
-  PR: DailyParamProjection;
-  P3_0: DailyParamProjection;
-  NPHR: DailyParamProjection;
-  realPower: DailyParamProjection;
-  thresholdsMetCount: number;
-  isAllThresholdsMet: boolean;
-}
-
-export interface ThreeDayProjectionSummary {
-  startDate: string; // YYYY-MM-DD (H-0)
-  targetWaterWashDate: string; // YYYY-MM-DD (H+3 or H+N)
-  totalDays: number; // e.g. 3 or 29
-  days: ThreeDayProjectionPoint[];
-  governingParameter: ForecastParameter | null;
-  overallDeteriorationTrend: 'ACCELERATING' | 'STEADY' | 'STABLE';
-}
-
-export type ProjectionPoint = ThreeDayProjectionPoint;
-export type ProjectionSummary = ThreeDayProjectionSummary;
-
 export interface OverallForecastSummary {
   hasForecast: boolean;
   forecastWW: number | null; // Forecast WW in days: MAX(PR, P3.0, MIN(NPHR, Real Power))

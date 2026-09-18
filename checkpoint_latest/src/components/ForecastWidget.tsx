@@ -38,9 +38,8 @@ import {
   ThresholdConfig,
 } from '../types';
 import { FIXED_FORECAST_THRESHOLDS, WATER_WASH_DECISION_RULES } from '../data/initialData';
-import { calculateOverallForecast, calculateThreeDayProjection, MIN_FORECAST_OBSERVATIONS } from '../utils/forecastEngine';
+import { calculateOverallForecast, MIN_FORECAST_OBSERVATIONS } from '../utils/forecastEngine';
 import { TimePeriod, getWeekBucket, getMonthBucket } from '../utils/dateGrouping';
-import { ThreeDayProjectionSection } from './ThreeDayProjectionSection';
 
 interface ForecastWidgetProps {
   forecastSummary: OverallForecastSummary;
@@ -95,7 +94,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
     }
 
     if (shouldScopeToSelectedDate) {
-      return calculateOverallForecast(effectiveHistoryRecords, baseline, thresholds, 'cycle', selectedDate);
+      return calculateOverallForecast(effectiveHistoryRecords, baseline, thresholds, 'cycle');
     }
 
     return forecastSummary;
@@ -138,35 +137,6 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
     cycleStartDate,
     baselineDate,
   } = activeSummary;
-
-  // Parameter Projection Summary (3 Days for DUE_NOW or N Days for Normal status)
-  const projectionSummary = React.useMemo(() => {
-    if (!baseline || !hasBaseline || !parameters) return null;
-    const latestRec = dailyRecords[dailyRecords.length - 1];
-    const startDate = shouldScopeToSelectedDate && selectedDate ? selectedDate : latestRec?.date;
-    const targetDays = isConditionSatisfied ? 3 : (activeSummary.forecastWW || 3);
-    const targetDate = activeSummary.forecastWWDate;
-
-    return calculateThreeDayProjection(
-      parameters,
-      baseline,
-      latestRec,
-      startDate,
-      isConditionSatisfied,
-      targetDays,
-      targetDate
-    );
-  }, [
-    parameters,
-    baseline,
-    hasBaseline,
-    dailyRecords,
-    shouldScopeToSelectedDate,
-    selectedDate,
-    isConditionSatisfied,
-    activeSummary.forecastWW,
-    activeSummary.forecastWWDate,
-  ]);
 
   // Selected parameter forecast info (falls back to governing parameter or PR when 'ALL' is selected)
   const activeFc = selectedParamChart === 'ALL'
@@ -578,29 +548,16 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
           </div>
         </div>
       ) : waterWashStatus === 'DUE_NOW' ? (
-        /* CASE 1: FULL CONDITION SATISFIED: PR AND P3.0 AND (NPHR OR Real Power) -> 3 HARI LAGI (DUE NOW / PERSIAPAN WW 3 HARI) */
+        /* CASE 1: FULL CONDITION SATISFIED: PR AND P3.0 AND (NPHR OR Real Power) -> 0 HARI LAGI (DUE NOW / SEGERA DILAKUKAN) */
         <div className="p-4 rounded-md bg-gradient-to-r from-rose-50 via-rose-100/75 to-amber-50 border-2 border-rose-400 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start sm:items-center gap-3.5">
-            <div className="w-14 h-14 rounded-full bg-rose-600 text-white flex flex-col items-center justify-center shrink-0 shadow-md ring-4 ring-rose-200 font-black">
-              <span className="text-base leading-none">3</span>
-              <span className="text-[8px] font-extrabold uppercase tracking-wider mt-0.5 text-rose-100 text-center leading-tight">
-                Hari Lagi
-              </span>
+            <div className="w-14 h-14 rounded-full bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-md ring-4 ring-rose-200">
+              <AlertCircle className="w-7 h-7 text-white" />
             </div>
             <div>
               <div className="text-base sm:text-lg font-black text-rose-950">
-                Water Wash Selanjutnya: <span className="text-rose-700 underline decoration-rose-400 decoration-2">3 Hari Lagi</span>
-                {forecastWWDate && (
-                  <span className="text-rose-900 font-semibold text-sm sm:text-base">
-                    {' '}(Estimasi: {forecastWWDate})
-                  </span>
-                )}
+                Water Wash Selanjutnya: <span className="text-rose-700 underline decoration-rose-400 decoration-2">0 Hari Lagi</span>
               </div>
-              {baselineDate && (
-                <div className="text-xs text-rose-800 mt-1 flex items-center gap-1.5">
-                  <span>Baseline: <strong>{baselineDate} (Day 0)</strong></span>
-                </div>
-              )}
             </div>
           </div>
 
@@ -609,7 +566,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
               <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
               <div>
                 <div className="font-extrabold text-rose-950">Rekomendasi:</div>
-                <div className="text-rose-700 font-bold">Water Wash Segera</div>
+                <div className="text-rose-700 font-bold">Jadwalkan Water Wash Segera</div>
               </div>
             </div>
           </div>
@@ -699,7 +656,18 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                   </button>
                 </div>
               )}
-
+              {!isPantauCapped && reachedParameters.length > 0 && (
+                /* Notice if any single parameter already reached threshold but overall condition not yet met */
+                <div className="mt-2 text-[11px] text-amber-900 bg-amber-50/95 border border-amber-200 px-3 py-1.5 rounded flex items-start gap-2">
+                  <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">Fokus Operasional (Pemantauan Tren):</span>{' '}
+                    <span>
+                      Parameter <strong>{reachedParameters.map((p) => getParamLabel(p)).join(', ')}</strong> telah melampaui ambang batas awal, namun kondisi unit saat ini masih Normal (belum memenuhi gerbang keputusan Water Wash &ge;{WATER_WASH_DECISION_RULES.minIndicatorsMet} indikator &amp; bobot &ge;{WATER_WASH_DECISION_RULES.minRecommendWeight}%). Berdasarkan catatan historis, unit tidak langsung memerlukan pencucian dalam jangka sesingkat ~{forecastWW} hari; operator diarahkan untuk <strong>memantau tren degradasi harian selama ~{forecastWW} hari ke depan</strong> untuk memverifikasi kestabilan data sebelum evaluasi status berikutnya.
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -778,14 +746,6 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
             <span className="text-slate-700 font-medium">Performa Kompresor Stabil</span>
           </div>
         </div>
-      )}
-
-      {/* 3-Day Parameter Projection Trend Section */}
-      {hasBaseline && projectionSummary && (
-        <ThreeDayProjectionSection
-          forecastSummary={activeSummary}
-          projectionSummary={projectionSummary}
-        />
       )}
 
       {/* Parameter Selector & Metrics Summary Bar */}
