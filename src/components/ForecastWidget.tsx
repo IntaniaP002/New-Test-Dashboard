@@ -137,14 +137,22 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
     dailyRecords,
     cycleStartDate,
     baselineDate,
+    forecastRunningHours,
+    runningHoursPerDay,
+    pantauCapHours,
   } = activeSummary;
+
+  const runningHours = forecastRunningHours ?? (forecastWW !== null ? forecastWW * 4 : null);
+  const rhPerDay = runningHoursPerDay || 4;
 
   // Parameter Projection Summary (3 Days for DUE_NOW or N Days for Normal status)
   const projectionSummary = React.useMemo(() => {
     if (!baseline || !hasBaseline || !parameters) return null;
     const latestRec = dailyRecords[dailyRecords.length - 1];
     const startDate = shouldScopeToSelectedDate && selectedDate ? selectedDate : latestRec?.date;
-    const targetDays = isConditionSatisfied ? 3 : (activeSummary.forecastWW || 3);
+    const targetDays = isConditionSatisfied
+      ? (activeSummary.forecastWW !== null ? activeSummary.forecastWW : 3)
+      : (activeSummary.forecastWW || 3);
     const targetDate = activeSummary.forecastWWDate;
 
     return calculateThreeDayProjection(
@@ -578,29 +586,51 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
           </div>
         </div>
       ) : waterWashStatus === 'DUE_NOW' ? (
-        /* CASE 1: FULL CONDITION SATISFIED: PR AND P3.0 AND (NPHR OR Real Power) -> 3 HARI LAGI (DUE NOW / PERSIAPAN WW 3 HARI) */
+        /* CASE 1: FULL CONDITION SATISFIED: PR AND P3.0 AND (NPHR OR Real Power) -> 12 JAM OPERASI / 3 HARI LAGI */
         <div className="p-4 rounded-md bg-gradient-to-r from-rose-50 via-rose-100/75 to-amber-50 border-2 border-rose-400 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start sm:items-center gap-3.5">
-            <div className="w-14 h-14 rounded-full bg-rose-600 text-white flex flex-col items-center justify-center shrink-0 shadow-md ring-4 ring-rose-200 font-black">
-              <span className="text-base leading-none">3</span>
+            <div className="w-16 h-16 rounded-full bg-rose-600 text-white flex flex-col items-center justify-center shrink-0 shadow-md ring-4 ring-rose-200 font-black">
+              <span className="text-base leading-none font-black">
+                {runningHours !== null ? runningHours : 12}
+              </span>
               <span className="text-[8px] font-extrabold uppercase tracking-wider mt-0.5 text-rose-100 text-center leading-tight">
-                Hari Lagi
+                Jam Operasi
+              </span>
+              <span className="text-[8px] font-bold text-rose-200 leading-none mt-0.5">
+                ({forecastWW !== null ? (forecastWW === 0 ? 'Hari-H' : `${forecastWW} Hari`) : '3 Hari'})
               </span>
             </div>
             <div>
               <div className="text-base sm:text-lg font-black text-rose-950">
-                Water Wash Selanjutnya: <span className="text-rose-700 underline decoration-rose-400 decoration-2">3 Hari Lagi</span>
+                Water Wash Selanjutnya: <span className="text-rose-700 underline decoration-rose-400 decoration-2">
+                  {runningHours !== null ? `${runningHours} Jam Operasi` : '12 Jam Operasi'}
+                </span>
+                <span className="text-rose-900 font-bold text-sm sm:text-base ml-1">
+                  ({forecastWW !== null ? (forecastWW === 0 ? 'Hari-H: Lakukan Water Wash Hari Ini' : `${forecastWW} Hari Lagi`) : '3 Hari Lagi'})
+                </span>
                 {forecastWWDate && (
                   <span className="text-rose-900 font-semibold text-sm sm:text-base">
-                    {' '}(Estimasi: {forecastWWDate})
+                    {' '}(Target: {forecastWWDate})
                   </span>
                 )}
               </div>
-              {baselineDate && (
-                <div className="text-xs text-rose-800 mt-1 flex items-center gap-1.5">
-                  <span>Baseline: <strong>{baselineDate} (Day 0)</strong></span>
-                </div>
-              )}
+              <div className="text-xs text-rose-800 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="bg-rose-100 text-rose-900 px-2 py-0.5 rounded font-semibold border border-rose-300 text-[11px]">
+                  Asumsi: {rhPerDay} Jam Operasi / Hari
+                </span>
+                <span className="text-rose-400">•</span>
+                <span>
+                  {forecastWW !== null && forecastWW > 0
+                    ? `Sisa ${forecastWW} hari kalender prosedur persiapan & cooldown`
+                    : 'Target tanggal pelaksanaan tercapai — laksanakan Water Wash'}
+                </span>
+                {baselineDate && (
+                  <>
+                    <span className="text-rose-400">•</span>
+                    <span>Baseline: <strong>{baselineDate} (Day 0)</strong></span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -615,21 +645,24 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
           </div>
         </div>
       ) : waterWashStatus === 'PROJECTED' && forecastWW !== null ? (
-        /* CASE 2: PROJECTED THRESHOLD CROSSING -> ~X HARI LAGI (STATUS: NORMAL / PANTAU DALAM PEMANTAUAN) */
+        /* CASE 2: PROJECTED THRESHOLD CROSSING -> ~X RUNNING HOURS (ASUMSI 4 JAM/HARI) */
         <div className={`p-4 rounded-md shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 border ${
           isPantauOperationalState
             ? 'bg-gradient-to-r from-amber-50/95 via-sky-50/60 to-slate-50 border-amber-300'
             : 'bg-gradient-to-r from-sky-50/95 via-blue-50/70 to-indigo-50/50 border-sky-300'
         }`}>
           <div className="flex items-start sm:items-center gap-3.5">
-            <div className={`w-14 h-14 rounded-full text-white flex flex-col items-center justify-center shrink-0 shadow-md font-black ring-4 ${
+            <div className={`w-16 h-16 rounded-full text-white flex flex-col items-center justify-center shrink-0 shadow-md font-black ring-4 ${
               isPantauOperationalState || isPantauCapped
                 ? 'bg-amber-600 ring-amber-200'
                 : 'bg-sky-600 ring-sky-200'
             }`}>
-              <span className="text-base leading-none">~{forecastWW}</span>
+              <span className="text-base leading-none font-black">~{runningHours}</span>
               <span className="text-[8px] font-extrabold uppercase tracking-wider mt-0.5 text-sky-100 text-center leading-tight">
-                {isPantauOperationalState || isPantauCapped ? 'Hari' : 'Hari Pantau'}
+                Jam Operasi
+              </span>
+              <span className="text-[8px] font-bold text-sky-200 leading-none mt-0.5">
+                (~{forecastWW} Hari)
               </span>
             </div>
             <div>
@@ -638,16 +671,19 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                   {isPantauOperationalState || isPantauCapped ? (
                     <>
                       Water Wash Selanjutnya:{' '}
-                      <span className={isPantauCapped ? 'text-amber-800' : 'text-sky-700'}>
-                        ~{forecastWW} Hari Lagi
+                      <span className={isPantauCapped ? 'text-amber-800 font-black' : 'text-sky-700 font-black'}>
+                        ~{runningHours} Jam Operasi
                       </span>
                     </>
                   ) : (
                     <>
                       Periode Pemantauan Tren:{' '}
-                      <span className="text-sky-700">~{forecastWW} Hari Lagi</span>
+                      <span className="text-sky-700 font-black">~{runningHours} Jam Operasi</span>
                     </>
                   )}
+                  <span className="text-slate-600 font-bold text-sm sm:text-base ml-1">
+                    (~{forecastWW} Hari Lagi)
+                  </span>
                   {forecastWWDate && (
                     <span className="text-slate-600 font-semibold text-sm sm:text-base">
                       {' '}(Estimasi: {forecastWWDate})
@@ -659,13 +695,17 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                     type="button"
                     onClick={() => setShowPantauDetail((prev) => !prev)}
                     className="inline-flex items-center justify-center w-5 h-5 text-amber-700 hover:text-amber-900 hover:bg-amber-100 border border-amber-300 rounded-full transition-colors cursor-pointer"
-                    title={showPantauDetail ? 'Sembunyikan informasi batas jendela pantau' : 'Informasi: Dibatasi jendela pantau (maks. 15 hari)'}
+                    title={showPantauDetail ? 'Sembunyikan informasi batas jendela pantau' : 'Informasi: Dibatasi jendela pantau (maks. 15 hari / 60 jam operasi)'}
                   >
                     <Info className="w-3 h-3" />
                   </button>
                 )}
               </div>
               <div className="text-xs text-slate-600 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="bg-sky-50 text-sky-900 px-2 py-0.5 rounded font-semibold border border-sky-200 text-[11px]">
+                  Asumsi: <strong>{rhPerDay} Jam Operasi (Running Hours) / Hari</strong>
+                </span>
+                <span className="text-slate-400">•</span>
                 <span>
                   Siklus berjalan: <strong>{dailyRecords.length} data harian</strong>
                 </span>
@@ -683,9 +723,9 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-bold">Dibatasi Jendela Pantau (Maks. {pantauCapDays || 15} Hari):</span>{' '}
+                      <span className="font-bold">Dibatasi Jendela Pantau (Maks. {pantauCapDays || 15} Hari / {pantauCapHours || 60} Jam Operasi):</span>{' '}
                       <span>
-                        Unit saat ini berada dalam <strong>Status Pantau</strong> (bobot lolos ambang batas telah mencapai &ge;50% dengan parameter <strong>{reachedParameters.length > 0 ? reachedParameters.map((p) => getParamLabel(p)).join(', ') : 'PR, P3.0'}</strong> melampaui ambang batas). Proyeksi regresi linier dibatasi maksimal <strong>{pantauCapDays || 15} hari</strong> dengan pertimbangan historis operasional: siklus pemicu Water Wash tercepat adalah <strong>22 hari</strong>, dikurangi <strong>7 hari</strong> minimum observasi regresi (22 &minus; 7 = <strong>15 hari</strong>) untuk menjamin waktu persiapan Water Wash tetap aman dan proporsional.
+                        Unit saat ini berada dalam <strong>Status Pantau</strong> (bobot lolos ambang batas telah mencapai &ge;50% dengan parameter <strong>{reachedParameters.length > 0 ? reachedParameters.map((p) => getParamLabel(p)).join(', ') : 'PR, P3.0'}</strong> melampaui ambang batas). Proyeksi regresi linier dibatasi maksimal <strong>{pantauCapDays || 15} hari ({pantauCapHours || 60} jam operasi)</strong> dengan pertimbangan historis operasional: siklus pemicu Water Wash tercepat adalah <strong>22 hari (88 jam)</strong>, dikurangi <strong>7 hari (28 jam)</strong> minimum observasi regresi (22 &minus; 7 = <strong>15 hari / 60 jam</strong>) untuk menjamin waktu persiapan Water Wash tetap aman dan proporsional.
                       </span>
                     </div>
                   </div>
@@ -752,12 +792,17 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
           </span>
         </div>
       ) : (
-        /* CASE 4: TREND NOT INCREASING (SLOPE <= 0) -> >30 HARI (KONDISI STABIL) */
+        /* CASE 4: TREND NOT INCREASING (SLOPE <= 0) -> >120 JAM OPERASI / >30 HARI (KONDISI STABIL) */
         <div className="p-4 bg-emerald-50/90 border border-emerald-300 rounded text-xs text-emerald-950 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start sm:items-center gap-3.5">
-            <div className="w-14 h-14 rounded-full bg-emerald-600 text-white flex flex-col items-center justify-center shrink-0 shadow-md font-black ring-4 ring-emerald-200">
-              <span className="text-base leading-none">&gt;30</span>
-              <span className="text-[9px] font-bold uppercase tracking-wider mt-0.5 text-emerald-100">Hari</span>
+            <div className="w-16 h-16 rounded-full bg-emerald-600 text-white flex flex-col items-center justify-center shrink-0 shadow-md font-black ring-4 ring-emerald-200">
+              <span className="text-sm leading-none font-black">&gt;120</span>
+              <span className="text-[8px] font-extrabold uppercase tracking-wider mt-0.5 text-emerald-100 text-center leading-tight">
+                Jam Operasi
+              </span>
+              <span className="text-[8px] font-bold text-emerald-200 leading-none mt-0.5">
+                (&gt;30 Hari)
+              </span>
             </div>
             <div>
               <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-2">
@@ -766,10 +811,10 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                 </span>
               </div>
               <div className="text-base font-extrabold text-emerald-950 mt-0.5">
-                Water Wash Selanjutnya: <span className="text-emerald-700">Belum Diperlukan (&gt;30 Hari Lagi)</span>
+                Water Wash Selanjutnya: <span className="text-emerald-700">Belum Diperlukan (&gt;120 Jam Operasi / &gt;30 Hari Lagi)</span>
               </div>
               <p className="text-emerald-800 text-xs mt-1">
-                Laju penurunan performa (slope) pada parameter kunci stabil atau membaik (≤ 0). Kriteria PR AND P3.0 AND (NPHR OR Real Power) tidak diproyeksikan tercapai dalam waktu dekat.
+                Laju penurunan performa (slope) pada parameter kunci stabil atau membaik (≤ 0). Kriteria PR AND P3.0 AND (NPHR OR Real Power) tidak diproyeksikan tercapai dalam waktu dekat (asumsi operasional {rhPerDay} jam/hari).
               </p>
             </div>
           </div>
@@ -816,10 +861,10 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                 }`}
               >
                 {waterWashStatus === 'DUE_NOW'
-                  ? '0 Hari (Due)'
-                  : forecastWW !== null
-                  ? `~${forecastWW} Hari`
-                  : '>30 Hari'}
+                  ? (runningHours !== null ? `${runningHours} Jam (${forecastWW} Hari)` : '12 Jam (3 Hari)')
+                  : runningHours !== null
+                  ? `~${runningHours} Jam (~${forecastWW} Hari)`
+                  : '>120 Jam (>30 Hari)'}
               </span>
             </button>
 
@@ -827,6 +872,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
               const fc = parameters[param];
               const isSelected = selectedParamChart === param;
               const isGoverning = governingParameter === param;
+              const paramHours = fc.hoursToThreshold || (fc.daysToThreshold ? fc.daysToThreshold * 4 : null);
 
               return (
                 <button
@@ -843,7 +889,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                   <span>{getParamLabel(param)}</span>
                   {fc.status === 'THRESHOLD REACHED' ? (
                     <span className="px-1.5 py-0.2 rounded text-[10px] font-black bg-rose-600 text-white">
-                      0 Hari (REACHED)
+                      0 Jam (REACHED)
                     </span>
                   ) : fc.daysToThreshold !== null && fc.daysToThreshold > 0 ? (
                     <span
@@ -853,7 +899,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                           : 'bg-sky-100 text-sky-800'
                       }`}
                     >
-                      ~{fc.daysToThreshold} Hari {isGoverning ? '• Penentu' : ''}
+                      ~{paramHours} Jam (~{fc.daysToThreshold} Hari) {isGoverning ? '• Penentu' : ''}
                     </span>
                   ) : fc.status === 'INSUFFICIENT DATA' ? (
                     <span className="text-[10px] text-amber-700 bg-amber-100 px-1 py-0.2 rounded font-medium">
@@ -861,7 +907,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                     </span>
                   ) : (
                     <span className="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded font-medium">
-                      &gt;30 Hari (Stabil)
+                      &gt;120 Jam (&gt;30 Hari)
                     </span>
                   )}
                 </button>
@@ -974,9 +1020,10 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                       className={
                         activeFc.slope > 0 ? 'text-rose-700 font-bold' : 'text-emerald-700'
                       }
+                      title={`Laju degradasi per hari dan per jam operasi (${rhPerDay} jam/hari)`}
                     >
                       {activeFc.slope > 0 ? '+' : ''}
-                      {activeFc.slope} %/day
+                      {activeFc.slope} %/hari ({activeFc.slopePerHour !== undefined ? activeFc.slopePerHour : (activeFc.slope / rhPerDay).toFixed(4)} %/jam)
                     </strong>
                   </div>
                 )}
@@ -1007,7 +1054,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                 <>
                   <span className="text-slate-400">•</span>
                   <span className="text-sky-800 font-semibold">
-                    Penentu Utama: <strong>{getParamLabel(governingParameter)}</strong> ({waterWashStatus === 'DUE_NOW' ? '0 Hari (Due Now)' : forecastWW !== null ? `~${forecastWW} Hari` : '>30 Hari'})
+                    Penentu Utama: <strong>{getParamLabel(governingParameter)}</strong> ({waterWashStatus === 'DUE_NOW' ? (runningHours !== null ? `${runningHours} Jam (Due Now • ${forecastWW} Hari Lagi)` : '12 Jam (Due Now • 3 Hari)') : runningHours !== null ? `~${runningHours} Jam (~${forecastWW} Hari)` : '>120 Jam'})
                   </span>
                 </>
               )}
@@ -1033,12 +1080,12 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
               {activeFc.status === 'THRESHOLD REACHED' ? (
                 <span className="text-rose-700 font-black flex items-center gap-1">
                   <AlertCircle className="w-3.5 h-3.5" />
-                  Water Wash: 0 Hari Lagi — Ambang batas telah tercapai (Current {activeFc.currentDeterioration}% ≥ Limit {activeFc.threshold}%)
+                  Water Wash: 0 Jam (0 Hari) — Ambang batas telah tercapai (Current {activeFc.currentDeterioration}% ≥ Limit {activeFc.threshold}%)
                 </span>
               ) : activeFc.status === 'FORECAST AVAILABLE' && activeFc.daysToThreshold !== null ? (
                 <span className="text-sky-800 font-bold flex items-center gap-1">
                   <Target className="w-3.5 h-3.5 text-sky-600" />
-                  Water Wash: ~{activeFc.daysToThreshold} Hari Lagi
+                  Water Wash: ~{activeFc.hoursToThreshold || activeFc.daysToThreshold * 4} Jam Operasi (~{activeFc.daysToThreshold} Hari Lagi)
                   {activeFc.estimatedDate && (
                     <span className="text-slate-600 font-normal">
                       (estimasi tanggal: <strong>{activeFc.estimatedDate}</strong>)
@@ -1048,7 +1095,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
               ) : activeFc.status === 'NO PROJECTED THRESHOLD CROSSING' ? (
                 <span className="text-emerald-700 font-medium flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  Water Wash: &gt;30 Hari Lagi (Tren deteriorasi stabil / membaik, slope: {activeFc.slope}%/hari)
+                  Water Wash: &gt;120 Jam Operasi (&gt;30 Hari Lagi) (Tren deteriorasi stabil / membaik, slope: {activeFc.slope}%/hari)
                 </span>
               ) : (
                 <span className="text-amber-700 italic flex items-center gap-1">

@@ -46,6 +46,12 @@ import { checkWaterWashRecommendCondition } from './calculations';
 export const MIN_FORECAST_OBSERVATIONS = 7;
 
 /**
+ * Operating Hours / Running Hours assumption per day.
+ * Supervisor guidance: GT operates ~4 running hours per day.
+ */
+export const DEFAULT_RUNNING_HOURS_PER_DAY = 4;
+
+/**
  * Batas atas (ceiling) hari rekomendasi Water Wash saat mesin berstatus PANTAU / MONITORING.
  * Justifikasi: Siklus rekomendasi Water Wash tercepat berdasarkan data historis adalah 22 hari.
  * Karena dibutuhkan minimal 7 hari observasi data harian untuk membentuk regresi linier,
@@ -378,6 +384,10 @@ export function calculateParameterForecast(
       intercept: null,
       rSquared: null,
       daysToThreshold: null,
+      exactDaysToThreshold: null,
+      hoursToThreshold: 0,
+      exactHoursToThreshold: 0,
+      slopePerHour: null,
       estimatedDate: null,
       status: 'THRESHOLD REACHED',
       elapsedDaysData: validPoints.map((p) => ({
@@ -507,6 +517,9 @@ export function calculateParameterForecast(
   const exactDays = remainingDet / slope;
   const daysToThreshold = Math.max(1, Math.round(exactDays));
   const exactDaysToThreshold = Number(exactDays.toFixed(1));
+  const hoursToThreshold = daysToThreshold * DEFAULT_RUNNING_HOURS_PER_DAY;
+  const exactHoursToThreshold = Number((exactDays * DEFAULT_RUNNING_HOURS_PER_DAY).toFixed(1));
+  const slopePerHour = Number((slope / DEFAULT_RUNNING_HOURS_PER_DAY).toFixed(5));
 
   // Projected calendar date = Latest Input History Date + Days to Threshold
   const latestDateObj = new Date(latestPoint.date + 'T00:00:00');
@@ -525,10 +538,13 @@ export function calculateParameterForecast(
     isAvailable: true,
     validDaysCount: validPoints.length,
     slope,
+    slopePerHour,
     intercept,
     rSquared,
     daysToThreshold,
     exactDaysToThreshold,
+    hoursToThreshold,
+    exactHoursToThreshold,
     estimatedDate,
     status: 'FORECAST AVAILABLE',
     elapsedDaysData,
@@ -751,12 +767,29 @@ export function calculateOverallForecast(
   const activeRefDate = referenceDate || (latestDate && todayLocalStr >= latestDate ? todayLocalStr : latestDate);
 
   if (isConditionSatisfied) {
-    // When threshold is reached: display 3 days lead-time for Water Wash preparation
-    forecastWW = 3;
-    const baseDateForWW = (activeRefDate && latestDate && activeRefDate >= latestDate) ? activeRefDate : (latestDate || todayLocalStr);
-    const d = new Date(baseDateForWW + 'T00:00:00');
+    // When threshold is reached: 3 days lead-time for Water Wash preparation
+    // Find the record date where Water Wash was first recommended/satisfied in this cycle
+    let triggerDate = latestDate || todayLocalStr;
+    for (const rec of cycleRecords) {
+      if (rec.overallStatus === 'RECOMMEND WATER WASH') {
+        triggerDate = rec.date;
+        break;
+      }
+    }
+
+    // Anchor target execution date to trigger date + 3 calendar days
+    const d = new Date(triggerDate + 'T00:00:00');
     d.setDate(d.getDate() + 3);
     forecastWWDate = d.toISOString().slice(0, 10);
+
+    // Active calendar countdown:
+    // If viewing on subsequent days (e.g. triggered 20 Sept -> 21 Sept shows 2 days remaining)
+    if (activeRefDate && triggerDate && activeRefDate >= triggerDate) {
+      const remainingDays = getCalendarDaysBetween(activeRefDate, forecastWWDate);
+      forecastWW = Math.max(0, remainingDays);
+    } else {
+      forecastWW = 3;
+    }
   } else if (forecastWW !== null && forecastWW > 0 && latestDate) {
     // Determine the fixed target date based on latest dataset date + projected days
     const targetObj = new Date(latestDate + 'T00:00:00');
@@ -792,7 +825,7 @@ export function calculateOverallForecast(
 
   if (isConditionSatisfied) {
     waterWashStatus = 'DUE_NOW';
-    daysUntilNextWaterWash = 3; // Updated from 0 to 3 days
+    daysUntilNextWaterWash = forecastWW;
   } else if (cycleRecords.length < MIN_FORECAST_OBSERVATIONS) {
     waterWashStatus = 'INSUFFICIENT_DATA';
     daysUntilNextWaterWash = null;
@@ -818,14 +851,22 @@ export function calculateOverallForecast(
   }
 
   const hasForecast = forecastWW !== null;
+  const forecastRunningHours = forecastWW !== null ? forecastWW * DEFAULT_RUNNING_HOURS_PER_DAY : null;
+  const rawForecastRunningHours = rawForecastWW !== null ? rawForecastWW * DEFAULT_RUNNING_HOURS_PER_DAY : null;
+  const runningHoursUntilNextWaterWash = daysUntilNextWaterWash !== null ? daysUntilNextWaterWash * DEFAULT_RUNNING_HOURS_PER_DAY : null;
 
   return {
     hasForecast,
     forecastWW,
     rawForecastWW,
+    forecastRunningHours,
+    rawForecastRunningHours,
+    runningHoursUntilNextWaterWash,
+    runningHoursPerDay: DEFAULT_RUNNING_HOURS_PER_DAY,
     isPantauOperationalState,
     isPantauCapped,
     pantauCapDays: MAX_PANTAU_FORECAST_DAYS,
+    pantauCapHours: MAX_PANTAU_FORECAST_DAYS * DEFAULT_RUNNING_HOURS_PER_DAY,
     pantauExplanation,
     forecastWWDate,
     governingParameter: governingParam,
@@ -835,10 +876,16 @@ export function calculateOverallForecast(
     forecastDaysNPHR: daysNPHR,
     forecastDaysPower: daysPower,
     forecastDaysAux: daysAux,
+    forecastHoursPR: daysPR !== null ? daysPR * DEFAULT_RUNNING_HOURS_PER_DAY : null,
+    forecastHoursP3: daysP3 !== null ? daysP3 * DEFAULT_RUNNING_HOURS_PER_DAY : null,
+    forecastHoursNPHR: daysNPHR !== null ? daysNPHR * DEFAULT_RUNNING_HOURS_PER_DAY : null,
+    forecastHoursPower: daysPower !== null ? daysPower * DEFAULT_RUNNING_HOURS_PER_DAY : null,
+    forecastHoursAux: daysAux !== null ? daysAux * DEFAULT_RUNNING_HOURS_PER_DAY : null,
     isConditionSatisfied,
     nearestParameter: nearestParam,
     nearestDisplayName: nearestParam ? parameters[nearestParam].displayName : null,
     nearestDays: minDays !== Infinity ? minDays : null,
+    nearestHours: minDays !== Infinity ? minDays * DEFAULT_RUNNING_HOURS_PER_DAY : null,
     nearestDate: nearestParam ? parameters[nearestParam].estimatedDate : null,
     hasThresholdReached: reachedParameters.length > 0,
     reachedParameters,
@@ -869,10 +916,10 @@ export function calculateThreeDayProjection(
   const baseDate = startDateStr || latestRecord?.date || new Date().toISOString().slice(0, 10);
   const baseDateObj = new Date(baseDate + 'T00:00:00');
 
-  // If threshold reached: 3 days window for WW preparation.
+  // If threshold reached: window for WW preparation (max of remaining days, default 3).
   // If Normal status: project full estimated days (e.g. 29 days).
   const count = isConditionSatisfied
-    ? 3
+    ? Math.max(1, targetDaysCount ?? 3)
     : targetDaysCount && targetDaysCount > 0
     ? Math.min(Math.max(targetDaysCount, 1), 180)
     : 3;
@@ -982,8 +1029,10 @@ export function calculateThreeDayProjection(
 
     return {
       dayOffset: offset,
+      runningHoursOffset: offset * DEFAULT_RUNNING_HOURS_PER_DAY,
       date,
       dayLabel,
+      runningHoursLabel: `+${offset * DEFAULT_RUNNING_HOURS_PER_DAY} Jam`,
       focusLabel,
       PR: paramMap.PR,
       P3_0: paramMap.P3_0,
@@ -1000,6 +1049,7 @@ export function calculateThreeDayProjection(
     startDate: baseDate,
     targetWaterWashDate,
     totalDays: count,
+    totalRunningHours: count * DEFAULT_RUNNING_HOURS_PER_DAY,
     days,
     governingParameter: null,
     overallDeteriorationTrend: 'STEADY',

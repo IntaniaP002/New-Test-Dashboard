@@ -159,6 +159,9 @@ export interface ParameterForecast {
   // Forecast output
   daysToThreshold: number | null;
   exactDaysToThreshold?: number | null;
+  hoursToThreshold?: number | null; // daysToThreshold * RUNNING_HOURS_PER_DAY (4 hours/day)
+  exactHoursToThreshold?: number | null;
+  slopePerHour?: number | null; // % / Running Hour
   estimatedDate: string | null; // YYYY-MM-DD
   status: ForecastStatus;
 }
@@ -176,8 +179,10 @@ export interface DailyParamProjection {
 
 export interface ThreeDayProjectionPoint {
   dayOffset: number; // 1, 2, 3
+  runningHoursOffset: number; // 4, 8, 12, ... (running hours cumulative)
   date: string; // YYYY-MM-DD
   dayLabel: string; // "H+1", "H+2", "H+3"
+  runningHoursLabel: string; // "+4 Jam", "+8 Jam", "+12 Jam"
   focusLabel: string; // e.g. "Persiapan", "Cooldown", "Eksekusi WW"
   PR: DailyParamProjection;
   P3_0: DailyParamProjection;
@@ -191,6 +196,7 @@ export interface ThreeDayProjectionSummary {
   startDate: string; // YYYY-MM-DD (H-0)
   targetWaterWashDate: string; // YYYY-MM-DD (H+3 or H+N)
   totalDays: number; // e.g. 3 or 29
+  totalRunningHours: number; // totalDays * 4 (e.g. 12 or 116)
   days: ThreeDayProjectionPoint[];
   governingParameter: ForecastParameter | null;
   overallDeteriorationTrend: 'ACCELERATING' | 'STEADY' | 'STABLE';
@@ -203,6 +209,10 @@ export interface OverallForecastSummary {
   hasForecast: boolean;
   forecastWW: number | null; // Forecast WW in days: MAX(PR, P3.0, MIN(NPHR, Real Power))
   forecastWWDate: string | null; // Projected date for WW (YYYY-MM-DD)
+  forecastRunningHours: number | null; // Forecast WW in Running Hours (forecastWW * 4)
+  rawForecastRunningHours?: number | null;
+  runningHoursUntilNextWaterWash: number | null;
+  runningHoursPerDay: number; // default 4
   governingParameter: ForecastParameter | null;
   governingDisplayName: string | null;
   forecastDaysPR: number | null;
@@ -210,10 +220,16 @@ export interface OverallForecastSummary {
   forecastDaysNPHR: number | null;
   forecastDaysPower: number | null;
   forecastDaysAux: number | null; // MIN(Forecast NPHR, Forecast Real Power)
+  forecastHoursPR?: number | null;
+  forecastHoursP3?: number | null;
+  forecastHoursNPHR?: number | null;
+  forecastHoursPower?: number | null;
+  forecastHoursAux?: number | null;
   isConditionSatisfied: boolean; // PR AND P3.0 AND (NPHR OR Real Power)
   nearestParameter: ForecastParameter | null;
   nearestDisplayName: string | null;
   nearestDays: number | null;
+  nearestHours?: number | null;
   nearestDate: string | null;
   hasThresholdReached: boolean;
   reachedParameters: ForecastParameter[];
@@ -223,6 +239,7 @@ export interface OverallForecastSummary {
   isPantauCapped?: boolean;
   rawForecastWW?: number | null;
   pantauCapDays?: number;
+  pantauCapHours?: number;
   pantauExplanation?: string | null;
   parameters: Record<ForecastParameter, ParameterForecast>;
   dailyRecords: OperationalRecord[]; // The Input History daily records for the current cycle

@@ -50,6 +50,7 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
 
   const { days, startDate, targetWaterWashDate } = projectionSummary;
   const totalDays = projectionSummary.totalDays || days.length || 3;
+  const totalRunningHours = projectionSummary.totalRunningHours || (totalDays * 4);
   const isMultiDay = totalDays > 3;
 
   // Day selection for multi-day card view
@@ -75,23 +76,27 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
   const chartData = useMemo(() => {
     return [
       {
-        label: 'H-0',
-        fullLabel: 'H-0 (Terkini)',
+        label: 'H-0 (0 Jam)',
+        fullLabel: 'H-0 (Terkini - 0 Jam Operasi)',
         date: startDate,
         PR: forecastSummary.parameters.PR.currentDeterioration ?? 0,
         P3_0: forecastSummary.parameters.P3_0.currentDeterioration ?? 0,
         NPHR: forecastSummary.parameters.NPHR.currentDeterioration ?? 0,
         realPower: forecastSummary.parameters.realPower.currentDeterioration ?? 0,
       },
-      ...days.map((d) => ({
-        label: d.dayLabel,
-        fullLabel: `${d.dayLabel} (${d.date})`,
-        date: d.date,
-        PR: d.PR.deterioration,
-        P3_0: d.P3_0.deterioration,
-        NPHR: d.NPHR.deterioration,
-        realPower: d.realPower.deterioration,
-      })),
+      ...days.map((d) => {
+        const rh = d.runningHoursOffset || d.dayOffset * 4;
+        return {
+          label: `${d.dayLabel} (+${rh} Jam)`,
+          fullLabel: `${d.dayLabel} (+${rh} Jam Operasi • ${d.date})`,
+          date: d.date,
+          runningHours: rh,
+          PR: d.PR.deterioration,
+          P3_0: d.P3_0.deterioration,
+          NPHR: d.NPHR.deterioration,
+          realPower: d.realPower.deterioration,
+        };
+      }),
     ];
   }, [startDate, days, forecastSummary.parameters]);
 
@@ -158,7 +163,7 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
                     : 'bg-slate-800 text-white'
                 }`}
               >
-                {day.dayLabel}
+                {day.dayLabel} • +{day.runningHoursOffset || day.dayOffset * 4} Jam
               </span>
               <span className="text-xs font-bold text-slate-900">
                 {formatDateIndo(day.date)}
@@ -316,8 +321,8 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-sm sm:text-base font-black text-slate-900">
                 {isDueWindow
-                  ? 'Proyeksi Tren Parameter 3 Hari Menuju Water Wash'
-                  : `Proyeksi Tren Parameter ${totalDays} Hari Menuju Water Wash`}
+                  ? `Proyeksi Tren Parameter ${totalRunningHours} Jam Operasi (${totalDays} Hari) Menuju Water Wash`
+                  : `Proyeksi Tren Parameter ${totalRunningHours} Jam Operasi (${totalDays} Hari) Menuju Water Wash`}
               </h3>
               <span
                 className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
@@ -326,15 +331,21 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
                     : 'bg-sky-100 text-sky-800 border-sky-300'
                 }`}
               >
-                {isDueWindow ? 'JENDELA 3 HARI' : `PREDIKSI ${totalDays} HARI`}
+                {isDueWindow ? `JENDELA ${totalRunningHours} JAM OPERASI (${totalDays} HARI)` : `PREDIKSI ${totalRunningHours} JAM OPERASI`}
               </span>
             </div>
-            {targetWaterWashDate && (
-              <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                <span>Target Estimasi: <strong>{formatDateIndo(targetWaterWashDate)}</strong></span>
-              </p>
-            )}
+            <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5 flex-wrap">
+              {targetWaterWashDate && (
+                <span className="flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Target Estimasi: <strong>{formatDateIndo(targetWaterWashDate)}</strong></span>
+                </span>
+              )}
+              <span className="text-slate-300">•</span>
+              <span className="text-sky-800 font-semibold bg-sky-50 px-2 py-0.5 rounded border border-sky-200 text-[11px]">
+                Asumsi: 4 Jam Operasi (Running Hours) / Hari
+              </span>
+            </div>
           </div>
         </div>
 
@@ -423,7 +434,7 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
                       title={`Geser untuk memilih hari H+1 s/d H+${totalDays}`}
                     />
                     <span className="font-mono font-bold text-sky-700 px-2 py-0.5 bg-sky-50 rounded border border-sky-200 text-xs">
-                      H+{selectedDayOffset}
+                      H+{selectedDayOffset} (+{selectedDayOffset * 4} Jam)
                     </span>
                   </div>
 
@@ -485,7 +496,7 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
             <div className="bg-white p-4 rounded-lg border border-slate-200">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3 text-xs text-slate-600">
                 <span className="font-bold text-slate-800">
-                  Grafik Proyeksi Laju Deteriorasi Parameter (%) — {totalDays} Hari ke Depan
+                  Grafik Proyeksi Laju Deteriorasi Parameter (%) — {totalRunningHours} Jam Operasi ({totalDays} Hari ke Depan • Asumsi 4 Jam/Hari)
                 </span>
                 <span className="text-[11px] text-slate-500">
                   Garis putus-putus menunjukkan ambang batas (PR 2.5%, P3.0 2.5%, NPHR 3.0%, Power 4.0%)
@@ -627,10 +638,11 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
                       <tr>
                         <th className="py-2.5 px-3">Parameter</th>
                         <th className="py-2.5 px-3">Ambang Batas</th>
-                        <th className="py-2.5 px-3">Hari Ini (H-0)</th>
+                        <th className="py-2.5 px-3">Hari Ini (H-0 • 0 Jam)</th>
                         {milestoneIndices.map((idx) => {
                           const d = days[idx];
                           const isLast = idx === days.length - 1;
+                          const rh = d?.runningHoursOffset || (d ? d.dayOffset * 4 : 0);
                           return (
                             <th
                               key={idx}
@@ -638,7 +650,7 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
                                 isLast ? 'bg-rose-50 text-rose-950 font-black' : ''
                               }`}
                             >
-                              {d?.dayLabel} ({formatDateIndo(d?.date)})
+                              {d?.dayLabel} (+{rh} Jam • {formatDateIndo(d?.date)})
                               {isLast ? ' - Target WW' : ''}
                             </th>
                           );
@@ -782,6 +794,7 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold sticky top-0 z-10">
                       <tr>
                         <th className="py-2.5 px-3">Hari</th>
+                        <th className="py-2.5 px-3">Jam Operasi</th>
                         <th className="py-2.5 px-3">Tanggal</th>
                         <th className="py-2.5 px-3">Fokus / Tahap</th>
                         <th className="py-2.5 px-3">PR (&le;2.5%)</th>
@@ -794,6 +807,7 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
                     <tbody className="divide-y divide-slate-100">
                       {days.map((day) => {
                         const isTarget = day.dayOffset === totalDays;
+                        const rh = day.runningHoursOffset || day.dayOffset * 4;
                         return (
                           <tr
                             key={day.dayOffset}
@@ -811,6 +825,9 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
                               >
                                 {day.dayLabel}
                               </span>
+                            </td>
+                            <td className="py-2 px-3 font-mono font-bold text-sky-800 text-[11px]">
+                              +{rh} Jam
                             </td>
                             <td className="py-2 px-3 text-slate-700">
                               {formatDateIndo(day.date)}
