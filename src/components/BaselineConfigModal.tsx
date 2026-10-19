@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { BaselineConfig, OperationalRecord } from '../types';
 import { DEFAULT_BASELINE, DEFAULT_THRESHOLDS } from '../data/initialData';
-import { aggregateRecordsByDailyMedian } from '../utils/calculations';
+import { aggregateRecordsByDailyAverage } from '../utils/calculations';
 
 interface BaselineConfigModalProps {
   isOpen: boolean;
@@ -37,9 +37,9 @@ export const BaselineConfigModal: React.FC<BaselineConfigModalProps> = ({
 
   const [activeTab, setActiveTab] = useState<'records' | 'manual'>('records');
 
-  // Compute daily median consolidated records for baseline selection
+  // Compute daily average consolidated records for baseline selection
   const displayedRecords = useMemo(() => {
-    return aggregateRecordsByDailyMedian(records, activeBaseline, DEFAULT_THRESHOLDS);
+    return aggregateRecordsByDailyAverage(records, activeBaseline, DEFAULT_THRESHOLDS);
   }, [records, activeBaseline]);
 
   // Manual form state
@@ -84,9 +84,9 @@ export const BaselineConfigModal: React.FC<BaselineConfigModalProps> = ({
 
   const handleApplyRecordBaseline = (record: OperationalRecord) => {
     const pr = record.P1_7 > 0 ? Number((record.P3_0 / record.P1_7).toFixed(4)) : record.pr;
-    const isMedian = record.isDailyMedian || record.time?.toLowerCase().includes('median');
-    const desc = isMedian
-      ? `Daily median baseline from ${record.date}${
+    const isAvg = record.isDailyAverage || record.isDailyMedian || record.time?.toLowerCase().includes('average') || record.time?.toLowerCase().includes('median');
+    const desc = isAvg
+      ? `Daily average baseline from ${record.date}${
           record.hourlyObservationsCount && record.hourlyObservationsCount > 1
             ? ` (${record.hourlyObservationsCount} readings)`
             : ''
@@ -103,7 +103,7 @@ export const BaselineConfigModal: React.FC<BaselineConfigModalProps> = ({
       nphr: record.nphr,
       sourceRecordId: record.id,
       date: record.date,
-      time: isMedian ? 'Daily Median' : record.time,
+      time: isAvg ? 'Daily Average' : record.time,
       referenceDescription: desc,
       setAt: new Date().toISOString(),
     };
@@ -157,7 +157,7 @@ export const BaselineConfigModal: React.FC<BaselineConfigModalProps> = ({
       return true;
     }
     if (activeBaseline.date === r.date) {
-      if (r.isDailyMedian || activeBaseline.time?.toLowerCase().includes('median')) return true;
+      if (r.isDailyAverage || r.isDailyMedian || activeBaseline.time?.toLowerCase().includes('average') || activeBaseline.time?.toLowerCase().includes('median')) return true;
       if (activeBaseline.time === r.time) return true;
     }
     if (

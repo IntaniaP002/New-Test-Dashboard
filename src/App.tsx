@@ -18,7 +18,7 @@ import {
   WATER_WASH_DECISION_RULES,
 } from './data/initialData';
 import {
-  aggregateRecordsByDailyMedian,
+  aggregateRecordsByDailyAverage,
   compareRecordsChronologically,
   deriveWaterWashEvents,
   evaluateOperationalRecord,
@@ -144,7 +144,7 @@ export default function App() {
 
   // "Input History" table dataset: single representative daily record per date
   const inputHistoryRecords = useMemo(() => {
-    return aggregateRecordsByDailyMedian(evaluatedRecords, baseline, thresholds);
+    return aggregateRecordsByDailyAverage(evaluatedRecords, baseline, thresholds);
   }, [evaluatedRecords, baseline, thresholds]);
 
   // Water Washing evaluation is based on the latest input history data
@@ -262,10 +262,10 @@ export default function App() {
         realPower: pw,
         nphr: hr,
         date: firstDate,
-        time: firstDayInputs.length > 1 ? 'Daily Median' : newInputs[0].time,
+        time: firstDayInputs.length > 1 ? 'Daily Average' : newInputs[0].time,
         referenceDescription:
           firstDayInputs.length > 1
-            ? `Imported daily median baseline (${firstDate}, ${firstDayInputs.length} readings)`
+            ? `Imported daily average baseline (${firstDate}, ${firstDayInputs.length} readings)`
             : `Imported baseline (${firstDate} ${newInputs[0].time})`,
         setAt: new Date().toISOString(),
       };
@@ -346,9 +346,9 @@ export default function App() {
     const p3 = record.P3_0;
     const pr = p1 > 0 ? Number((p3 / p1).toFixed(4)) : null;
 
-    const isMedian = record.isDailyMedian || record.time?.toLowerCase().includes('median');
-    const desc = isMedian
-      ? `Daily median baseline from ${record.date}${
+    const isAvg = record.isDailyAverage || record.isDailyMedian || record.time?.toLowerCase().includes('average') || record.time?.toLowerCase().includes('median');
+    const desc = isAvg
+      ? `Daily average baseline from ${record.date}${
           record.hourlyObservationsCount && record.hourlyObservationsCount > 1
             ? ` (${record.hourlyObservationsCount} readings)`
             : ''
@@ -359,7 +359,7 @@ export default function App() {
       isConfigured: true,
       sourceRecordId: record.id,
       date: record.date,
-      time: isMedian ? 'Daily Median' : record.time,
+      time: isAvg ? 'Daily Average' : record.time,
       T1_7: record.T1_7,
       P1_7: p1,
       P3_0: p3,

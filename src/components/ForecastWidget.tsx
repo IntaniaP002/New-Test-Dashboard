@@ -219,9 +219,9 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
       const weight = record?.performanceIndex ?? 80;
       statusText = `Recommend Water Wash (${weight}%)`;
       badgeClass = 'text-rose-800 font-extrabold';
-    } else if (record?.overallStatus === 'MONITORING' || isPantauOperationalState) {
+    } else if (record?.overallStatus === 'CAUTION' || record?.overallStatus === 'MONITORING' || isPantauOperationalState) {
       const weight = record?.performanceIndex ?? 60;
-      statusText = `Pantau / Monitoring (${weight}%)`;
+      statusText = `Caution (${weight}%)`;
       badgeClass = 'text-amber-800 font-bold';
     }
 
@@ -689,17 +689,17 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                       {' '}(Estimasi: {forecastWWDate})
                     </span>
                   )}
+                  {isPantauCapped && (
+                    <button
+                      type="button"
+                      onClick={() => setShowPantauDetail((prev) => !prev)}
+                      className="inline-flex items-center justify-center w-5 h-5 ml-1.5 text-amber-700 hover:text-amber-900 hover:bg-amber-100 border border-amber-300 rounded-full transition-colors cursor-pointer align-middle"
+                      title={showPantauDetail ? 'Sembunyikan informasi batas jendela Caution' : 'Informasi: Dibatasi jendela Caution (maks. 15 hari / 60 jam operasi)'}
+                    >
+                      <Info className="w-3 h-3" />
+                    </button>
+                  )}
                 </span>
-                {isPantauCapped && (
-                  <button
-                    type="button"
-                    onClick={() => setShowPantauDetail((prev) => !prev)}
-                    className="inline-flex items-center justify-center w-5 h-5 text-amber-700 hover:text-amber-900 hover:bg-amber-100 border border-amber-300 rounded-full transition-colors cursor-pointer"
-                    title={showPantauDetail ? 'Sembunyikan informasi batas jendela pantau' : 'Informasi: Dibatasi jendela pantau (maks. 15 hari / 60 jam operasi)'}
-                  >
-                    <Info className="w-3 h-3" />
-                  </button>
-                )}
               </div>
               <div className="text-xs text-slate-600 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="bg-sky-50 text-sky-900 px-2 py-0.5 rounded font-semibold border border-sky-200 text-[11px]">
@@ -723,9 +723,9 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-bold">Dibatasi Jendela Pantau (Maks. {pantauCapDays || 15} Hari / {pantauCapHours || 60} Jam Operasi):</span>{' '}
+                      <span className="font-bold">Dibatasi Jendela Caution (Maks. {pantauCapDays || 15} Hari / {pantauCapHours || 60} Jam Operasi):</span>{' '}
                       <span>
-                        Unit saat ini berada dalam <strong>Status Pantau</strong> (bobot lolos ambang batas telah mencapai &ge;50% dengan parameter <strong>{reachedParameters.length > 0 ? reachedParameters.map((p) => getParamLabel(p)).join(', ') : 'PR, P3.0'}</strong> melampaui ambang batas). Proyeksi regresi linier dibatasi maksimal <strong>{pantauCapDays || 15} hari ({pantauCapHours || 60} jam operasi)</strong> dengan pertimbangan historis operasional: siklus pemicu Water Wash tercepat adalah <strong>22 hari (88 jam)</strong>, dikurangi <strong>7 hari (28 jam)</strong> minimum observasi regresi (22 &minus; 7 = <strong>15 hari / 60 jam</strong>) untuk menjamin waktu persiapan Water Wash tetap aman dan proporsional.
+                        Unit saat ini berada dalam <strong>Status Caution</strong> (bobot lolos ambang batas telah mencapai &ge;50% dengan parameter <strong>{reachedParameters.length > 0 ? reachedParameters.map((p) => getParamLabel(p)).join(', ') : 'PR, P3.0'}</strong> melampaui ambang batas). Proyeksi regresi linier dibatasi maksimal <strong>{pantauCapDays || 15} hari ({pantauCapHours || 60} jam operasi)</strong> dengan pertimbangan historis operasional: siklus pemicu Water Wash tercepat adalah <strong>22 hari (88 jam)</strong>, dikurangi <strong>7 hari (28 jam)</strong> minimum observasi regresi (22 &minus; 7 = <strong>15 hari / 60 jam</strong>) untuk menjamin waktu persiapan Water Wash tetap aman dan proporsional.
                       </span>
                     </div>
                   </div>
@@ -752,11 +752,11 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                   forecastWW <= 4 ? (
                     <span className="text-rose-700 font-bold">Siapkan jadwal Off-line WW</span>
                   ) : (
-                    <span className="text-amber-700 font-semibold">Pantau kondisi operasi</span>
+                    <span className="text-amber-700 font-semibold">Caution: Perhatikan kondisi operasi</span>
                   )
                 ) : (
                   forecastWW <= 7 ? (
-                    <span className="text-amber-700 font-semibold">Pantau tren harian secara ketat (Bukan persiapan WW)</span>
+                    <span className="text-amber-700 font-semibold">Caution: Pengawasan tren harian ketat (Bukan persiapan WW)</span>
                   ) : (
                     <span className="text-emerald-700 font-medium">Kondisi operasional normal</span>
                   )

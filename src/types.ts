@@ -20,6 +20,7 @@ export type OverallWaterWashStatus =
   | 'NORMAL'
   | 'EARLY MONITORING'
   | 'MONITORING'
+  | 'CAUTION'
   | 'RECOMMEND WATER WASH'
   | 'INSUFFICIENT DATA';
 
@@ -86,10 +87,11 @@ export interface OperationalRecord extends OperationalInput {
   physicalDataErrors?: string[];
   dataQualityWarning?: string | null;
 
-  // Hourly to Daily Median Aggregation metadata
+  // Hourly to Daily Average Aggregation metadata
   hourlyObservationsCount?: number; // Number of hourly readings aggregated
   sourceRecordIds?: string[]; // IDs of underlying hourly records
-  isDailyMedian?: boolean; // Indicates whether this record is a daily median consolidation
+  isDailyMedian?: boolean; // Indicates whether this record is a daily consolidated (average) record
+  isDailyAverage?: boolean;
 }
 
 export interface ThresholdConfig {
@@ -110,7 +112,7 @@ export interface DailyRepresentativeRecord {
   totalHourlyCount: number;
   methodUsed: '19-21_window' | 'max_load_fallback' | 'all_available';
   
-  // Median values
+  // Average values
   PR: number;
   P3_0: number;
   nphr: number;
@@ -267,8 +269,10 @@ export interface WaterWashEvent {
   id: string;
   eventNumber: number;
   date: string; // YYYY-MM-DD
-  preRecordId?: string; // H-1
-  postRecordId?: string; // H+1
+  preRecordId?: string; // Last operating record before wash
+  postRecordId?: string; // Operating record after wash (H+1)
+  preDaysDiff?: number; // Number of days before wash (e.g. 1 for H-1, 3 for 6th Oct when wash is 9th)
+  postDaysDiff?: number; // Number of days after wash (e.g. 1 for H+1)
   preRecord?: OperationalRecord;
   postRecord?: OperationalRecord;
   preDailyRepresentative?: DailyRepresentativeRecord;

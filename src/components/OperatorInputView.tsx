@@ -24,7 +24,7 @@ import {
   OperationalRecord,
   ThresholdConfig,
 } from '../types';
-import { calculatePressureRatio, aggregateRecordsByDailyMedian } from '../utils/calculations';
+import { calculatePressureRatio, aggregateRecordsByDailyAverage } from '../utils/calculations';
 import { exportOperationalRecordsCSV, exportOperationalRecordsExcel } from '../utils/export';
 
 interface OperatorInputViewProps {
@@ -82,7 +82,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     if (inputHistoryRecords && inputHistoryRecords.length > 0) {
       return inputHistoryRecords;
     }
-    return aggregateRecordsByDailyMedian(records, baseline, thresholds);
+    return aggregateRecordsByDailyAverage(records, baseline, thresholds);
   }, [inputHistoryRecords, records, baseline, thresholds]);
 
   // Automatic calculation of PR = P3.0 / P1.7
@@ -134,7 +134,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
       return true;
     }
     if (baseline.date === r.date) {
-      if (r.isDailyMedian || baseline.time?.toLowerCase().includes('median')) return true;
+      if (r.isDailyMedian || r.isDailyAverage || baseline.time?.toLowerCase().includes('average') || baseline.time?.toLowerCase().includes('median')) return true;
       if (baseline.time && r.time && baseline.time === r.time) return true;
     }
     if (
@@ -607,8 +607,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                             }}
                             className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 transition-colors shadow-2xs"
                             title={
-                              r.isDailyMedian
-                                ? `Click to set daily median of ${r.date} as the active baseline reference`
+                              (r.isDailyMedian || r.isDailyAverage)
+                                ? `Click to set daily average of ${r.date} as the active baseline reference`
                                 : `Click to set reading (${r.date} ${r.time}) as the active baseline reference`
                             }
                           >

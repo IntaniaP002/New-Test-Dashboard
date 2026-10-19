@@ -74,7 +74,7 @@ export function evaluateWaterWashDecision(params: {
   } else if (isRecommendWaterWash) {
     overallStatus = 'RECOMMEND WATER WASH';
   } else if (isBobotInPantauRange || isNphrEarlyMonitoring) {
-    overallStatus = 'MONITORING';
+    overallStatus = 'CAUTION';
   } else {
     overallStatus = 'NORMAL';
   }
@@ -453,8 +453,8 @@ export function evaluateOperationalRecord(
     overallStatus = 'RECOMMEND WATER WASH';
     statusExplanation = `${thresholdsMetCount} of 4 parameter thresholds met with combined weight ${bobotLolos}%.`;
   } else if (isBobotInPantauRange || isNphrEarlyMonitoring) {
-    // Target: else if (bobotLolos berada di rentang Pantau) ATAU (deteriorasi NPHR >= nphrEarlyMonitoring) -> PANTAU
-    overallStatus = 'MONITORING';
+    // Target: else if (bobotLolos berada di rentang Caution) ATAU (deteriorasi NPHR >= nphrEarlyMonitoring) -> CAUTION
+    overallStatus = 'CAUTION';
     const reachedNames = [
       prThresholdReached ? 'PR' : '',
       p3ThresholdReached ? 'P3.0' : '',
@@ -462,11 +462,11 @@ export function evaluateOperationalRecord(
       nphrThresholdReached ? 'NPHR' : '',
     ].filter(Boolean);
     if (isNphrEarlyMonitoring && !isBobotInPantauRange) {
-      statusExplanation = `Status Pantau: Deteriorasi NPHR ${nphrDeterioration?.toFixed(1)}% mencapai batas early monitoring (≥${thresholds.nphrEarlyMonitoring}%). Bobot indikator lolos: ${bobotLolos}%.`;
+      statusExplanation = `Status Caution: Deteriorasi NPHR ${nphrDeterioration?.toFixed(1)}% mencapai batas early monitoring (≥${thresholds.nphrEarlyMonitoring}%). Bobot indikator lolos: ${bobotLolos}%.`;
     } else if (reachedNames.length > 0) {
-      statusExplanation = `Status Pantau: Bobot indikator lolos ${bobotLolos}% (rentang ${WATER_WASH_DECISION_RULES.minPantauWeight}% - ${WATER_WASH_DECISION_RULES.maxPantauWeight}%). Parameter lolos ambang: ${reachedNames.join(', ')} (${thresholdsMetCount}/4).`;
+      statusExplanation = `Status Caution: Bobot indikator lolos ${bobotLolos}% (rentang ${WATER_WASH_DECISION_RULES.minPantauWeight}% - ${WATER_WASH_DECISION_RULES.maxPantauWeight}%). Parameter lolos ambang: ${reachedNames.join(', ')} (${thresholdsMetCount}/4).`;
     } else {
-      statusExplanation = `Status Pantau: Bobot indikator lolos ${bobotLolos}% (rentang ${WATER_WASH_DECISION_RULES.minPantauWeight}% - ${WATER_WASH_DECISION_RULES.maxPantauWeight}%).`;
+      statusExplanation = `Status Caution: Bobot indikator lolos ${bobotLolos}% (rentang ${WATER_WASH_DECISION_RULES.minPantauWeight}% - ${WATER_WASH_DECISION_RULES.maxPantauWeight}%).`;
     }
   } else {
     // Target: else -> NORMAL
@@ -525,7 +525,19 @@ export function evaluateOperationalRecord(
  * For any date with multiple hourly readings, calculates the median values
  * (preferring 19:00 - 21:00 peak load or >=21 MW) and evaluates against active baseline & thresholds.
  */
-export function aggregateRecordsByDailyMedian(
+export function getAverage(values: (number | undefined | null)[]): number | null {
+  const valid = values.filter((v): v is number => typeof v === 'number' && !isNaN(v));
+  if (valid.length === 0) return null;
+  const sum = valid.reduce((acc, curr) => acc + curr, 0);
+  return sum / valid.length;
+}
+
+/**
+ * Aggregates a list of operational records by date into daily average records.
+ * For any date with multiple hourly readings, calculates the arithmetic average values
+ * of parameters and evaluates cleanly against active baseline & thresholds.
+ */
+export function aggregateRecordsByDailyAverage(
   records: OperationalRecord[],
   baseline: BaselineConfig,
   thresholds: ThresholdConfig
@@ -555,34 +567,35 @@ export function aggregateRecordsByDailyMedian(
         hourlyObservationsCount: 1,
         sourceRecordIds: [single.id],
         isDailyMedian: false,
+        isDailyAverage: false,
       });
       continue;
     }
 
-    // Multiple readings on this date: calculate the median of all readings on this date
-    const t17Med = getMedian(dayRecords.map((r) => r.T1_7));
-    const medianT17 = t17Med !== null ? Number(t17Med.toFixed(1)) : undefined;
-    const medianP17 = Number((getMedian(dayRecords.map((r) => r.P1_7)) ?? 0).toFixed(2));
-    const medianP30 = Number((getMedian(dayRecords.map((r) => r.P3_0)) ?? 0).toFixed(2));
-    const medianPower = Number((getMedian(dayRecords.map((r) => r.realPower)) ?? 0).toFixed(2));
-    const medianNphr = Number((getMedian(dayRecords.map((r) => r.nphr)) ?? 0).toFixed(1));
+    // Multiple readings on this date: calculate the arithmetic average of all readings on this date
+    const t17Avg = getAverage(dayRecords.map((r) => r.T1_7));
+    const avgT17 = t17Avg !== null ? Number(t17Avg.toFixed(1)) : undefined;
+    const avgP17 = Number((getAverage(dayRecords.map((r) => r.P1_7)) ?? 0).toFixed(2));
+    const avgP30 = Number((getAverage(dayRecords.map((r) => r.P3_0)) ?? 0).toFixed(2));
+    const avgPower = Number((getAverage(dayRecords.map((r) => r.realPower)) ?? 0).toFixed(2));
+    const avgNphr = Number((getAverage(dayRecords.map((r) => r.nphr)) ?? 0).toFixed(1));
+
     const anyWW = dayRecords.some((r) => r.isWaterWashEvent);
 
     const rawInput: OperationalInput = {
       date,
-      time: `Median (${dayRecords.length} data)`,
-      T1_7: medianT17,
-      P1_7: medianP17,
-      P3_0: medianP30,
-      realPower: medianPower,
-      nphr: medianNphr,
+      time: `Average (${dayRecords.length} data)`,
+      T1_7: avgT17,
+      P1_7: avgP17,
+      P3_0: avgP30,
+      realPower: avgPower,
+      nphr: avgNphr,
       isWaterWashEvent: anyWW,
-      notes: `Daily median of ${dayRecords.length} readings on ${date}`,
+      notes: `Daily average of ${dayRecords.length} readings on ${date}`,
     };
 
     // Evaluate cleanly with active baseline and thresholds
     const evaluated = evaluateOperationalRecord(rawInput, `daily-${date}`, baseline, thresholds);
-
     result.push({
       ...evaluated,
       id: `daily-${date}`,
@@ -590,11 +603,15 @@ export function aggregateRecordsByDailyMedian(
       hourlyObservationsCount: dayRecords.length,
       sourceRecordIds: dayRecords.map((r) => r.id),
       isDailyMedian: true,
+      isDailyAverage: true,
     });
   }
 
   return result.sort(compareRecordsChronologically);
 }
+
+// Backward-compatibility alias
+export const aggregateRecordsByDailyMedian = aggregateRecordsByDailyAverage;
 
 /**
  * Re-evaluates an entire list of records using current baseline and thresholds
@@ -627,7 +644,7 @@ function getMedian(values: (number | undefined | null)[]): number | null {
 }
 
 /**
- * Creates a representative record for a given date by calculating the median of all hourly readings on that day.
+ * Creates a representative record for a given date by calculating the average of all hourly readings on that day.
  * If 19:00 - 21:00 or high load readings exist, those are prioritized, else all readings for the date are used.
  */
 function createDailyRepresentativeRecord(
@@ -637,27 +654,27 @@ function createDailyRepresentativeRecord(
   if (dayRecords.length === 0) return undefined;
   if (dayRecords.length === 1) return dayRecords[0];
 
-  const t17Med = getMedian(dayRecords.map((r) => r.T1_7));
-  const medianT17 = t17Med !== null ? Number(t17Med.toFixed(1)) : undefined;
-  const medianP17 = Number((getMedian(dayRecords.map((r) => r.P1_7)) ?? 0).toFixed(2));
-  const medianP30 = Number((getMedian(dayRecords.map((r) => r.P3_0)) ?? 0).toFixed(2));
-  const prMed = getMedian(dayRecords.map((r) => r.pr));
-  const medianPR = medianP17 > 0 ? Number((medianP30 / medianP17).toFixed(4)) : Number((prMed ?? 0).toFixed(4));
-  const medianPower = Number((getMedian(dayRecords.map((r) => r.realPower)) ?? 0).toFixed(2));
-  const medianNphr = Number((getMedian(dayRecords.map((r) => r.nphr)) ?? 0).toFixed(1));
+  const t17Avg = getAverage(dayRecords.map((r) => r.T1_7));
+  const avgT17 = t17Avg !== null ? Number(t17Avg.toFixed(1)) : undefined;
+  const avgP17 = Number((getAverage(dayRecords.map((r) => r.P1_7)) ?? 0).toFixed(2));
+  const avgP30 = Number((getAverage(dayRecords.map((r) => r.P3_0)) ?? 0).toFixed(2));
+  const prAvg = getAverage(dayRecords.map((r) => r.pr));
+  const avgPR = avgP17 > 0 ? Number((avgP30 / avgP17).toFixed(4)) : Number((prAvg ?? 0).toFixed(4));
+  const avgPower = Number((getAverage(dayRecords.map((r) => r.realPower)) ?? 0).toFixed(2));
+  const avgNphr = Number((getAverage(dayRecords.map((r) => r.nphr)) ?? 0).toFixed(1));
 
-  // Deteriorations median
+  // Deteriorations average
   const validPRDet = dayRecords.map((r) => r.prDeterioration).filter((v): v is number => v !== null && !isNaN(v));
   const validP3Det = dayRecords.map((r) => r.p3Deterioration).filter((v): v is number => v !== null && !isNaN(v));
   const validNphrDet = dayRecords.map((r) => r.nphrDeterioration).filter((v): v is number => v !== null && !isNaN(v));
   const validPowerDet = dayRecords.map((r) => r.powerDeterioration).filter((v): v is number => v !== null && !isNaN(v));
   const validPerfIndex = dayRecords.map((r) => r.performanceIndex).filter((v): v is number => v !== null && !isNaN(v));
 
-  const repPRDet = validPRDet.length > 0 ? Number((getMedian(validPRDet) ?? 0).toFixed(4)) : null;
-  const repP3Det = validP3Det.length > 0 ? Number((getMedian(validP3Det) ?? 0).toFixed(4)) : null;
-  const repNphrDet = validNphrDet.length > 0 ? Number((getMedian(validNphrDet) ?? 0).toFixed(4)) : null;
-  const repPowerDet = validPowerDet.length > 0 ? Number((getMedian(validPowerDet) ?? 0).toFixed(4)) : null;
-  const repPerfIndex = validPerfIndex.length > 0 ? Number((getMedian(validPerfIndex) ?? 0).toFixed(1)) : null;
+  const repPRDet = validPRDet.length > 0 ? Number((getAverage(validPRDet) ?? 0).toFixed(4)) : null;
+  const repP3Det = validP3Det.length > 0 ? Number((getAverage(validP3Det) ?? 0).toFixed(4)) : null;
+  const repNphrDet = validNphrDet.length > 0 ? Number((getAverage(validNphrDet) ?? 0).toFixed(4)) : null;
+  const repPowerDet = validPowerDet.length > 0 ? Number((getAverage(validPowerDet) ?? 0).toFixed(4)) : null;
+  const repPerfIndex = validPerfIndex.length > 0 ? Number((getAverage(validPerfIndex) ?? 0).toFixed(1)) : null;
 
   const baseRecord = dayRecords[dayRecords.length - 1];
 
@@ -665,27 +682,29 @@ function createDailyRepresentativeRecord(
     ...baseRecord,
     id: `daily_rep_${dateStr}`,
     date: dateStr,
-    time: `${dayRecords.length} data median`,
+    time: `${dayRecords.length} data average`,
     timestamp: new Date(`${dateStr}T12:00:00`).getTime(),
-    T1_7: medianT17,
-    P1_7: medianP17,
-    P3_0: medianP30,
-    pr: medianPR,
-    realPower: medianPower,
-    nphr: medianNphr,
+    T1_7: avgT17,
+    P1_7: avgP17,
+    P3_0: avgP30,
+    pr: avgPR,
+    realPower: avgPower,
+    nphr: avgNphr,
     prDeterioration: repPRDet,
     p3Deterioration: repP3Det,
     nphrDeterioration: repNphrDet,
     powerDeterioration: repPowerDet,
     performanceIndex: repPerfIndex,
+    isDailyMedian: true,
+    isDailyAverage: true,
   };
 }
 
 /**
  * Water Wash Performance Recovery Analysis:
  * Compares daily representative performance immediately before (H-1) and after (H+1) each Water Wash event.
- * H-1: day before WW (calculated via median of hourly readings on that day)
- * H+1: day after WW (calculated via median of hourly readings on that day)
+ * H-1: day before WW (calculated via average of hourly readings on that day)
+ * H+1: day after WW (calculated via average of hourly readings on that day)
  */
 export function calculateWaterWashRecovery(
   events: WaterWashEvent[],
@@ -701,7 +720,7 @@ export function calculateWaterWashRecovery(
     recordsByDate.set(r.date, existing);
   }
 
-  // Precompute daily representative (median) for each unique date
+  // Precompute daily representative (average) for each unique date
   const dailyRepByDate = new Map<string, OperationalRecord>();
   for (const [d, dayRecs] of recordsByDate.entries()) {
     const rep = createDailyRepresentativeRecord(d, dayRecs);
@@ -715,25 +734,37 @@ export function calculateWaterWashRecovery(
     const eventTime = new Date(eventDate + 'T12:00:00').getTime();
     const oneDayMs = 24 * 60 * 60 * 1000;
 
-    // Find date immediately before WW event (prefer exactly 1 day before, or within 3 days)
+    // 1. Find last operating date strictly before WW event (date < eventDate):
+    // The wash date itself (eventDate) represents post-wash running hours,
+    // so the pre-wash condition MUST be the last operating date before the wash (e.g. 6th Oct if wash is on 9th Oct).
     const priorDates = allDates.filter((d) => {
       const t = new Date(d + 'T12:00:00').getTime();
-      return t < eventTime && (eventTime - t) <= 3.5 * oneDayMs;
+      return t < eventTime;
     });
     const preDate = priorDates.length > 0 ? priorDates[priorDates.length - 1] : undefined;
     const preRecord = preDate ? dailyRepByDate.get(preDate) : undefined;
+    const preDaysDiff = preDate
+      ? Math.round((eventTime - new Date(preDate + 'T12:00:00').getTime()) / oneDayMs)
+      : undefined;
 
-    // Find date immediately after WW event (prefer exactly 1 day after, or within 3 days)
+    // 2. Find closest operating date strictly after WW event (date > eventDate, e.g. H+1):
     const postDates = allDates.filter((d) => {
       const t = new Date(d + 'T12:00:00').getTime();
-      return t > eventTime && (t - eventTime) <= 3.5 * oneDayMs;
+      return t > eventTime;
     });
     const postDate = postDates.length > 0 ? postDates[0] : undefined;
     const postRecord = postDate ? dailyRepByDate.get(postDate) : undefined;
+    const postDaysDiff = postDate
+      ? Math.round((new Date(postDate + 'T12:00:00').getTime() - eventTime) / oneDayMs)
+      : undefined;
 
     if (!preRecord || !postRecord) {
       return {
         ...event,
+        preRecordId: preRecord?.id,
+        postRecordId: postRecord?.id,
+        preDaysDiff,
+        postDaysDiff,
         preRecord,
         postRecord,
         deltaNPHR: null,
@@ -778,6 +809,8 @@ export function calculateWaterWashRecovery(
       ...event,
       preRecordId: preRecord.id,
       postRecordId: postRecord.id,
+      preDaysDiff,
+      postDaysDiff,
       preRecord,
       postRecord,
       deltaNPHR,
@@ -890,7 +923,7 @@ export function calculateCycleDeterioration(
 /**
  * Derives WaterWashEvent list directly from operational records.
  * Automatically aggregates multiple hourly records on the same WW date into a single distinct event,
- * with H-1 and H+1 calculated from the daily median representative values.
+ * with H-1 and H+1 calculated from the daily average representative values.
  */
 export function deriveWaterWashEvents(records: OperationalRecord[]): WaterWashEvent[] {
   const wwRecords = records

@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Calendar, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { X, Calendar, CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react';
 import { WaterWashEvent } from '../types';
 import { calculateEfficiencyFromNPHR } from '../utils/calculations';
 
@@ -18,7 +18,6 @@ export const WaterWashDetailModal: React.FC<WaterWashDetailModalProps> = ({
 
   const pre = event.preRecord;
   const post = event.postRecord;
-
   const preEff = pre ? calculateEfficiencyFromNPHR(pre.nphr) : null;
   const postEff = post ? calculateEfficiencyFromNPHR(post.nphr) : null;
 
@@ -39,7 +38,7 @@ export const WaterWashDetailModal: React.FC<WaterWashDetailModalProps> = ({
       ? ` (${delta > 0 ? '+' : ''}${percent.toFixed(2)}%)`
       : '';
     const isGood = reverseColor ? delta < 0 : delta > 0;
-    const colorClass = isGood ? 'text-emerald-700 font-semibold' : 'text-slate-700';
+    const colorClass = isGood ? 'text-emerald-700 font-bold' : 'text-slate-700';
 
     return (
       <span className={colorClass}>
@@ -47,6 +46,20 @@ export const WaterWashDetailModal: React.FC<WaterWashDetailModalProps> = ({
       </span>
     );
   };
+
+  const preLabel = event.preDaysDiff
+    ? event.preDaysDiff === 1
+      ? 'Before WW (H-1)'
+      : `Before WW (H-${event.preDaysDiff})`
+    : 'Before WW';
+
+  const postLabel = event.postDaysDiff
+    ? event.postDaysDiff === 1
+      ? 'After WW (H+1)'
+      : `After WW (H+${event.postDaysDiff})`
+    : 'After WW (H+1)';
+
+  const hasBoth = Boolean(pre && post && event.deltaNPHR !== null && event.deltaNPHR !== undefined);
 
   return (
     <div
@@ -63,7 +76,7 @@ export const WaterWashDetailModal: React.FC<WaterWashDetailModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
           <div>
             <h3 className="text-base font-bold text-slate-900">Water Wash Performance Details</h3>
-            <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
+            <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
               <Calendar className="w-3.5 h-3.5 text-slate-400" />
               <span>WW Date: <strong>{event.date}</strong></span>
               {event.hourlyObservationsCount && event.hourlyObservationsCount > 1 && (
@@ -75,7 +88,9 @@ export const WaterWashDetailModal: React.FC<WaterWashDetailModalProps> = ({
                 </>
               )}
               <span className="text-slate-300">•</span>
-              <span>Daily Median Comparison: H-1 vs H+1</span>
+              <span className="font-semibold text-slate-700">
+                Daily Average Comparison: {pre ? (event.preDaysDiff === 1 ? 'H-1' : `H-${event.preDaysDiff}`) : 'Before'} vs {post ? (event.postDaysDiff === 1 ? 'H+1' : `H+${event.postDaysDiff}`) : 'After'}
+              </span>
             </p>
           </div>
           <button
@@ -88,94 +103,136 @@ export const WaterWashDetailModal: React.FC<WaterWashDetailModalProps> = ({
         </div>
 
         {/* Modal Content */}
-        <div className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Before WW (H-1) */}
-            <div className="border border-slate-200 rounded-md p-4 bg-slate-50/50">
-              <div className="text-xs font-bold text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-2 mb-3">
-                Before WW (H-1)
-              </div>
-              <div className="space-y-2.5 text-xs">
-                <div>
-                  <span className="text-slate-500 block">NPHR:</span>
-                  <span className="font-semibold text-slate-800">{formatVal(pre?.nphr, 'kcal/kWh')}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Efficiency:</span>
-                  <span className="font-semibold text-slate-800">{formatVal(preEff, '%')}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">PR:</span>
-                  <span className="font-semibold text-slate-800">{formatVal(pre?.pr, '', 4)}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">P3.0:</span>
-                  <span className="font-semibold text-slate-800">{formatVal(pre?.P3_0, 'PSIA')}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Real Power:</span>
-                  <span className="font-semibold text-slate-800">{formatVal(pre?.realPower, 'MW')}</span>
-                </div>
+        <div className="p-6 space-y-5">
+          {!pre && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-xs text-amber-950 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">Data Operasi Sebelum Wash Tidak Ditemukan:</span>{' '}
+                <span>
+                  Karena operasi pada tanggal pelaksanaan WW ({event.date}) dihitung setelah water wash selesai, kondisi &quot;Sebelum Wash&quot; harus mengambil tanggal operasi terakhir sebelum tanggal wash (misal: 6 Okt). Masukkan data operasi sebelum tanggal wash untuk mengevaluasi pemulihan performa.
+                </span>
               </div>
             </div>
+          )}
 
-            {/* After WW (H+1) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Before WW */}
             <div className="border border-slate-200 rounded-md p-4 bg-slate-50/50">
-              <div className="text-xs font-bold text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-2 mb-3">
-                After WW (H+1)
+              <div className="text-xs font-bold text-slate-700 uppercase tracking-wide border-b border-slate-200 pb-2 mb-3 flex items-center justify-between">
+                <span>{preLabel}</span>
+                {pre && (
+                  <span className="text-[11px] font-semibold text-slate-500 normal-case">
+                    {pre.date}
+                  </span>
+                )}
               </div>
-              <div className="space-y-2.5 text-xs">
-                <div>
-                  <span className="text-slate-500 block">NPHR:</span>
-                  <span className="font-semibold text-slate-800">{formatVal(post?.nphr, 'kcal/kWh')}</span>
+              {pre ? (
+                <div className="space-y-2.5 text-xs">
+                  <div>
+                    <span className="text-slate-500 block">NPHR:</span>
+                    <span className="font-semibold text-slate-800">{formatVal(pre.nphr, 'kcal/kWh')}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Efficiency:</span>
+                    <span className="font-semibold text-slate-800">{formatVal(preEff, '%')}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">PR:</span>
+                    <span className="font-semibold text-slate-800">{formatVal(pre.pr, '', 4)}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">P3.0:</span>
+                    <span className="font-semibold text-slate-800">{formatVal(pre.P3_0, 'PSIA')}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Real Power:</span>
+                    <span className="font-semibold text-slate-800">{formatVal(pre.realPower, 'MW')}</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-slate-500 block">Efficiency:</span>
-                  <span className="font-semibold text-slate-800">{formatVal(postEff, '%')}</span>
+              ) : (
+                <div className="text-xs text-slate-400 italic py-4 text-center">
+                  Data sebelum wash belum diinput
                 </div>
-                <div>
-                  <span className="text-slate-500 block">PR:</span>
-                  <span className="font-semibold text-slate-800">{formatVal(post?.pr, '', 4)}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">P3.0:</span>
-                  <span className="font-semibold text-slate-800">{formatVal(post?.P3_0, 'PSIA')}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Real Power:</span>
-                  <span className="font-semibold text-slate-800">{formatVal(post?.realPower, 'MW')}</span>
-                </div>
+              )}
+            </div>
+
+            {/* After WW */}
+            <div className="border border-slate-200 rounded-md p-4 bg-slate-50/50">
+              <div className="text-xs font-bold text-slate-700 uppercase tracking-wide border-b border-slate-200 pb-2 mb-3 flex items-center justify-between">
+                <span>{postLabel}</span>
+                {post && (
+                  <span className="text-[11px] font-semibold text-slate-500 normal-case">
+                    {post.date}
+                  </span>
+                )}
               </div>
+              {post ? (
+                <div className="space-y-2.5 text-xs">
+                  <div>
+                    <span className="text-slate-500 block">NPHR:</span>
+                    <span className="font-semibold text-slate-800">{formatVal(post.nphr, 'kcal/kWh')}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Efficiency:</span>
+                    <span className="font-semibold text-slate-800">{formatVal(postEff, '%')}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">PR:</span>
+                    <span className="font-semibold text-slate-800">{formatVal(post.pr, '', 4)}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">P3.0:</span>
+                    <span className="font-semibold text-slate-800">{formatVal(post.P3_0, 'PSIA')}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Real Power:</span>
+                    <span className="font-semibold text-slate-800">{formatVal(post.realPower, 'MW')}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-slate-400 italic py-4 text-center">
+                  Data setelah wash belum diinput
+                </div>
+              )}
             </div>
 
             {/* Performance Recovery */}
-            <div className="border border-emerald-200 rounded-md p-4 bg-emerald-50/30">
-              <div className="text-xs font-bold text-emerald-900 uppercase tracking-wide border-b border-emerald-200 pb-2 mb-3 flex items-center justify-between">
-                <span>Performance Recovery</span>
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <div className={`border rounded-md p-4 ${
+              hasBoth ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-200 bg-slate-50/30'
+            }`}>
+              <div className="text-xs font-bold text-slate-800 uppercase tracking-wide border-b border-slate-200 pb-2 mb-3 flex items-center justify-between">
+                <span className={hasBoth ? 'text-emerald-900 font-bold' : ''}>Performance Recovery</span>
+                {hasBoth && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
               </div>
-              <div className="space-y-2.5 text-xs">
-                <div>
-                  <span className="text-slate-500 block">NPHR Change:</span>
-                  {formatDelta(event.deltaNPHR, event.deltaNPHRPercent, 'kcal/kWh', true)}
+              {hasBoth ? (
+                <div className="space-y-2.5 text-xs">
+                  <div>
+                    <span className="text-slate-500 block">NPHR Change:</span>
+                    {formatDelta(event.deltaNPHR, event.deltaNPHRPercent, 'kcal/kWh', true)}
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Efficiency Change:</span>
+                    {formatDelta(event.deltaEfficiency, null, '%', false)}
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">PR Change:</span>
+                    {formatDelta(event.deltaPR, event.deltaPRPercent, '', false)}
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">P3.0 Change:</span>
+                    {formatDelta(event.deltaP3, event.deltaP3Percent, 'PSIA', false)}
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Real Power Change:</span>
+                    {formatDelta(event.deltaPower, event.deltaPowerPercent, 'MW', false)}
+                  </div>
                 </div>
-                <div>
-                  <span className="text-slate-500 block">Efficiency Change:</span>
-                  {formatDelta(event.deltaEfficiency, null, '%', false)}
+              ) : (
+                <div className="text-xs text-slate-500 italic py-4 space-y-1">
+                  <p>Memerlukan data tanggal sebelum wash dan setelah wash untuk menghitung perbaikan parameter.</p>
                 </div>
-                <div>
-                  <span className="text-slate-500 block">PR Change:</span>
-                  {formatDelta(event.deltaPR, event.deltaPRPercent, '', false)}
-                </div>
-                <div>
-                  <span className="text-slate-500 block">P3.0 Change:</span>
-                  {formatDelta(event.deltaP3, event.deltaP3Percent, 'PSIA', false)}
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Real Power Change:</span>
-                  {formatDelta(event.deltaPower, event.deltaPowerPercent, 'MW', false)}
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

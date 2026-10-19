@@ -27,9 +27,9 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
   const index = latestRecord?.performanceIndex ?? null;
   const contrib = latestRecord?.performanceIndexContribution;
 
-  // Status designation (Aturan Final 1.1 - 1.3):
-  // 1.1 RECOMMEND WATER WASH: Indikator Lolos >= 3 DAN Bobot Lolos >= 80%
-  // 1.2 PANTAU / MONITORING: Bobot Lolos 50% - 79% ATAU NPHR >= nphrEarlyMonitoring (1.7%)
+  // Status designation (Aturan Final 1 - 3):
+  // 1 RECOMMEND WATER WASH: Indikator Lolos >= 3 DAN Bobot Lolos >= 80%
+  // 1.2 CAUTION: Bobot Lolos 50% - 79% ATAU NPHR >= nphrEarlyMonitoring (1.7%)
   // 1.3 NORMAL: Bobot Lolos < 50% DAN NPHR < 1.7%
   let badgeColor = 'bg-slate-100 text-slate-700 border-slate-300';
   let badgeText = 'AWAITING DATA';
@@ -44,6 +44,7 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
       badgeText = `CRITICAL (≥${WATER_WASH_DECISION_RULES.minRecommendWeight}%)`;
       gaugeBarColor = 'bg-rose-600';
     } else if (
+      latestRecord?.overallStatus === 'CAUTION' ||
       latestRecord?.overallStatus === 'MONITORING' ||
       (index >= WATER_WASH_DECISION_RULES.minPantauWeight &&
         index < WATER_WASH_DECISION_RULES.minRecommendWeight) ||
@@ -52,7 +53,7 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
         latestRecord.nphrDeterioration >= thresholds.nphrEarlyMonitoring)
     ) {
       badgeColor = 'bg-amber-100 text-amber-800 border-amber-300 font-bold';
-      badgeText = 'PANTAU / MONITORING';
+      badgeText = 'CAUTION';
       gaugeBarColor = 'bg-amber-500';
     } else {
       badgeColor = 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold';
@@ -97,7 +98,7 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
               </span>
               <div
                 className="group relative cursor-help inline-flex items-center"
-                title="Rule Logic (1.1 - 1.3):&#10;• 1.1 RECOMMEND WW: Indikator Lolos ≥3 (dari 4) DAN Bobot Lolos ≥80%&#10;• 1.2 PANTAU: Bobot Lolos 50%-79% ATAU NPHR ≥1.7%&#10;• 1.3 NORMAL: Bobot Lolos <50% DAN NPHR <1.7%"
+                title="Rule Logic (1 - 3):&#10;• 1 RECOMMEND WW: Indikator Lolos ≥3 (dari 4) DAN Bobot Lolos ≥80%&#10;• 2 CAUTION: Bobot Lolos 50%-79% ATAU NPHR ≥1.7%&#10;• 3 NORMAL: Bobot Lolos <50% DAN NPHR <1.7%"
               >
                 <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-sky-600 transition-colors" />
               </div>
@@ -130,7 +131,7 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
         {/* Scale labels */}
         <div className="relative flex justify-between text-[10px] text-slate-400 font-mono pt-0.5">
           <span>0%</span>
-          <span className="text-amber-700 font-bold">{WATER_WASH_DECISION_RULES.minPantauWeight}% (Pantau)</span>
+          <span className="text-amber-700 font-bold">{WATER_WASH_DECISION_RULES.minPantauWeight}% (Caution)</span>
           <span className="text-rose-700 font-bold">{WATER_WASH_DECISION_RULES.minRecommendWeight}% (WW Target)</span>
           <span>100%</span>
         </div>
@@ -231,7 +232,7 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
                 : nphrMet
                 ? `Met (≥${thresholds.nphrWWThreshold}%)`
                 : latestRecord?.nphrEarlyMonitoringReached
-                ? `Pantau (≥${thresholds.nphrEarlyMonitoring}%)`
+                ? `Caution (≥${thresholds.nphrEarlyMonitoring}%)`
                 : `< ${thresholds.nphrWWThreshold}%`}
             </span>
           </div>
@@ -260,12 +261,12 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
         </div>
       </div>
 
-      {/* Decision Rules Card (Rule Logic 1.1 - 1.3) */}
+      {/* Decision Rules Card (Rule Logic 1 - 3) */}
       <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-md text-xs text-slate-700 space-y-2.5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
           <div className="flex items-center gap-1.5 font-bold text-slate-900 text-xs">
             <Info className="w-4 h-4 text-sky-600 shrink-0" />
-            <span>Rule Logic — Aturan Keputusan Evaluasi Water Wash (1.1 - 1.3):</span>
+            <span>Rule Logic — Aturan Keputusan Evaluasi Water Wash (1 - 3):</span>
           </div>
 
           <div className="flex items-center gap-1.5 text-[11px]">
@@ -286,7 +287,7 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
           <div className="p-2.5 bg-white rounded border border-slate-200/80 space-y-1">
             <div className="font-bold text-rose-700 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-rose-600 shrink-0"></span>
-              <span>1.1 RECOMMEND WATER WASH</span>
+              <span>1 RECOMMEND WATER WASH</span>
             </div>
             <p className="text-slate-600 text-[11px]">
               Kriteria terpenuhi: <strong>Indikator Lolos ≥ {WATER_WASH_DECISION_RULES.minIndicatorsMet}</strong> (dari 4) <strong>DAN</strong> total <strong>Bobot Lolos ≥ {WATER_WASH_DECISION_RULES.minRecommendWeight}%</strong>.
@@ -296,7 +297,7 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
           <div className="p-2.5 bg-white rounded border border-slate-200/80 space-y-1">
             <div className="font-bold text-amber-700 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
-              <span>1.2 PANTAU / MONITORING</span>
+              <span>2 CAUTION</span>
             </div>
             <p className="text-slate-600 text-[11px]">
               Kriteria WW belum terpenuhi, dan: <strong>Bobot Lolos {WATER_WASH_DECISION_RULES.minPantauWeight}% – {WATER_WASH_DECISION_RULES.maxPantauWeight}%</strong> <strong>ATAU</strong> Deteriorasi <strong>NPHR ≥ {thresholds.nphrEarlyMonitoring}%</strong> (Early Monitoring).
@@ -306,7 +307,7 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
           <div className="p-2.5 bg-white rounded border border-slate-200/80 space-y-1">
             <div className="font-bold text-emerald-700 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0"></span>
-              <span>1.3 NORMAL</span>
+              <span>3 NORMAL</span>
             </div>
             <p className="text-slate-600 text-[11px]">
               Operasi turbin gas berada dalam batas normal: <strong>Bobot Lolos &lt; {WATER_WASH_DECISION_RULES.minPantauWeight}%</strong> <strong>DAN</strong> Deteriorasi <strong>NPHR &lt; {thresholds.nphrEarlyMonitoring}%</strong>.

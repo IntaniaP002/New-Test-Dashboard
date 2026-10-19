@@ -36,6 +36,7 @@ export const Header: React.FC<HeaderProps> = ({
             Recommend Water Wash
           </span>
         );
+      case 'CAUTION':
       case 'MONITORING':
       case 'EARLY MONITORING':
         return (
@@ -44,7 +45,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="inline-flex items-center gap-1.5 px-3 py-1 rounded border border-amber-300 bg-amber-50 text-amber-900 font-bold text-xs tracking-wide uppercase"
           >
             <span className="w-2 h-2 rounded-full bg-amber-500" />
-            Monitoring
+            Caution
           </span>
         );
       case 'NORMAL':

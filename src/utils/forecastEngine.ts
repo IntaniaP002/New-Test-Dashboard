@@ -728,26 +728,26 @@ export function calculateOverallForecast(
     governingParam = null;
   }
 
-  // Deteksi status operasional saat ini (PANTAU / MONITORING vs NORMAL):
+  // Deteksi status operasional saat ini (CAUTION / MONITORING vs NORMAL):
   // Saat bobot lolos 50% - 79% (misal PR 30% + P3.0 30% = 60%, atau NPHR early monitoring)
   const latestRecord = cycleRecords[cycleRecords.length - 1];
   const isPantauOperationalState =
     !isConditionSatisfied &&
-    (latestRecord?.overallStatus === 'MONITORING' || reachedWeight >= 50);
+    (latestRecord?.overallStatus === 'CAUTION' || latestRecord?.overallStatus === 'MONITORING' || reachedWeight >= 50);
 
   let forecastWW: number | null = rawForecastWW;
   let isPantauCapped = false;
   let pantauExplanation: string | null = null;
 
   if (!isConditionSatisfied && isPantauOperationalState) {
-    // Batas aman jendela pemantauan (Pantau Ceiling):
-    // Ketika mesin sudah berstatus PANTAU (2 parameter lolos / bobot >= 50%),
+    // Batas aman jendela pemantauan (Caution Ceiling):
+    // Ketika mesin sudah berstatus CAUTION (2 parameter lolos / bobot >= 50%),
     // kondisi mesin sudah mengalami degradasi kritis dan masuk tahap pemantauan ketat.
     // Waktu toleransi pemantauan & persiapan Water Wash dibatasi maksimal MAX_PANTAU_FORECAST_DAYS (15 hari).
     if (rawForecastWW === null || rawForecastWW > MAX_PANTAU_FORECAST_DAYS) {
       forecastWW = MAX_PANTAU_FORECAST_DAYS;
       isPantauCapped = true;
-      pantauExplanation = `Dibatasi batas atas Status Pantau (Maksimal ${MAX_PANTAU_FORECAST_DAYS} hari, justifikasi: 22 hari tercepat historis - 7 hari observasi regresi). Bobot deteriorasi ${reachedWeight}% (${reachedCount}/4 parameter lolos ambang batas).`;
+      pantauExplanation = `Dibatasi batas atas Status Caution (Maksimal ${MAX_PANTAU_FORECAST_DAYS} hari, justifikasi: 22 hari tercepat historis - 7 hari observasi regresi). Bobot deteriorasi ${reachedWeight}% (${reachedCount}/4 parameter lolos ambang batas).`;
     }
   }
 

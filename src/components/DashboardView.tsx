@@ -195,9 +195,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       };
     }
 
-    if (activeRecord?.overallStatus === 'MONITORING' || activeRecord?.overallStatus === 'EARLY MONITORING') {
+    if (activeRecord?.overallStatus === 'CAUTION' || activeRecord?.overallStatus === 'MONITORING' || activeRecord?.overallStatus === 'EARLY MONITORING') {
       return {
-        label: 'MONITORING (PANTAU)',
+        label: 'CAUTION',
         categoryLabel: 'WATER WASHING RECOMMENDATION',
         categoryColor: 'text-amber-900/80',
         labelColor: 'text-amber-950',
@@ -248,7 +248,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const isMonitoring =
     !isRecommendWW &&
-    (activeRecord?.overallStatus === 'MONITORING' ||
+    (activeRecord?.overallStatus === 'CAUTION' ||
+      activeRecord?.overallStatus === 'MONITORING' ||
       activeRecord?.overallStatus === 'EARLY MONITORING' ||
       (bobotLolos >= WATER_WASH_DECISION_RULES.minPantauWeight && bobotLolos < WATER_WASH_DECISION_RULES.minRecommendWeight) ||
       (activeRecord?.nphrDeterioration !== null &&
@@ -268,7 +269,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       piGaugeBarColor = 'bg-rose-600';
     } else if (isMonitoring) {
       piBadgeColor = 'bg-amber-100 text-amber-800 border-amber-300 font-bold';
-      piBadgeText = 'PANTAU / MONITORING';
+      piBadgeText = 'CAUTION';
       piGaugeBarColor = 'bg-amber-500';
     } else {
       piBadgeColor = 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold';
@@ -340,7 +341,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </span>
                 {isHistorical ? (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-sky-600 text-white shadow-2xs">
-                    <History className="w-3 h-3" /> {activeRecord?.date} {activeRecord?.isDailyMedian ? '(Daily Median)' : activeRecord?.time || ''}
+                    <History className="w-3 h-3" /> {activeRecord?.date} {activeRecord?.isDailyMedian || activeRecord?.isDailyAverage ? '(Daily Average)' : activeRecord?.time || ''}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-600 text-white shadow-2xs">
@@ -348,11 +349,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </span>
                 )}
               </div>
-              {isHistorical && (
-                <p className="text-[11px] text-slate-600 mt-0.5">
-                  All 4 parameter deteriorations, performance index, and WW recommendations below reflect conditions on this selected historical date.
-                </p>
-              )}
+
             </div>
           </div>
 
@@ -475,7 +472,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {/* Scale labels */}
               <div className="relative flex justify-between text-[10px] text-slate-500 font-mono">
                 <span>0%</span>
-                <span className="text-amber-800 font-bold">{WATER_WASH_DECISION_RULES.minPantauWeight}% (Pantau)</span>
+                <span className="text-amber-800 font-bold">{WATER_WASH_DECISION_RULES.minPantauWeight}% (Caution)</span>
                 <span className="text-rose-800 font-bold">{WATER_WASH_DECISION_RULES.minRecommendWeight}% (WW Target)</span>
                 <span>100%</span>
               </div>
@@ -486,11 +483,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span className="font-semibold text-slate-800">
                 {thresholdsMetCount} of 4 parameter thresholds met with combined weight {bobotLolos}%.
               </span>
-              {activeRecord && (
+              {!isHistorical && activeRecord && (
                 <span className="text-[11px] text-slate-500 whitespace-nowrap">
-                  {isHistorical
-                    ? `Historical: ${activeRecord.date} ${activeRecord.isDailyMedian ? '(Median)' : activeRecord.time || ''}`
-                    : `Last reading: ${activeRecord.date} ${activeRecord.time || ''}`}
+                  Last reading: {activeRecord.date} {activeRecord.time || ''}
                 </span>
               )}
             </div>
@@ -578,7 +573,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   ? 'bg-sky-50 text-sky-800 border-sky-300 ring-1 ring-sky-200'
                   : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
               }`}
-              title={showRuleLogic ? 'Sembunyikan Rule Logic' : 'Lihat Aturan Keputusan Evaluasi Water Wash (1.1 - 1.3)'}
+              title={showRuleLogic ? 'Sembunyikan Rule Logic' : 'Lihat Aturan Keputusan Evaluasi Water Wash (1 - 3)'}
             >
               <Info className="w-3.5 h-3.5 text-sky-600" />
               <span>Rule Logic</span>
@@ -717,7 +712,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   : nphrMet
                   ? `Met (≥${thresholds.nphrWWThreshold}%)`
                   : activeRecord?.nphrEarlyMonitoringReached
-                  ? `Pantau (≥${thresholds.nphrEarlyMonitoring}%)`
+                  ? `Caution (≥${thresholds.nphrEarlyMonitoring}%)`
                   : 'Normal'}
               </span>
             </div>
@@ -805,13 +800,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Decision Rules Card (Rule Logic 1.1 - 1.3) - Hidden by default, toggled via Rule Logic button */}
+        {/* Decision Rules Card (Rule Logic 1 - 3) - Hidden by default, toggled via Rule Logic button */}
         {showRuleLogic && (
           <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-md text-xs text-slate-700 space-y-2.5 animate-in fade-in duration-200">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
               <div className="flex items-center gap-1.5 font-bold text-slate-900 text-xs">
                 <Info className="w-4 h-4 text-sky-600 shrink-0" />
-                <span>Rule Logic — Aturan Keputusan Evaluasi Water Wash (1.1 - 1.3):</span>
+                <span>Rule Logic — Aturan Keputusan Evaluasi Water Wash (1 - 3):</span>
               </div>
 
               <div className="flex items-center gap-2 text-[11px]">
@@ -842,7 +837,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               }`}>
                 <div className="font-bold text-rose-700 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-600 shrink-0"></span>
-                  <span>1.1 RECOMMEND WATER WASH</span>
+                  <span>1 RECOMMEND WATER WASH</span>
                   {isRecommendWW && (
                     <span className="ml-auto text-[9px] uppercase px-1.5 py-0.2 bg-rose-600 text-white rounded font-extrabold">Active</span>
                   )}
@@ -857,7 +852,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               }`}>
                 <div className="font-bold text-amber-700 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
-                  <span>1.2 PANTAU / MONITORING</span>
+                  <span>2 CAUTION</span>
                   {isMonitoring && (
                     <span className="ml-auto text-[9px] uppercase px-1.5 py-0.2 bg-amber-600 text-white rounded font-extrabold">Active</span>
                   )}
@@ -872,7 +867,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               }`}>
                 <div className="font-bold text-emerald-700 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0"></span>
-                  <span>1.3 NORMAL</span>
+                  <span>3 NORMAL</span>
                   {isNormal && (
                     <span className="ml-auto text-[9px] uppercase px-1.5 py-0.2 bg-emerald-600 text-white rounded font-extrabold">Active</span>
                   )}
@@ -902,7 +897,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div>
             <h3 className="text-sm font-bold text-slate-900">Water Wash Performance</h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Historical results comparing H-1 (before wash) to H+1 (after wash) aggregated by daily median. Click a row to view full comparison details.
+              Historical results comparing H-1 (before wash) to H+1 (after wash) aggregated by daily average. Click a row to view full comparison details.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -930,6 +925,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
                 <tr>
                   <th className="py-3 px-4">WW Date</th>
+                  <th className="py-3 px-4">Comparison Scope (Daily Average)</th>
                   <th className="py-3 px-4">NPHR Change</th>
                   <th className="py-3 px-4">Efficiency Change</th>
                   <th className="py-3 px-4">PR Change</th>
@@ -947,6 +943,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   >
                     <td className="py-3 px-4 font-bold text-slate-900 whitespace-nowrap">
                       {evt.date}
+                    </td>
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      {evt.preRecord && evt.postRecord ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                          <span className="font-semibold text-slate-900">
+                            {evt.preDaysDiff === 1 ? 'H-1' : `H-${evt.preDaysDiff}`} ({evt.preRecord.date})
+                          </span>
+                          <span className="text-slate-400">➔</span>
+                          <span className="font-semibold text-emerald-800">
+                            {evt.postDaysDiff === 1 ? 'H+1' : `H+${evt.postDaysDiff}`} ({evt.postRecord.date})
+                          </span>
+                        </span>
+                      ) : evt.postRecord ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-medium">
+                          {evt.postDaysDiff === 1 ? 'H+1' : `H+${evt.postDaysDiff}`} ({evt.postRecord.date}) • Butuh data sebelum wash
+                        </span>
+                      ) : evt.preRecord ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-medium">
+                          {evt.preDaysDiff === 1 ? 'H-1' : `H-${evt.preDaysDiff}`} ({evt.preRecord.date}) • Butuh data setelah wash
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 italic">Data belum lengkap</span>
+                      )}
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap">
                       {formatChange(evt.deltaNPHR, evt.deltaNPHRPercent, 'kcal/kWh', true)}
