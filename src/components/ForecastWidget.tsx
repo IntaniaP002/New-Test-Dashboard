@@ -705,10 +705,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                 <span className="bg-sky-50 text-sky-900 px-2 py-0.5 rounded font-semibold border border-sky-200 text-[11px]">
                   Asumsi: <strong>{rhPerDay} Jam Operasi (Running Hours) / Hari</strong>
                 </span>
-                <span className="text-slate-400">•</span>
-                <span>
-                  Siklus berjalan: <strong>{dailyRecords.length} data harian</strong>
-                </span>
+
                 {baselineDate && (
                   <>
                     <span className="text-slate-400">•</span>
@@ -743,27 +740,21 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0 self-start md:self-auto">
-            <div className="flex items-center gap-2.5 text-xs bg-white/95 border border-sky-200 px-3.5 py-2.5 rounded shadow-2xs">
-              <Clock className="w-5 h-5 text-sky-600 shrink-0" />
-              <div>
-                <span className="font-semibold text-slate-900">Rekomendasi:</span>{' '}
-                {isPantauOperationalState ? (
-                  forecastWW <= 4 ? (
+          {isPantauOperationalState && (
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0 self-start md:self-auto">
+              <div className="flex items-center gap-2.5 text-xs bg-white/95 border border-sky-200 px-3.5 py-2.5 rounded shadow-2xs">
+                <Clock className="w-5 h-5 text-sky-600 shrink-0" />
+                <div>
+                  <span className="font-semibold text-slate-900">Rekomendasi:</span>{' '}
+                  {forecastWW <= 4 ? (
                     <span className="text-rose-700 font-bold">Siapkan jadwal Off-line WW</span>
                   ) : (
                     <span className="text-amber-700 font-semibold">Caution: Perhatikan kondisi operasi</span>
-                  )
-                ) : (
-                  forecastWW <= 7 ? (
-                    <span className="text-amber-700 font-semibold">Caution: Pengawasan tren harian ketat (Bukan persiapan WW)</span>
-                  ) : (
-                    <span className="text-emerald-700 font-medium">Kondisi operasional normal</span>
-                  )
-                )}
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       ) : dailyRecords.length < MIN_FORECAST_OBSERVATIONS ? (
         /* CASE 3: INSUFFICIENT DATA -> MEMBUTUHKAN N DATA LAGI */
