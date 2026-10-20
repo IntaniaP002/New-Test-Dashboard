@@ -605,13 +605,21 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                 Water Wash Selanjutnya: <span className="text-rose-700 underline decoration-rose-400 decoration-2">
                   {runningHours !== null ? `${runningHours} Jam Operasi` : '12 Jam Operasi'}
                 </span>
-                <span className="text-rose-900 font-bold text-sm sm:text-base ml-1">
-                  ({forecastWW !== null ? (forecastWW === 0 ? 'Hari-H: Lakukan Water Wash Hari Ini' : `${forecastWW} Hari Lagi`) : '3 Hari Lagi'})
-                </span>
-                {forecastWWDate && (
-                  <span className="text-rose-900 font-semibold text-sm sm:text-base">
-                    {' '}(Target: {forecastWWDate})
+                {forecastWW === 0 ? (
+                  <span className="text-rose-900 font-bold text-sm sm:text-base ml-1">
+                    {' '}(Lakukan Water Wash Segera)
                   </span>
+                ) : (
+                  <>
+                    <span className="text-rose-900 font-bold text-sm sm:text-base ml-1">
+                      ({forecastWW !== null ? `${forecastWW} Hari Lagi` : '3 Hari Lagi'})
+                    </span>
+                    {forecastWWDate && (
+                      <span className="text-rose-900 font-semibold text-sm sm:text-base">
+                        {' '}(Target: {forecastWWDate})
+                      </span>
+                    )}
+                  </>
                 )}
               </div>
               <div className="text-xs text-rose-800 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
