@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import {
   AlertTriangle,
@@ -43,6 +43,21 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
   const [showMappingDetails, setShowMappingDetails] = useState(false);
   const [filter19to21Only, setFilter19to21Only] = useState(false);
   const [showAnomalyModal, setShowAnomalyModal] = useState<boolean>(false);
+
+  // Filter rows if user chooses representative operating window (19:00 - 21:00 or >21MW)
+  const displayedRows = useMemo(() => {
+    return filter19to21Only
+      ? previewRows.filter((r) => {
+          const h = parseInt(r.time?.slice(0, 2) || '0', 10);
+          return (h >= 19 && h <= 21) || r.realPower >= 21.0;
+        })
+      : previewRows;
+  }, [filter19to21Only, previewRows]);
+
+  // Scan displayed rows for anomalies (must be declared before any early return)
+  const detectedAnomalies = useMemo(() => {
+    return scanRecordsForAnomalies(displayedRows);
+  }, [displayedRows]);
 
   if (!isOpen) return null;
 
@@ -115,18 +130,7 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
     }
   };
 
-  // Filter rows if user chooses representative operating window (19:00 - 21:00 or >21MW)
-  const displayedRows = filter19to21Only
-    ? previewRows.filter((r) => {
-        const h = parseInt(r.time?.slice(0, 2) || '0', 10);
-        return (h >= 19 && h <= 21) || r.realPower >= 21.0;
-      })
-    : previewRows;
 
-  // Scan displayed rows for anomalies
-  const detectedAnomalies = React.useMemo(() => {
-    return scanRecordsForAnomalies(displayedRows);
-  }, [displayedRows]);
 
   const handleConfirmImport = () => {
     if (displayedRows.length === 0) return;
