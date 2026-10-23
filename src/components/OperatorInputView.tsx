@@ -25,6 +25,8 @@ import {
   ThresholdConfig,
 } from '../types';
 import { calculatePressureRatio, aggregateRecordsByDailyAverage } from '../utils/calculations';
+import { validateRecordAnomalies, RecordAnomalyReport } from '../utils/anomalyValidation';
+import { AnomalyWarningModal } from './AnomalyWarningModal';
 import { exportOperationalRecordsCSV, exportOperationalRecordsExcel } from '../utils/export';
 
 interface OperatorInputViewProps {
@@ -76,6 +78,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitMessage, setSubmitMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showAnomalyModal, setShowAnomalyModal] = useState<boolean>(false);
+  const [pendingAnomalyReport, setPendingAnomalyReport] = useState<RecordAnomalyReport | null>(null);
 
   // Use the Input History table dataset directly (or aggregate from records if not provided)
   const displayedRecords = useMemo(() => {
@@ -85,10 +89,10 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     return aggregateRecordsByDailyAverage(records, baseline, thresholds);
   }, [inputHistoryRecords, records, baseline, thresholds]);
 
-  // Automatic calculation of PR = P3.0 / P1.7
+  // Automatic calculation of PR = P3.0 / P1.7 (handles comma decimals e.g. 238,32)
   const calculatedPR = useMemo(() => {
-    const p3 = parseFloat(P3_0);
-    const p1 = parseFloat(P1_7);
+    const p3 = parseFloat(P3_0.trim().replace(',', '.'));
+    const p1 = parseFloat(P1_7.trim().replace(',', '.'));
     if (!isNaN(p3) && !isNaN(p1) && p1 > 0 && p3 > 0) {
       return calculatePressureRatio(p3, p1);
     }
@@ -97,28 +101,27 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
-
     if (!date) errs.date = 'Date is required';
     if (!time) errs.time = 'Time is required';
 
-    const p1 = parseFloat(P1_7);
-    if (isNaN(p1) || p1 <= 0 || p1 > 30) {
-      errs.P1_7 = 'P1.7 must be between 1 and 30 PSIA';
+    const p1 = parseFloat(P1_7.trim().replace(',', '.'));
+    if (isNaN(p1) || p1 <= 0) {
+      errs.P1_7 = 'P1.7 harus berupa angka positif';
     }
 
-    const p3 = parseFloat(P3_0);
-    if (isNaN(p3) || p3 <= 0 || p3 > 500) {
-      errs.P3_0 = 'P3.0 must be between 10 and 500 PSIA';
+    const p3 = parseFloat(P3_0.trim().replace(',', '.'));
+    if (isNaN(p3) || p3 <= 0) {
+      errs.P3_0 = 'P3.0 harus berupa angka positif';
     }
 
-    const pw = parseFloat(realPower);
-    if (isNaN(pw) || pw <= 0 || pw > 1000) {
-      errs.realPower = 'Real Power must be between 1 and 1000 MW';
+    const pw = parseFloat(realPower.trim().replace(',', '.'));
+    if (isNaN(pw) || pw <= 0) {
+      errs.realPower = 'Real Power harus berupa angka positif';
     }
 
-    const hr = parseFloat(nphr);
-    if (isNaN(hr) || hr <= 500 || hr > 10000) {
-      errs.nphr = 'NPHR must be between 500 and 10000 kcal/kWh';
+    const hr = parseFloat(nphr.trim().replace(',', '.'));
+    if (isNaN(hr) || hr <= 0) {
+      errs.nphr = 'NPHR harus berupa angka positif';
     }
 
     setErrors(errs);
@@ -155,16 +158,38 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     e.preventDefault();
     if (!validate()) return;
 
+    // Check for potential anomalies based on user operational rules:
+    const anomalyReport = validateRecordAnomalies({
+      P1_7,
+      P3_0,
+      realPower,
+      nphr,
+      date,
+      time,
+    });
+
+    if (anomalyReport.hasAnomalies) {
+      setPendingAnomalyReport(anomalyReport);
+      setShowAnomalyModal(true);
+      return;
+    }
+
+    await executeSubmitRecord();
+  };
+
+  const executeSubmitRecord = async () => {
     setIsSubmitting(true);
     setSubmitMessage(null);
+
+    const parseNum = (val: string) => parseFloat(val.trim().replace(',', '.'));
 
     const inputData: OperationalInput = {
       date,
       time,
-      P1_7: parseFloat(P1_7),
-      P3_0: parseFloat(P3_0),
-      realPower: parseFloat(realPower),
-      nphr: parseFloat(nphr),
+      P1_7: parseNum(P1_7),
+      P3_0: parseNum(P3_0),
+      realPower: parseNum(realPower),
+      nphr: parseNum(nphr),
       isWaterWashEvent,
       notes: notes.trim() || undefined,
     };
@@ -187,6 +212,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
         setIsWaterWashEvent(false);
         setSetAsBaseline(false);
         setErrors({});
+        setPendingAnomalyReport(null);
       } else {
         setSubmitMessage({ type: 'error', text: res.message || 'Failed to save data.' });
       }
@@ -679,6 +705,20 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
           </div>
         )}
       </section>
+
+      {/* Anomaly Confirmation Modal */}
+      <AnomalyWarningModal
+        isOpen={showAnomalyModal}
+        onClose={() => setShowAnomalyModal(false)}
+        onConfirmSubmitAnyway={() => {
+          setShowAnomalyModal(false);
+          executeSubmitRecord();
+        }}
+        reports={pendingAnomalyReport ? [pendingAnomalyReport] : []}
+        mode="single"
+        title="Peringatan: Data Berpotensi Tidak Valid / Anomali"
+        submitAnywayLabel="Tetap Simpan"
+      />
     </div>
   );
 };

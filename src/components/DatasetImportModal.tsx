@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
 import {
+  AlertTriangle,
   AlertCircle,
   CheckCircle2,
   FileText,
@@ -13,6 +14,8 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { OperationalInput } from '../types';
+import { scanRecordsForAnomalies, RecordAnomalyReport } from '../utils/anomalyValidation';
+import { AnomalyWarningModal } from './AnomalyWarningModal';
 import {
   autoNormalizeDiamondData,
   ColumnMappingResult,
@@ -39,6 +42,7 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
   const [mappingResult, setMappingResult] = useState<ColumnMappingResult | null>(null);
   const [showMappingDetails, setShowMappingDetails] = useState(false);
   const [filter19to21Only, setFilter19to21Only] = useState(false);
+  const [showAnomalyModal, setShowAnomalyModal] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
@@ -119,7 +123,23 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
       })
     : previewRows;
 
+  // Scan displayed rows for anomalies
+  const detectedAnomalies = React.useMemo(() => {
+    return scanRecordsForAnomalies(displayedRows);
+  }, [displayedRows]);
+
   const handleConfirmImport = () => {
+    if (displayedRows.length === 0) return;
+
+    if (detectedAnomalies.length > 0) {
+      setShowAnomalyModal(true);
+      return;
+    }
+
+    executeImport();
+  };
+
+  const executeImport = () => {
     if (displayedRows.length > 0) {
       onImportData(displayedRows, autoSetBaseline);
       onClose();
@@ -299,6 +319,25 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
                 </div>
               </div>
 
+              {/* Anomaly Detection Banner */}
+              {detectedAnomalies.length > 0 && (
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-950 flex items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>
+                      Terdeteksi <strong>{detectedAnomalies.length}</strong> data dengan potensi anomali/nilai di luar batas wajar operasional.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAnomalyModal(true)}
+                    className="text-amber-800 underline font-bold hover:text-amber-950 whitespace-nowrap cursor-pointer"
+                  >
+                    Lihat Data
+                  </button>
+                </div>
+              )}
+
               {/* Baseline Option & Export Link */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs px-1 gap-2">
                 <label className="flex items-center gap-2 cursor-pointer text-slate-700 font-medium">
@@ -395,6 +434,19 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
           </div>
         </div>
       </div>
+      {/* Anomaly Confirmation Modal */}
+      <AnomalyWarningModal
+        isOpen={showAnomalyModal}
+        onClose={() => setShowAnomalyModal(false)}
+        onConfirmSubmitAnyway={() => {
+          setShowAnomalyModal(false);
+          executeImport();
+        }}
+        reports={detectedAnomalies}
+        mode="bulk"
+        title="Peringatan Anomali Data Unggahan (Import Data)"
+        submitAnywayLabel="Tetap Simpan"
+      />
     </div>
   );
 };

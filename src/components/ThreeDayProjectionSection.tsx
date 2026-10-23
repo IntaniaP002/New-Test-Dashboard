@@ -140,7 +140,9 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
         key={`${day.dayOffset}-${day.date}`}
         className={`rounded-lg border p-3.5 flex flex-col justify-between transition-all ${
           isTarget
-            ? 'bg-gradient-to-b from-rose-50 via-white to-amber-50/60 border-rose-300 shadow-xs ring-1 ring-rose-200'
+            ? (isConditionSatisfied
+                ? 'bg-gradient-to-b from-rose-50 via-white to-amber-50/60 border-rose-300 shadow-xs ring-1 ring-rose-200'
+                : 'bg-gradient-to-b from-amber-50/60 via-white to-slate-50 border-amber-300 shadow-xs ring-1 ring-amber-200')
             : isMidpoint
             ? 'bg-gradient-to-b from-sky-50/70 via-white to-slate-50 border-sky-300 shadow-xs ring-1 ring-sky-200'
             : day.dayOffset === 2 && !isMultiDay
@@ -155,7 +157,7 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
               <span
                 className={`text-xs font-black px-2.5 py-0.5 rounded-full ${
                   isTarget
-                    ? 'bg-rose-600 text-white'
+                    ? (isConditionSatisfied ? 'bg-rose-600 text-white' : 'bg-amber-600 text-white')
                     : isMidpoint
                     ? 'bg-sky-700 text-white'
                     : day.dayOffset === 2 && !isMultiDay
@@ -172,14 +174,14 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
             <span
               className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
                 isTarget
-                  ? 'bg-rose-100 text-rose-900 border-rose-300'
+                  ? (isConditionSatisfied ? 'bg-rose-100 text-rose-900 border-rose-300' : 'bg-amber-100 text-amber-900 border-amber-300')
                   : isMidpoint
                   ? 'bg-sky-100 text-sky-900 border-sky-300'
                   : 'bg-slate-100 text-slate-700 border-slate-200'
               }`}
             >
               {isTarget
-                ? 'Target Eksekusi WW'
+                ? (isConditionSatisfied ? 'Target Eksekusi WW' : 'Proyeksi Ambang Batas')
                 : day.dayOffset === 1
                 ? 'Awal Periode'
                 : isMidpoint
@@ -321,27 +323,27 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-sm sm:text-base font-black text-slate-900">
                 {isDueWindow
-                  ? `Proyeksi Tren Parameter ${totalRunningHours} Jam Operasi (${totalDays} Hari) Menuju Water Wash`
+                  ? 'Proyeksi Tren Parameter'
                   : `Proyeksi Tren Parameter ${totalRunningHours} Jam Operasi (${totalDays} Hari) Menuju Water Wash`}
               </h3>
-              <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                  isDueWindow
-                    ? 'bg-rose-100 text-rose-800 border-rose-300'
-                    : 'bg-sky-100 text-sky-800 border-sky-300'
-                }`}
-              >
-                {isDueWindow ? `JENDELA ${totalRunningHours} JAM OPERASI (${totalDays} HARI)` : `PREDIKSI ${totalRunningHours} JAM OPERASI`}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5 flex-wrap">
-              {targetWaterWashDate && (
-                <span className="flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Target Estimasi: <strong>{formatDateIndo(targetWaterWashDate)}</strong></span>
+              {!isDueWindow && (
+                <span
+                  className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-sky-100 text-sky-800 border-sky-300"
+                >
+                  {`PREDIKSI ${totalRunningHours} JAM OPERASI`}
                 </span>
               )}
-              <span className="text-slate-300">•</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5 flex-wrap">
+              {!isDueWindow && targetWaterWashDate && (
+                <>
+                  <span className="flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Target Estimasi: <strong>{formatDateIndo(targetWaterWashDate)}</strong></span>
+                  </span>
+                  <span className="text-slate-300">•</span>
+                </>
+              )}
               <span className="text-sky-800 font-semibold bg-sky-50 px-2 py-0.5 rounded border border-sky-200 text-[11px]">
                 Asumsi: 4 Jam Operasi (Running Hours) / Hari
               </span>

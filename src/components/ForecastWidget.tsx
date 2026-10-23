@@ -148,11 +148,23 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
   // Parameter Projection Summary (3 Days for DUE_NOW or N Days for Normal status)
   const projectionSummary = React.useMemo(() => {
     if (!baseline || !hasBaseline || !parameters) return null;
+
+    // Do NOT generate projection if minimum observations (7 daily records) are not yet reached,
+    // unless the unit is already in DUE_NOW / isConditionSatisfied status.
+    if (!isConditionSatisfied && dailyRecords.length < MIN_FORECAST_OBSERVATIONS) {
+      return null;
+    }
+
+    // Do NOT generate projection if no valid forecast days exist (e.g. slopes are <= 0 / stable)
+    if (!isConditionSatisfied && (activeSummary.forecastWW === null || activeSummary.forecastWW <= 0)) {
+      return null;
+    }
     const latestRec = dailyRecords[dailyRecords.length - 1];
     const startDate = shouldScopeToSelectedDate && selectedDate ? selectedDate : latestRec?.date;
     const targetDays = isConditionSatisfied
       ? (activeSummary.forecastWW !== null ? activeSummary.forecastWW : 3)
-      : (activeSummary.forecastWW || 3);
+      : activeSummary.forecastWW;
+    if (!targetDays || targetDays <= 0) return null;
     const targetDate = activeSummary.forecastWWDate;
 
     return calculateThreeDayProjection(
@@ -1045,18 +1057,6 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                 <Layers className="w-3.5 h-3.5 text-sky-600" />
                 Semua Parameter (All 4 Parameters Overview)
               </span>
-              <span className="text-slate-400">•</span>
-              <span className="text-slate-600">
-                Logika: <strong>MAX(PR, P3.0, MIN(NPHR, Real Power))</strong>
-              </span>
-              {governingParameter && (
-                <>
-                  <span className="text-slate-400">•</span>
-                  <span className="text-sky-800 font-semibold">
-                    Penentu Utama: <strong>{getParamLabel(governingParameter)}</strong> ({waterWashStatus === 'DUE_NOW' ? (runningHours !== null ? `${runningHours} Jam (Due Now • ${forecastWW} Hari Lagi)` : '12 Jam (Due Now • 3 Hari)') : runningHours !== null ? `~${runningHours} Jam (~${forecastWW} Hari)` : '>120 Jam'})
-                  </span>
-                </>
-              )}
             </div>
             <div className="flex items-center gap-2 text-slate-500 text-[11px] flex-wrap">
               <span className="px-2 py-0.5 rounded font-semibold bg-slate-100 text-slate-700 border border-slate-200">

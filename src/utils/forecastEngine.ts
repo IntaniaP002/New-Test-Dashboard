@@ -981,7 +981,7 @@ export function calculateThreeDayProjection(
           : 'Target Eksekusi Water Wash';
     } else {
       if (offset === count) {
-        focusLabel = 'Target Estimasi Water Wash';
+        focusLabel = 'Target Estimasi Capaian Ambang Batas';
       } else if (offset === 1) {
         focusLabel = 'Awal Periode Pemantauan';
       } else if (offset === Math.round(count / 2)) {
