@@ -62,7 +62,6 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
   const [selectedParamChart, setSelectedParamChart] = useState<ForecastParameter | 'ALL'>('ALL');
   const [allViewMode, setAllViewMode] = useState<'combined' | 'grid'>('combined');
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('daily');
-  const [syncToHistoricalDate, setSyncToHistoricalDate] = useState(true);
   const [showPantauDetail, setShowPantauDetail] = useState(false);
 
   // Determine latest record date available in dataset
@@ -77,7 +76,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
     selectedDate && latestRecordDate && selectedDate < latestRecordDate
   );
 
-  const shouldScopeToSelectedDate = isHistoricalDate && syncToHistoricalDate;
+  const shouldScopeToSelectedDate = isHistoricalDate;
 
   // Effective records scoped to selected date if historical inspection is active
   const effectiveHistoryRecords = React.useMemo(() => {
@@ -248,13 +247,13 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
     };
   }, [selectedDate, inputHistoryRecords, waterWashStatus, isPantauOperationalState, reachedParameters]);
 
-  // Raw daily combined dataset
+  // Raw daily combined dataset with forecast projections
   const rawAllChartData = React.useMemo(() => {
     if (dailyRecords.length === 0) return [];
 
     const dates: string[] = Array.from(new Set<string>(dailyRecords.map((r) => r.date))).sort();
 
-    return dates.map((d: string) => {
+    const result = dates.map((d: string) => {
       const prPt = parameters.PR?.elapsedDaysData?.find((p) => p.date === d);
       const p3Pt = parameters.P3_0?.elapsedDaysData?.find((p) => p.date === d);
       const nphrPt = parameters.NPHR?.elapsedDaysData?.find((p) => p.date === d);
@@ -270,10 +269,67 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
         P3_0: p3Pt ? Number(p3Pt.deterioration.toFixed(2)) : null,
         NPHR: nphrPt ? Number(nphrPt.deterioration.toFixed(2)) : null,
         realPower: powerPt ? Number(powerPt.deterioration.toFixed(2)) : null,
+        PR_forecast: null as number | null,
+        P3_0_forecast: null as number | null,
+        NPHR_forecast: null as number | null,
+        realPower_forecast: null as number | null,
         count: 1,
         tooltipTitle: `${d} (Day ${elapsed})`,
       };
     });
+
+    // Check if any parameter has regression slope and can project forecast points
+    const hasAnySlope = Boolean(
+      parameters.PR?.slope !== null ||
+      parameters.P3_0?.slope !== null ||
+      parameters.NPHR?.slope !== null ||
+      parameters.realPower?.slope !== null
+    );
+
+    if (hasAnySlope && result.length > 0) {
+      const lastPt = result[result.length - 1];
+      // Set initial connection points on the last historical entry
+      lastPt.PR_forecast = lastPt.PR;
+      lastPt.P3_0_forecast = lastPt.P3_0;
+      lastPt.NPHR_forecast = lastPt.NPHR;
+      lastPt.realPower_forecast = lastPt.realPower;
+
+      const lastDate = new Date(lastPt.date + 'T00:00:00');
+      const projectionOffsets = [1, 2, 3, 5, 7];
+
+      projectionOffsets.forEach((offset) => {
+        const pDate = new Date(lastDate);
+        pDate.setDate(pDate.getDate() + offset);
+        const pDateStr = pDate.toISOString().slice(0, 10);
+        const pElapsed = lastPt.elapsedDays + offset;
+
+        result.push({
+          date: pDateStr,
+          displayLabel: pDateStr.slice(5) + ' (est)',
+          elapsedDays: pElapsed,
+          PR: null,
+          P3_0: null,
+          NPHR: null,
+          realPower: null,
+          PR_forecast: lastPt.PR !== null && parameters.PR?.slope !== null
+            ? Number((lastPt.PR + parameters.PR.slope * offset).toFixed(2))
+            : null,
+          P3_0_forecast: lastPt.P3_0 !== null && parameters.P3_0?.slope !== null
+            ? Number((lastPt.P3_0 + parameters.P3_0.slope * offset).toFixed(2))
+            : null,
+          NPHR_forecast: lastPt.NPHR !== null && parameters.NPHR?.slope !== null
+            ? Number((lastPt.NPHR + parameters.NPHR.slope * offset).toFixed(2))
+            : null,
+          realPower_forecast: lastPt.realPower !== null && parameters.realPower?.slope !== null
+            ? Number((lastPt.realPower + parameters.realPower.slope * offset).toFixed(2))
+            : null,
+          count: 1,
+          tooltipTitle: `Proyeksi Tren (+${offset} Hari): ${pDateStr}`,
+        });
+      });
+    }
+
+    return result;
   }, [dailyRecords, parameters]);
 
   // Aggregated multi-parameter chart dataset (supports Daily, Weekly, Monthly)
@@ -291,6 +347,10 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
       P3_0: number[];
       NPHR: number[];
       realPower: number[];
+      PR_forecast: number[];
+      P3_0_forecast: number[];
+      NPHR_forecast: number[];
+      realPower_forecast: number[];
       count: number;
     }>();
 
@@ -322,6 +382,10 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
           P3_0: [],
           NPHR: [],
           realPower: [],
+          PR_forecast: [],
+          P3_0_forecast: [],
+          NPHR_forecast: [],
+          realPower_forecast: [],
           count: 0,
         });
       }
@@ -333,6 +397,10 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
       if (pt.P3_0 !== null && pt.P3_0 !== undefined) g.P3_0.push(pt.P3_0);
       if (pt.NPHR !== null && pt.NPHR !== undefined) g.NPHR.push(pt.NPHR);
       if (pt.realPower !== null && pt.realPower !== undefined) g.realPower.push(pt.realPower);
+      if (pt.PR_forecast !== null && pt.PR_forecast !== undefined) g.PR_forecast.push(pt.PR_forecast);
+      if (pt.P3_0_forecast !== null && pt.P3_0_forecast !== undefined) g.P3_0_forecast.push(pt.P3_0_forecast);
+      if (pt.NPHR_forecast !== null && pt.NPHR_forecast !== undefined) g.NPHR_forecast.push(pt.NPHR_forecast);
+      if (pt.realPower_forecast !== null && pt.realPower_forecast !== undefined) g.realPower_forecast.push(pt.realPower_forecast);
     });
 
     const avg = (arr: number[]) => (arr.length > 0 ? Number((arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(2)) : null);
@@ -346,6 +414,10 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
       P3_0: avg(g.P3_0),
       NPHR: avg(g.NPHR),
       realPower: avg(g.realPower),
+      PR_forecast: avg(g.PR_forecast),
+      P3_0_forecast: avg(g.P3_0_forecast),
+      NPHR_forecast: avg(g.NPHR_forecast),
+      realPower_forecast: avg(g.realPower_forecast),
       count: g.count,
     }));
   }, [rawAllChartData, timePeriod]);
@@ -446,62 +518,94 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
       });
     }
 
-    // 2. If forecast is available, append projection points up to threshold crossing
+    // 2. If forecast is available or threshold already reached, append projection points
     if (
-      activeFc.status === 'FORECAST AVAILABLE' &&
-      activeFc.daysToThreshold !== null &&
-      activeFc.daysToThreshold > 0 &&
+      (activeFc.status === 'FORECAST AVAILABLE' || activeFc.status === 'THRESHOLD REACHED') &&
       activeFc.slope !== null &&
-      activeFc.intercept !== null &&
-      activeFc.estimatedDate &&
       elapsedData.length > 0
     ) {
       const lastPt = elapsedData[elapsedData.length - 1];
       const lastDate = new Date(lastPt.date + 'T00:00:00');
-      const totalDays = activeFc.daysToThreshold;
 
       // Smooth connection: set projectedTrend on last historical point
       if (points.length > 0) {
         const lastIdx = points.length - 1;
-        points[lastIdx].projectedTrend = points[lastIdx].regressionTrend ?? points[lastIdx].actualDeterioration;
+        points[lastIdx].projectedTrend = points[lastIdx].actualDeterioration ?? points[lastIdx].regressionTrend;
       }
 
-      // Add intermediate projection steps
-      const steps = Math.min(totalDays, 4);
-      for (let s = 1; s <= steps; s++) {
-        const addedDays = Math.round((totalDays / steps) * s);
-        if (addedDays === 0) continue;
+      if (
+        activeFc.status === 'FORECAST AVAILABLE' &&
+        activeFc.daysToThreshold !== null &&
+        activeFc.daysToThreshold > 0 &&
+        activeFc.intercept !== null
+      ) {
+        const totalDays = activeFc.daysToThreshold;
+        // Add intermediate projection steps
+        const steps = Math.min(totalDays, 4);
+        for (let s = 1; s <= steps; s++) {
+          const addedDays = Math.round((totalDays / steps) * s);
+          if (addedDays === 0) continue;
 
-        const projDate = new Date(lastDate);
-        projDate.setDate(projDate.getDate() + addedDays);
-        const projDateStr = projDate.toISOString().slice(0, 10);
-        const projElapsed = lastPt.elapsedDays + addedDays;
+          const projDate = new Date(lastDate);
+          projDate.setDate(projDate.getDate() + addedDays);
+          const projDateStr = projDate.toISOString().slice(0, 10);
+          const projElapsed = lastPt.elapsedDays + addedDays;
 
-        const isCrossing = s === steps;
-        // On final crossing point, value equals the threshold
-        const projVal = isCrossing
-          ? activeFc.threshold
-          : Number((activeFc.slope * projElapsed + activeFc.intercept).toFixed(2));
+          const isCrossing = s === steps;
+          // On final crossing point, value equals the threshold
+          const projVal = isCrossing
+            ? activeFc.threshold
+            : Number((activeFc.slope * projElapsed + activeFc.intercept).toFixed(2));
 
-        let displayLabel = projDateStr.slice(5) + (isCrossing ? ' (Target)' : ' (est)');
-        if (timePeriod === 'weekly') {
-          const wk = getWeekBucket(projDateStr);
-          displayLabel = `${wk.label}${isCrossing ? ' (Target)' : ''}`;
-        } else if (timePeriod === 'monthly') {
-          const mo = getMonthBucket(projDateStr);
-          displayLabel = `${mo.label}${isCrossing ? ' (Target)' : ''}`;
+          let displayLabel = projDateStr.slice(5) + (isCrossing ? ' (Target)' : ' (est)');
+          if (timePeriod === 'weekly') {
+            const wk = getWeekBucket(projDateStr);
+            displayLabel = `${wk.label}${isCrossing ? ' (Target)' : ''}`;
+          } else if (timePeriod === 'monthly') {
+            const mo = getMonthBucket(projDateStr);
+            displayLabel = `${mo.label}${isCrossing ? ' (Target)' : ''}`;
+          }
+
+          points.push({
+            date: projDateStr,
+            displayLabel,
+            elapsedDays: projElapsed,
+            actualDeterioration: null,
+            regressionTrend: null,
+            projectedTrend: projVal,
+            isForecast: true,
+            isThresholdCrossing: isCrossing,
+            tooltipTitle: `Estimasi Proyeksi: ${projDateStr} (Hari ke-${projElapsed})`,
+          });
         }
+      } else if (activeFc.status === 'THRESHOLD REACHED') {
+        // Project forward trajectory 7 days (+1, +2, +3, +5, +7 days)
+        const forwardDays = [1, 2, 3, 5, 7];
+        forwardDays.forEach((addedDays) => {
+          const projDate = new Date(lastDate);
+          projDate.setDate(projDate.getDate() + addedDays);
+          const projDateStr = projDate.toISOString().slice(0, 10);
+          const projElapsed = lastPt.elapsedDays + addedDays;
+          const projVal = Number((lastPt.deterioration + activeFc.slope! * addedDays).toFixed(2));
 
-        points.push({
-          date: projDateStr,
-          displayLabel,
-          elapsedDays: projElapsed,
-          actualDeterioration: null,
-          regressionTrend: null,
-          projectedTrend: projVal,
-          isForecast: true,
-          isThresholdCrossing: isCrossing,
-          tooltipTitle: `Estimasi Proyeksi: ${projDateStr} (Hari ke-${projElapsed})`,
+          let displayLabel = projDateStr.slice(5) + ' (est)';
+          if (timePeriod === 'weekly') {
+            displayLabel = `${getWeekBucket(projDateStr).label} (est)`;
+          } else if (timePeriod === 'monthly') {
+            displayLabel = `${getMonthBucket(projDateStr).label} (est)`;
+          }
+
+          points.push({
+            date: projDateStr,
+            displayLabel,
+            elapsedDays: projElapsed,
+            actualDeterioration: null,
+            regressionTrend: null,
+            projectedTrend: projVal,
+            isForecast: true,
+            isThresholdCrossing: false,
+            tooltipTitle: `Proyeksi Tren Melampaui Batas (+${addedDays} Hari): ${projDateStr} • Est: ${projVal}%`,
+          });
         });
       }
     }
@@ -523,39 +627,6 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
             </h3>
           </div>
         </div>
-
-        {isHistoricalDate && (
-          <div className="flex items-center gap-2 flex-wrap self-start lg:self-auto">
-            {/* Historical Inspection Calibration Toggle */}
-            <div className="inline-flex rounded border border-amber-300 p-0.5 bg-amber-50 text-xs items-center shadow-2xs">
-              <button
-                type="button"
-                onClick={() => setSyncToHistoricalDate(true)}
-                className={`px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                  syncToHistoricalDate
-                    ? 'bg-amber-600 text-white shadow-2xs font-bold'
-                    : 'text-amber-800 hover:text-amber-950'
-                }`}
-                title={`Forecast dikalibrasi hanya sampai data ${selectedDate}`}
-              >
-                <Clock className="w-3.5 h-3.5" />
-                <span>Hingga {selectedDate}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSyncToHistoricalDate(false)}
-                className={`px-2.5 py-1 rounded text-xs font-semibold transition-all ${
-                  !syncToHistoricalDate
-                    ? 'bg-white text-slate-900 shadow-2xs font-bold border border-slate-200'
-                    : 'text-amber-800 hover:text-amber-950'
-                }`}
-                title="Lihat status forecast menggunakan seluruh data sampai tanggal terbaru"
-              >
-                Data Siklus Penuh
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Historical Calibration Informative Banner */}
@@ -579,13 +650,6 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
               )}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setSyncToHistoricalDate(false)}
-            className="px-2.5 py-1 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded font-bold text-[11px] shrink-0 transition-colors self-start sm:self-auto shadow-2xs"
-          >
-            Bandingkan Siklus Penuh
-          </button>
         </div>
       )}
 
@@ -1281,6 +1345,52 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                         activeDot={{ r: 5, strokeWidth: 2, stroke: '#ffffff' }}
                         connectNulls
                       />
+
+                      {/* Forecast dashed projection lines */}
+                      <Line
+                        type="linear"
+                        dataKey="PR_forecast"
+                        name="PR (Forecast)"
+                        stroke="#0284c7"
+                        strokeWidth={1.5}
+                        strokeDasharray="3 3"
+                        dot={false}
+                        activeDot={{ r: 4 }}
+                        connectNulls
+                      />
+                      <Line
+                        type="linear"
+                        dataKey="P3_0_forecast"
+                        name="P3.0 (Forecast)"
+                        stroke="#7c3aed"
+                        strokeWidth={1.5}
+                        strokeDasharray="3 3"
+                        dot={false}
+                        activeDot={{ r: 4 }}
+                        connectNulls
+                      />
+                      <Line
+                        type="linear"
+                        dataKey="NPHR_forecast"
+                        name="NPHR (Forecast)"
+                        stroke="#d97706"
+                        strokeWidth={1.5}
+                        strokeDasharray="3 3"
+                        dot={false}
+                        activeDot={{ r: 4 }}
+                        connectNulls
+                      />
+                      <Line
+                        type="linear"
+                        dataKey="realPower_forecast"
+                        name="Real Power (Forecast)"
+                        stroke="#059669"
+                        strokeWidth={1.5}
+                        strokeDasharray="3 3"
+                        dot={false}
+                        activeDot={{ r: 4 }}
+                        connectNulls
+                      />
                     </LineChart>
                   </ResponsiveContainer>
                 )}
@@ -1292,31 +1402,77 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
               {(['PR', 'P3_0', 'NPHR', 'realPower'] as const).map((param) => {
                 const fc = parameters[param];
                 const isGoverning = governingParameter === param;
-                const rawPts = (fc.elapsedDaysData || []).map((pt) => ({
+                const paramColor =
+                  param === 'PR'
+                    ? '#0284c7'
+                    : param === 'P3_0'
+                    ? '#7c3aed'
+                    : param === 'NPHR'
+                    ? '#d97706'
+                    : '#059669';
+
+                const rawPts: {
+                  date: string;
+                  displayLabel: string;
+                  actual: number | null;
+                  fitted: number | null;
+                  forecast: number | null;
+                }[] = (fc.elapsedDaysData || []).map((pt) => ({
                   date: pt.date,
                   displayLabel: pt.date.length > 5 ? pt.date.slice(5) : pt.date,
                   actual: Number(pt.deterioration.toFixed(2)),
                   fitted: pt.fitted !== null ? Number(pt.fitted.toFixed(2)) : null,
+                  forecast: null,
                 }));
+
+                // Append forecast projection points if slope is available
+                if (fc.slope !== null && rawPts.length > 0) {
+                  const lastIdx = rawPts.length - 1;
+                  const lastPt = rawPts[lastIdx];
+                  // Connect smoothly from the last actual point
+                  lastPt.forecast = lastPt.actual;
+
+                  const lastDate = new Date(lastPt.date + 'T00:00:00');
+                  const targetDays = fc.daysToThreshold && fc.daysToThreshold > 0
+                    ? Math.max(fc.daysToThreshold, 5)
+                    : 7;
+                  const offsets = [1, 2, 3, 5, targetDays].filter((v, i, a) => a.indexOf(v) === i && v <= targetDays);
+
+                  offsets.forEach((offset) => {
+                    const pDate = new Date(lastDate);
+                    pDate.setDate(pDate.getDate() + offset);
+                    const pDateStr = pDate.toISOString().slice(0, 10);
+                    const projVal = Number((lastPt.actual! + fc.slope! * offset).toFixed(2));
+                    rawPts.push({
+                      date: pDateStr,
+                      displayLabel: pDateStr.slice(5) + ' (est)',
+                      actual: null,
+                      fitted: null,
+                      forecast: projVal,
+                    });
+                  });
+                }
 
                 const miniData = timePeriod === 'daily'
                   ? rawPts
                   : (() => {
-                      const groups = new Map<string, { label: string; actual: number[]; fitted: number[] }>();
+                      const groups = new Map<string, { label: string; actual: number[]; fitted: number[]; forecast: number[] }>();
                       rawPts.forEach((pt) => {
                         const key = timePeriod === 'weekly' ? getWeekBucket(pt.date).key : getMonthBucket(pt.date).key;
                         const label = timePeriod === 'weekly' ? getWeekBucket(pt.date).label : getMonthBucket(pt.date).label;
-                        if (!groups.has(key)) groups.set(key, { label, actual: [], fitted: [] });
+                        if (!groups.has(key)) groups.set(key, { label, actual: [], fitted: [], forecast: [] });
                         const g = groups.get(key)!;
-                        g.actual.push(pt.actual);
+                        if (pt.actual !== null) g.actual.push(pt.actual);
                         if (pt.fitted !== null) g.fitted.push(pt.fitted);
+                        if (pt.forecast !== null) g.forecast.push(pt.forecast);
                       });
                       const avg = (arr: number[]) => (arr.length > 0 ? Number((arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(2)) : null);
                       return Array.from(groups.values()).map((g) => ({
                         date: g.label,
                         displayLabel: g.label,
-                        actual: avg(g.actual) ?? 0,
+                        actual: avg(g.actual),
                         fitted: avg(g.fitted),
+                        forecast: avg(g.forecast),
                       }));
                     })();
 
@@ -1402,6 +1558,19 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                             <CartesianGrid strokeDasharray="2 2" stroke="#f1f5f9" vertical={false} />
                             <XAxis dataKey="displayLabel" tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} />
                             <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} unit="%" />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: '#ffffff',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '4px',
+                                fontSize: '10px',
+                                padding: '4px 8px',
+                              }}
+                              formatter={(val: any, name: any) => [
+                                val !== null && val !== undefined ? `${Number(val).toFixed(2)}%` : '—',
+                                name,
+                              ]}
+                            />
                             <ReferenceLine
                               y={fc.threshold}
                               stroke="#dc2626"
@@ -1412,27 +1581,35 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                               type="monotone"
                               dataKey="actual"
                               name={getParamLabel(param)}
-                              stroke={
-                                param === 'PR'
-                                  ? '#0284c7'
-                                  : param === 'P3_0'
-                                  ? '#7c3aed'
-                                  : param === 'NPHR'
-                                  ? '#d97706'
-                                  : '#059669'
-                              }
+                              stroke={paramColor}
                               strokeWidth={2}
                               dot={false}
                               activeDot={{ r: 4 }}
+                              connectNulls
                             />
                             {fc.slope !== null && (
                               <Line
                                 type="linear"
+                                dataKey="forecast"
+                                name="Proyeksi Forecast"
+                                stroke={paramColor}
+                                strokeWidth={2}
+                                strokeDasharray="4 4"
+                                dot={{ r: 2 }}
+                                activeDot={{ r: 4 }}
+                                connectNulls
+                              />
+                            )}
+                            {fc.slope !== null && (
+                              <Line
+                                type="linear"
                                 dataKey="fitted"
-                                stroke="#64748b"
+                                name="Fitted Regression"
+                                stroke="#94a3b8"
                                 strokeWidth={1}
-                                strokeDasharray="3 3"
+                                strokeDasharray="2 2"
                                 dot={false}
+                                connectNulls
                               />
                             )}
                           </LineChart>

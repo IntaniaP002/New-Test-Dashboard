@@ -2,6 +2,7 @@ export interface AnomalyIssue {
   field: 'P1_7' | 'P3_0' | 'realPower' | 'nphr';
   fieldLabel: string;
   value: number;
+  rawStr?: string;
   expectedRule: string;
   message: string;
 }
@@ -12,6 +13,15 @@ export interface RecordAnomalyReport {
   time?: string;
   hasAnomalies: boolean;
   issues: AnomalyIssue[];
+  // Full snapshot of the row's operational parameters
+  rowData: {
+    P1_7: number | string;
+    P3_0: number | string;
+    pr?: number | string;
+    realPower: number | string;
+    nphr: number | string;
+    pbSynthesis?: number | string | null;
+  };
 }
 
 /**
@@ -27,6 +37,7 @@ export function validateRecordAnomalies(
     P3_0: number | string;
     realPower: number | string;
     nphr: number | string;
+    pbSynthesis?: number | string | null;
     date?: string;
     time?: string;
   },
@@ -34,7 +45,8 @@ export function validateRecordAnomalies(
 ): RecordAnomalyReport {
   const issues: AnomalyIssue[] = [];
 
-  const parseVal = (v: number | string): { num: number; rawStr: string } => {
+  const parseVal = (v: number | string | undefined | null): { num: number; rawStr: string } => {
+    if (v === undefined || v === null) return { num: 0, rawStr: '' };
     if (typeof v === 'number') return { num: v, rawStr: String(v) };
     const cleaned = String(v).trim().replace(',', '.');
     const parsed = parseFloat(cleaned);
@@ -56,6 +68,7 @@ export function validateRecordAnomalies(
       field: 'P1_7',
       fieldLabel: 'P1.7 (Inlet Pressure)',
       value: p1.num,
+      rawStr: p1.rawStr,
       expectedRule: 'Rentang normal: 12 – 15 PSIA',
       message: `P1.7 (${p1.rawStr || p1.num} PSIA) berada di luar rentang normal 12 – 15 PSIA.`,
     });
@@ -69,34 +82,41 @@ export function validateRecordAnomalies(
       field: 'P3_0',
       fieldLabel: 'P3.0 (Discharge Pressure)',
       value: p3.num,
+      rawStr: p3.rawStr,
       expectedRule: 'Harus 3 digit utama (contoh: 238,32) & rentang 200 – 385 PSIA',
-      message: `P3.0 (${p3.rawStr || p3.num}) harus terdiri dari 3 digit utama (contoh: 238,32).`,
+      message: `P3.0 (${p3.rawStr || p3.num} PSIA) harus terdiri dari 3 digit utama (contoh: 238,32).`,
     });
   } else if (p3.num < 200.0 || p3.num > 385.0) {
+    const diff = p3.num < 200.0 ? (200.0 - p3.num).toFixed(1) : (p3.num - 385.0).toFixed(1);
+    const direction = p3.num < 200.0 ? `kurang ${diff} PSIA dari batas bawah 200 PSIA` : `melebihi ${diff} PSIA dari batas atas 385 PSIA`;
     issues.push({
       field: 'P3_0',
       fieldLabel: 'P3.0 (Discharge Pressure)',
       value: p3.num,
+      rawStr: p3.rawStr,
       expectedRule: 'Rentang normal: 200 – 385 PSIA',
-      message: `P3.0 (${p3.num} PSIA) di luar rentang normal 200 – 385 PSIA.`,
+      message: `P3.0 (${p3.rawStr || p3.num} PSIA) di luar rentang normal 200 – 385 PSIA (${direction}).`,
     });
   }
 
   // 3. Real Power: <= 50 MW
   const pw = parseVal(data.realPower);
   if (pw.num > 50.0) {
+    const diff = (pw.num - 50.0).toFixed(1);
     issues.push({
       field: 'realPower',
       fieldLabel: 'Real Power',
       value: pw.num,
+      rawStr: pw.rawStr,
       expectedRule: 'Batas maksimal: 50 MW',
-      message: `Real Power (${pw.rawStr || pw.num} MW) melebihi batas maksimal 50 MW.`,
+      message: `Real Power (${pw.rawStr || pw.num} MW) melebihi batas maksimal 50 MW (+${diff} MW).`,
     });
   } else if (pw.num <= 0) {
     issues.push({
       field: 'realPower',
       fieldLabel: 'Real Power',
       value: pw.num,
+      rawStr: pw.rawStr,
       expectedRule: 'Harus > 0 MW (maksimal 50 MW)',
       message: `Real Power (${pw.rawStr || pw.num} MW) bernilai 0 atau negatif.`,
     });
@@ -110,18 +130,23 @@ export function validateRecordAnomalies(
       field: 'nphr',
       fieldLabel: 'NPHR (Heat Rate)',
       value: hr.num,
+      rawStr: hr.rawStr,
       expectedRule: 'Harus 4 digit utama (contoh: 3220,9089) & maksimal 5000 kcal/kWh',
       message: `NPHR (${hr.rawStr || hr.num}) harus terdiri dari 4 digit utama (contoh: 3220,9089).`,
     });
   } else if (hr.num > 5000.0) {
+    const diff = (hr.num - 5000.0).toFixed(1);
     issues.push({
       field: 'nphr',
       fieldLabel: 'NPHR (Heat Rate)',
       value: hr.num,
+      rawStr: hr.rawStr,
       expectedRule: 'Batas maksimal: 5000 kcal/kWh',
-      message: `NPHR (${hr.num} kcal/kWh) melebihi batas maksimal 5000 kcal/kWh.`,
+      message: `NPHR (${hr.rawStr || hr.num} kcal/kWh) melebihi batas maksimal 5000 kcal/kWh (+${diff} kcal/kWh).`,
     });
   }
+
+  const prVal = (p1.num > 0 && p3.num > 0) ? (p3.num / p1.num).toFixed(4) : undefined;
 
   return {
     recordIndex,
@@ -129,6 +154,14 @@ export function validateRecordAnomalies(
     time: data.time,
     hasAnomalies: issues.length > 0,
     issues,
+    rowData: {
+      P1_7: p1.rawStr || p1.num,
+      P3_0: p3.rawStr || p3.num,
+      pr: prVal,
+      realPower: pw.rawStr || pw.num,
+      nphr: hr.rawStr || hr.num,
+      pbSynthesis: data.pbSynthesis,
+    },
   };
 }
 
@@ -142,6 +175,7 @@ export function scanRecordsForAnomalies<
     P3_0: number | string;
     realPower: number | string;
     nphr: number | string;
+    pbSynthesis?: number | string | null;
     date?: string;
     time?: string;
   }

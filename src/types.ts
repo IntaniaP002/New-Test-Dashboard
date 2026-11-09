@@ -11,6 +11,19 @@ export interface OperationalInput {
   P3_0: number; // Compressor Discharge Pressure (PSIA)
   realPower: number; // Gas Turbine Real Power (MW)
   nphr: number; // Net Plant Heat Rate (kcal/kWh)
+  pbSynthesis?: number | null; // PB Synthesis (NH) in PSIA
+  pbSynthesisDB?: number | null; // PB Synthesis DB in PSIA
+  fNH?: number | null; // Kurva f(NH) Speedronic (Y)
+  nhSpeed?: number | null; // NH Speed (X)
+  x1?: number | null; // Titik interpolasi X1
+  y1?: number | null; // Titik interpolasi Y1
+  x2?: number | null; // Titik interpolasi X2
+  y2?: number | null; // Titik interpolasi Y2
+  upperMultiplier?: number | null; // Multiplier batas atas (default 1.2)
+  lowerMultiplier?: number | null; // Multiplier batas bawah (default 0.8)
+  pt006?: number | null; // Inlet Pressure PT006/PT006B (PSIA)
+  isDrivebackWWRecommended?: boolean;
+  isPbBaseline?: boolean; // Tagged as Active Baseline for PB Synthesis / Driveback
   notes?: string;
   isWaterWashEvent?: boolean; // Tagged if Water Wash occurred on this date
   waterWashEventNumber?: number;
@@ -92,6 +105,40 @@ export interface OperationalRecord extends OperationalInput {
   sourceRecordIds?: string[]; // IDs of underlying hourly records
   isDailyMedian?: boolean; // Indicates whether this record is a daily consolidated (average) record
   isDailyAverage?: boolean;
+
+  // PB Synthesis Monitoring Fields (PB_upper = 1.18 * PB_syn, PB_lower = 0.82 * PB_syn)
+  pbSynthesis?: number | null;
+  pbUpper?: number | null;
+  pbLower?: number | null;
+  pbDeviationPercent?: number | null;
+  pbStatus?: 'NORMAL' | 'HIGH_ALARM' | 'LOW_ALARM' | null;
+  pbStatusMessage?: string;
+
+  // Driveback Monitoring Fields (PB_upper = Y * PT006 * 1.2, PB_lower = Y * PT006 * 0.8, Y = f(NH))
+  pbSynthesisDB?: number | null;
+  fNH?: number | null;
+  nhSpeed?: number | null;
+  x1?: number | null;
+  y1?: number | null;
+  x2?: number | null;
+  y2?: number | null;
+  upperMultiplier?: number | null;
+  lowerMultiplier?: number | null;
+  pt006?: number | null;
+  pbUpperDB?: number | null;
+  pbLowerDB?: number | null;
+  pbDeviationDBPercent?: number | null;
+  pbStatusDB?: 'NORMAL' | 'HIGH_DRIVEBACK' | 'LOW_DRIVEBACK' | 'RECOMMEND WATER WASH' | null;
+  pbStatusDBMessage?: string;
+  isDrivebackCrossing?: boolean;
+  isDrivebackWWRecommended?: boolean;
+  isPbBaseline?: boolean; // Tagged as Active Baseline for PB Synthesis / Driveback
+  pt007?: number | null; // Alias for compressor discharge pressure PT / PT007 (PSIA)
+  pbPercentOfUpper?: number | null; // (PT007 / pbUpperDB) * 100 (%)
+  pbPercentOfLower?: number | null; // (PT007 / pbLowerDB) * 100 (%)
+  pbHeadroomToUpper?: number | null; // ((pbUpperDB - PT007) / pbUpperDB) * 100 (%)
+  pbMarginAboveLower?: number | null; // ((PT007 - pbLowerDB) / pbLowerDB) * 100 (%)
+  pbBandPositionPercent?: number | null; // Position inside [Lower, Upper] operating band (%)
 }
 
 export interface ThresholdConfig {
@@ -317,4 +364,144 @@ export interface AuditLogEntry {
   reason?: string;
 }
 
-export type ActiveNavTab = 'dashboard' | 'input';
+export type ActiveNavTab = 'dashboard' | 'input' | 'pbSynthesis';
+
+export type PBSynthesisAlarmStatus = 'NORMAL' | 'HIGH_ALARM' | 'LOW_ALARM';
+export type PBSynthesisDrivebackStatus = 'NORMAL' | 'HIGH_DRIVEBACK' | 'LOW_DRIVEBACK' | 'RECOMMEND WATER WASH';
+
+export interface PBSynthesisEvaluation {
+  pbAktual: number; // = P3_0
+  pbSynthesis: number; // PB Synthesis (NH)
+  
+  // 1. Alarm Monitoring (±18%)
+  pbUpper: number; // PB_syn * 1.18
+  pbLower: number; // PB_syn * 0.82
+  pbDeviationPercent: number; // ((PB_aktual - PB_syn) / PB_syn) * 100
+  status: PBSynthesisAlarmStatus;
+  statusMessage: string;
+
+  // 2. Driveback Monitoring (PB_upper = Y * PT006 * 1.2, PB_lower = Y * PT006 * 0.8, Y = f(NH))
+  pbSynthesisDB?: number | null; // PB Synthesis DB = Y * PT006
+  fNH?: number | null; // Kurva f(NH) (Y)
+  nhSpeed?: number | null; // NH Speed (X)
+  x1?: number | null;
+  y1?: number | null;
+  x2?: number | null;
+  y2?: number | null;
+  upperMultiplier?: number | null;
+  lowerMultiplier?: number | null;
+  pt006?: number | null; // Inlet Pressure PT006/PT006B (PSIA)
+  pbUpperDB?: number | null; // Y * PT006 * 1.2
+  pbLowerDB?: number | null; // Y * PT006 * 0.8
+  pbDeviationDBPercent?: number | null; // ((PB_aktual - PB_syn_db) / PB_syn_db) * 100
+  statusDB?: PBSynthesisDrivebackStatus | null;
+  statusDBMessage?: string;
+  isDrivebackCrossing?: boolean;
+  isDrivebackWWRecommended?: boolean;
+  // PT007 vs Baseline comparison fields
+  pt007?: number;
+  percentOfUpper?: number | null; // (PT007 / Upper) * 100
+  headroomToUpper?: number | null; // ((Upper - PT007) / Upper) * 100
+  percentOfLower?: number | null; // (PT007 / Lower) * 100
+  marginAboveLower?: number | null; // ((PT007 - Lower) / Lower) * 100
+  bandPositionPercent?: number | null; // Position within [Lower, Upper] band
+}
+
+export interface PT007BaselineComparison {
+  pt007: number; // PT / PT007 (Compressor Discharge Pressure)
+  upperThreshold: number; // Batas Atas Driveback (Y * PT006 * 1.2)
+  lowerThreshold: number; // Batas Bawah Driveback (Y * PT006 * 0.8)
+  nominalDB: number; // Y * PT006
+  percentOfUpper: number; // (PT007 / upperThreshold) * 100 (%)
+  headroomToUpper: number; // ((upperThreshold - PT007) / upperThreshold) * 100 (%)
+  percentOfLower: number; // (PT007 / lowerThreshold) * 100 (%)
+  marginAboveLower: number; // ((PT007 - lowerThreshold) / lowerThreshold) * 100 (%)
+  bandPositionPercent: number; // ((PT007 - lowerThreshold) / (upperThreshold - lowerThreshold)) * 100 (%)
+  isExceedingUpper: boolean;
+  isDroppingBelowLower: boolean;
+  isNormal: boolean;
+  status: 'NORMAL' | 'RECOMMEND WATER WASH';
+  statusDetail: 'NORMAL' | 'HIGH_CROSSING' | 'LOW_CROSSING';
+  message: string;
+}
+
+export interface PBSynthesisBaselineRecord {
+  recordId?: string;
+  date: string;
+  time: string;
+  nhSpeed: number;
+  fNH: number;
+  pt006: number;
+  upperMultiplier: number;
+  lowerMultiplier: number;
+  nominalDB: number; // Y * PT006
+  upperThreshold: number; // Y * PT006 * 1.2
+  lowerThreshold: number; // Y * PT006 * 0.8
+  setAt?: string;
+}
+
+export interface PBOperationCurvePoint {
+  beban: number; // Beban (MW)
+  nhSpeed: number; // X (NH Speed)
+  yInterpolated: number; // Y (hasil hitung)
+  pt006: number; // PT006 (PSIA)
+  pbSynthesis: number; // PB Synthesis (NH) = Y * PT006
+  earlyUpper: number; // Early Batas Atas (1.171x)
+  earlyLower: number; // Early Batas Bawah (0.829x)
+  upperThreshold: number; // Batas Atas (1.18x)
+  lowerThreshold: number; // Batas Bawah (0.82x)
+}
+
+export type PBOperationZone =
+  | 'NORMAL'
+  | 'EARLY_UPPER'
+  | 'EARLY_LOWER'
+  | 'MELEWATI_BATAS_ATAS'
+  | 'MELEWATI_BATAS_BAWAH';
+
+export interface PBOperationEvaluation {
+  beban: number; // Beban Aktual (MW)
+  nhSpeed: number; // NH Speed input (X)
+  t1_7: number; // T1.7 (°F)
+  theta: number; // (T1.7 + 459.7) / 518.7
+  sqrtTheta: number; // sqrt(theta)
+  nhSpeedCorrected: number; // NH Speed / sqrt(theta)
+  fNH: number; // Y = f(NH_corrected) interpolated
+  pt006: number; // PT006 (Inlet P1.7, PSIA)
+  pt007: number; // PT007 (Testing Data P3.0, PSIA)
+  pbSynthesis: number; // PB Synthesis (NH) = Y * PT006
+  earlyUpper: number; // 1.171x
+  earlyLower: number; // 0.829x
+  upperThreshold: number; // 1.18x
+  lowerThreshold: number; // 0.82x
+  zone: PBOperationZone;
+  statusLabel: string;
+  statusDescription: string;
+  isRecommendWaterWash: boolean;
+  deltaPbSyn: number; // PT007 - pbSynthesis
+  percentDevPbSyn: number; // ((PT007 - pbSynthesis) / pbSynthesis) * 100
+}
+
+export interface PBOperationInputRecord {
+  id: string;
+  date: string;
+  time: string;
+  beban: number; // Real Power (MW)
+  nhSpeed: number; // NH Speed raw
+  t1_7: number; // T1.7 (°F)
+  theta: number;
+  sqrtTheta: number;
+  nhSpeedCorrected: number; // NH Speed Corrected
+  pt006: number; // PT006 (Inlet P1.7, PSIA)
+  pt007: number; // PT007 (Testing Data P3.0, PSIA)
+  fNH: number; // Y = f(NH_corrected)
+  pbSynthesis: number; // PB Synthesis (NH) = Y * PT006
+  earlyUpper: number; // 1.08x
+  earlyLower: number; // 0.92x
+  upperThreshold: number; // 1.18x
+  lowerThreshold: number; // 0.82x
+  zone: PBOperationZone;
+  isRecommendWaterWash: boolean;
+  timestamp: number;
+}
+

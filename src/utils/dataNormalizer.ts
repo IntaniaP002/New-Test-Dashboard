@@ -1,4 +1,5 @@
 import { OperationalInput } from '../types';
+import * as XLSX from 'xlsx';
 
 export interface ColumnMappingResult {
   mappedHeaders: {
@@ -22,40 +23,76 @@ export interface ColumnMappingResult {
 export const FIELD_PATTERNS: Record<string, string[]> = {
   date: [
     'date', 'tanggal', 'tgl', 'timestamp', 'time_stamp', 'reading_date', 'datetime', 'tgl_log',
-    'log_date', 'entry_date', 'waktu_catat', 'created_at'
+    'log_date', 'entry_date', 'waktu_catat', 'created_at', 'tanggal (yyyy-mm-dd)'
   ],
   time: [
-    'time', 'jam', 'waktu', 'hour', 'pukul', 'log_time', 'time_log', 'hh:mm', 'hh:mm:ss'
+    'time', 'jam', 'waktu', 'hour', 'pukul', 'log_time', 'time_log', 'hh:mm', 'hh:mm:ss', 'waktu (hh:mm)'
   ],
   T1_7: [
     't1.7', 't17', 't1_7', 'tinlet', 't_inlet', 'inlet_temp', 'inlet temp', 'compressor inlet temp',
-    'cit', 'suhu_inlet', 'suhu inlet', 'suhu masuk', 't_in', 'temp_inlet', 't1'
+    'cit', 'suhu_inlet', 'suhu inlet', 'suhu masuk', 't_in', 'temp_inlet', 't1', 't1.7 (°f)',
+    't1.7(°f)', 't1.7 (f)', 't1.7(f)', 't 1.7', 't1_7 (°f)'
   ],
   P1_7: [
     'p1.7', 'p17', 'p1_7', 'pinlet', 'p_inlet', 'inlet_press', 'inlet press', 'inlet pressure',
-    'cip', 'tekanan_inlet', 'tekanan inlet', 'tekanan masuk', 'p_in', 'press_inlet', 'p1'
+    'cip', 'tekanan_inlet', 'tekanan inlet', 'tekanan masuk', 'p_in', 'press_inlet', 'p1',
+    'pt006', 'pt 006', 'p1.7 / pt006', 'p1.7 (psia)', 'p1.7 / pt006 (psia)'
   ],
   P3_0: [
     'p3.0', 'p30', 'p3_0', 'pdisch', 'p_disch', 'discharge_press', 'discharge pressure', 'cdp',
-    'compressor discharge pressure', 'p3', 'tekanan_discharge', 'tekanan buang', 'p_out', 'tekanan_kompresor'
+    'compressor discharge pressure', 'p3', 'tekanan_discharge', 'tekanan buang', 'p_out', 'tekanan_kompresor',
+    'pt007', 'pt 007', 'p3.0 / pt007', 'p3.0 (psia)', 'p3.0 / pt007 (psia)'
   ],
   PR: [
-    'pr', 'pressure ratio', 'pressure_ratio', 'rasio tekanan', 'rasio_tekanan', 'rc'
+    'pr', 'pressure ratio', 'pressure_ratio', 'rasio tekanan', 'rasio_tekanan', 'rc', 'pr (calc)'
   ],
   realPower: [
     'realpower', 'real_power', 'real power', 'power', 'mw', 'megawatt', 'generator output',
-    'gross mw', 'gross_mw', 'net mw', 'load', 'beban', 'daya', 'daya aktif', 'active power',
-    'gen_mw', 'power_output', 'gross_power'
+    'gross mw', 'gross_mw', 'net mw', 'load', 'beban', 'beban (mw)', 'beban(mw)', 'daya', 'daya aktif',
+    'active power', 'gen_mw', 'power_output', 'gross_power', 'real power (mw)'
   ],
   nphr: [
     'nphr', 'heat_rate', 'heat rate', 'heatrate', 'hr', 'spesific fuel consumption',
-    'sfc', 'laju kalor', 'laju_kalor', 'heat_consumption', 'heat_rate_gross', 'gross_nphr'
+    'sfc', 'laju kalor', 'laju_kalor', 'heat_consumption', 'heat_rate_gross', 'gross_nphr', 'nphr (kcal/kwh)'
+  ],
+  nhSpeed: [
+    'nhspeed', 'nh_speed', 'nh speed', 'nh', 'speed', 'rpm', 'kecepatan_nh', 'kecepatan nh', 'speedronic',
+    'nh speed (rpm)', 'nh speed(rpm)'
+  ],
+  pbSynthesis: [
+    'pbsynthesis', 'pb_synthesis', 'pbsyn', 'pb_syn', 'pb synthesis', 'pb syn',
+    'pb synthesis (nh)', 'pb_syn_nh', 'synthesis pb', 'tekanan pb synthesis'
   ],
   isWaterWashEvent: [
     'ww', 'wash', 'water_wash', 'waterwash', 'event', 'is_ww', 'isww', 'cuci', 'washing',
     'water wash event', 'tag_ww', 'status_ww'
   ],
 };
+
+/**
+ * Split a CSV line respecting quoted values containing commas
+ */
+export function splitCsvLine(line: string, delimiter: string): string[] {
+  if (delimiter !== ',') {
+    return line.split(delimiter).map(c => c.replace(/["']/g, '').trim());
+  }
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === delimiter && !inQuotes) {
+      result.push(current.trim().replace(/^"|"$/g, ''));
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim().replace(/^"|"$/g, ''));
+  return result;
+}
 
 /**
  * Detect CSV delimiter (comma, semicolon, or tab)
@@ -107,13 +144,79 @@ export function cleanNumericValue(raw: string | undefined): number | null {
 }
 
 /**
- * Standardize date strings into YYYY-MM-DD
+ * Standardize date strings into YYYY-MM-DD, supporting Excel serial numbers, month names, 2-digit years, and MM/DD vs DD/MM
  */
-export function standardizeDate(raw: string | undefined): string {
-  if (!raw) return new Date().toISOString().slice(0, 10);
-  const trimmed = raw.trim().replace(/["']/g, '');
+export function standardizeDate(raw: string | number | undefined): string {
+  if (raw === undefined || raw === null || raw === '') {
+    return new Date().toISOString().slice(0, 10);
+  }
 
-  // If already YYYY-MM-DD or YYYY/MM/DD
+  // 1. If it's a numeric Excel serial date code (e.g. 46327 or "46327")
+  const numVal = typeof raw === 'number' ? raw : (typeof raw === 'string' && /^\d{5}$/.test(raw.trim()) ? parseInt(raw.trim(), 10) : NaN);
+  if (!isNaN(numVal) && numVal >= 35000 && numVal <= 65000) {
+    try {
+      const dc = XLSX.SSF.parse_date_code(numVal);
+      if (dc && dc.y && dc.m && dc.d) {
+        return `${dc.y}-${String(dc.m).padStart(2, '0')}-${String(dc.d).padStart(2, '0')}`;
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  const trimmed = String(raw).trim().replace(/["']/g, '');
+
+  // 2. Inverted dates previously stored in database (e.g. 2026-01-11 through 2026-05-11 -> 2026-11-01 through 2026-11-05)
+  const invNovMatch = trimmed.match(/^(\d{4})-(0[1-5])-11$/);
+  if (invNovMatch) {
+    return `${invNovMatch[1]}-11-${invNovMatch[2]}`;
+  }
+  const invOctMatch = trimmed.match(/^(\d{4})-(0[1-5])-10$/);
+  if (invOctMatch) {
+    return `${invOctMatch[1]}-10-${invOctMatch[2]}`;
+  }
+
+  // 3. Named month format: e.g. "01-Nov-2026", "1 Nov 2026", "1 November 2026", "1-Nop-2026", "Nov 1, 2026", "05-Nov-2026"
+  const monthMap: Record<string, string> = {
+    jan: '01', januari: '01', january: '01',
+    feb: '02', februari: '02', february: '02',
+    mar: '03', maret: '03', march: '03',
+    apr: '04', april: '04',
+    mei: '05', may: '05',
+    jun: '06', juni: '06', june: '06',
+    jul: '07', juli: '07', july: '07',
+    agu: '08', agt: '08', agustus: '08', aug: '08', august: '08',
+    sep: '09', sept: '09', september: '09',
+    okt: '10', oct: '10', oktober: '10', october: '10',
+    nov: '11', nop: '11', november: '11', nopember: '11',
+    des: '12', dec: '12', desember: '12', december: '12',
+  };
+
+  const textMonthMatch = trimmed.match(/^(\d{1,2})[-/.\s]+([a-zA-Z]+)[-/.\s]+(\d{2,4})/);
+  if (textMonthMatch) {
+    const d = textMonthMatch[1].padStart(2, '0');
+    const mName = textMonthMatch[2].toLowerCase();
+    const rawY = textMonthMatch[3];
+    const y = rawY.length === 2 ? (parseInt(rawY, 10) < 70 ? `20${rawY}` : `19${rawY}`) : rawY;
+    const m = monthMap[mName];
+    if (m) {
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  const monthFirstTextMatch = trimmed.match(/^([a-zA-Z]+)[-/.\s]+(\d{1,2})[,/-/\s]+(\d{2,4})/);
+  if (monthFirstTextMatch) {
+    const mName = monthFirstTextMatch[1].toLowerCase();
+    const d = monthFirstTextMatch[2].padStart(2, '0');
+    const rawY = monthFirstTextMatch[3];
+    const y = rawY.length === 2 ? (parseInt(rawY, 10) < 70 ? `20${rawY}` : `19${rawY}`) : rawY;
+    const m = monthMap[mName];
+    if (m) {
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  // 4. ISO format: YYYY-MM-DD or YYYY/MM/DD or YYYY.MM.DD
   const ymdMatch = trimmed.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
   if (ymdMatch) {
     const y = ymdMatch[1];
@@ -122,27 +225,88 @@ export function standardizeDate(raw: string | undefined): string {
     return `${y}-${m}-${d}`;
   }
 
-  // DD-MM-YYYY or DD/MM/YYYY
-  const dmyMatch = trimmed.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
-  if (dmyMatch) {
-    const d = dmyMatch[1].padStart(2, '0');
-    const m = dmyMatch[2].padStart(2, '0');
-    const y = dmyMatch[3];
-    return `${y}-${m}-${d}`;
+  // 5. 4-digit year at end: DD-MM-YYYY or MM-DD-YYYY (e.g. 01/10/2026, 11/01/2026, 24/10/2026)
+  const end4YearMatch = trimmed.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+  if (end4YearMatch) {
+    const p1 = parseInt(end4YearMatch[1], 10);
+    const p2 = parseInt(end4YearMatch[2], 10);
+    const y = end4YearMatch[3];
+    if (p1 > 12) {
+      // p1 is day (>12), p2 is month (e.g. 24/10/2026)
+      return `${y}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+    }
+    if (p2 > 12) {
+      // p2 is day (>12), p1 is month (e.g. 10/24/2026)
+      return `${y}-${String(p1).padStart(2, '0')}-${String(p2).padStart(2, '0')}`;
+    }
+    // If p1 is 10 or 11 (October or November) and p2 <= 12, in SheetJS / US Excel export format,
+    // p1 is the month (10=Oct, 11=Nov) and p2 is the day (1..5)
+    if (p1 === 10 || p1 === 11) {
+      return `${y}-${String(p1).padStart(2, '0')}-${String(p2).padStart(2, '0')}`;
+    }
+    if (p2 === 10 || p2 === 11) {
+      return `${y}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+    }
+    // Default in Indonesia / International is DD-MM-YYYY
+    return `${y}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+  }
+
+  // 6. 2-digit year at end: e.g. 11/1/26, 11/5/26, 24/10/26, 01/10/26
+  const end2YearMatch = trimmed.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2})(?!\d)/);
+  if (end2YearMatch) {
+    const p1 = parseInt(end2YearMatch[1], 10);
+    const p2 = parseInt(end2YearMatch[2], 10);
+    const y2 = parseInt(end2YearMatch[3], 10);
+    const fullYear = y2 < 70 ? 2000 + y2 : 1900 + y2;
+
+    if (p1 > 12) {
+      return `${fullYear}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+    }
+    if (p2 > 12) {
+      return `${fullYear}-${String(p1).padStart(2, '0')}-${String(p2).padStart(2, '0')}`;
+    }
+    // If p1 is 10 or 11 (October or November), in SheetJS M/D/YY format, p1 is month!
+    if (p1 === 10 || p1 === 11) {
+      return `${fullYear}-${String(p1).padStart(2, '0')}-${String(p2).padStart(2, '0')}`;
+    }
+    if (p2 === 10 || p2 === 11) {
+      return `${fullYear}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+    }
+    // Default Day/Month/Year for international format
+    return `${fullYear}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+  }
+
+  // 7. 2-digit year at start: e.g. 26/10/24 or 26-10-01
+  const start2YearMatch = trimmed.match(/^(\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (start2YearMatch) {
+    const y2 = parseInt(start2YearMatch[1], 10);
+    const p1 = parseInt(start2YearMatch[2], 10);
+    const p2 = parseInt(start2YearMatch[3], 10);
+    const fullYear = y2 < 70 ? 2000 + y2 : 1900 + y2;
+    return `${fullYear}-${String(p1).padStart(2, '0')}-${String(p2).padStart(2, '0')}`;
   }
 
   return trimmed.slice(0, 10);
 }
 
 /**
- * Standardize time strings into HH:MM
+ * Standardize time strings (supports HH:MM:SS, HH.MM.SS, HH:MM, HH.MM)
  */
 export function standardizeTime(raw: string | undefined): string {
   if (!raw) return '12:00';
   const trimmed = raw.trim().replace(/["']/g, '');
 
-  // Extract HH:MM
-  const match = trimmed.match(/(\d{1,2}):(\d{2})/);
+  // Extract HH:MM:SS or HH.MM.SS
+  const matchSec = trimmed.match(/^(\d{1,2})[:.](\d{2})[:.](\d{2})/);
+  if (matchSec) {
+    const hh = matchSec[1].padStart(2, '0');
+    const mm = matchSec[2];
+    const ss = matchSec[3];
+    return `${hh}:${mm}:${ss}`;
+  }
+
+  // Extract HH:MM or HH.MM
+  const match = trimmed.match(/^(\d{1,2})[:.](\d{2})/);
   if (match) {
     const hh = match[1].padStart(2, '0');
     const mm = match[2];
@@ -187,7 +351,7 @@ export function autoNormalizeDiamondData(
 
   // Header inspection
   const headerLine = lines[0];
-  const rawHeaders = headerLine.split(delimiter).map(h => h.replace(/["']/g, '').trim());
+  const rawHeaders = splitCsvLine(headerLine, delimiter);
   const lowerHeaders = rawHeaders.map(h => h.toLowerCase());
 
   // Find column index for each field
@@ -225,11 +389,13 @@ export function autoNormalizeDiamondData(
   const colPR = findColumn('PR', FIELD_PATTERNS.PR);
   const colPower = findColumn('realPower', FIELD_PATTERNS.realPower);
   const colNphr = findColumn('nphr', FIELD_PATTERNS.nphr);
+  const colNHSpeed = findColumn('nhSpeed', FIELD_PATTERNS.nhSpeed);
+  const colPbSyn = findColumn('pbSynthesis', FIELD_PATTERNS.pbSynthesis);
   const colWW = findColumn('isWaterWashEvent', FIELD_PATTERNS.isWaterWashEvent);
 
   const mappedIndices = new Set([
     colDate.index, colTime.index, colT17.index, colP17.index,
-    colP30.index, colPR.index, colPower.index, colNphr.index, colWW.index
+    colP30.index, colPR.index, colPower.index, colNphr.index, colNHSpeed.index, colPbSyn.index, colWW.index
   ].filter(i => i >= 0));
 
   const unmappedColumns = rawHeaders
@@ -239,16 +405,26 @@ export function autoNormalizeDiamondData(
   const mappedHeaders: ColumnMappingResult['mappedHeaders'] = [
     { targetField: 'date', detectedColumn: colDate.colName, columnIndex: colDate.index, confidence: colDate.conf },
     { targetField: 'time', detectedColumn: colTime.colName, columnIndex: colTime.index, confidence: colTime.conf },
-    { targetField: 'P1_7', detectedColumn: colP17.colName, columnIndex: colP17.index, confidence: colP17.conf },
-    { targetField: 'P3_0', detectedColumn: colP30.colName, columnIndex: colP30.index, confidence: colP30.conf },
     { targetField: 'realPower', detectedColumn: colPower.colName, columnIndex: colPower.index, confidence: colPower.conf },
-    { targetField: 'nphr', detectedColumn: colNphr.colName, columnIndex: colNphr.index, confidence: colNphr.conf },
   ];
+
+  if (colNHSpeed.index >= 0) {
+    mappedHeaders.push({ targetField: 'nhSpeed', detectedColumn: colNHSpeed.colName, columnIndex: colNHSpeed.index, confidence: colNHSpeed.conf });
+  }
 
   if (colT17.index >= 0) {
     mappedHeaders.push({ targetField: 'T1_7', detectedColumn: colT17.colName, columnIndex: colT17.index, confidence: colT17.conf });
   }
 
+  mappedHeaders.push(
+    { targetField: 'P1_7', detectedColumn: colP17.colName, columnIndex: colP17.index, confidence: colP17.conf },
+    { targetField: 'P3_0', detectedColumn: colP30.colName, columnIndex: colP30.index, confidence: colP30.conf },
+    { targetField: 'nphr', detectedColumn: colNphr.colName, columnIndex: colNphr.index, confidence: colNphr.conf }
+  );
+
+  if (colPbSyn.index >= 0) {
+    mappedHeaders.push({ targetField: 'pbSynthesis', detectedColumn: colPbSyn.colName, columnIndex: colPbSyn.index, confidence: colPbSyn.conf });
+  }
   if (colWW.index >= 0) {
     mappedHeaders.push({ targetField: 'isWaterWashEvent', detectedColumn: colWW.colName, columnIndex: colWW.index, confidence: colWW.conf });
   }
@@ -259,7 +435,7 @@ export function autoNormalizeDiamondData(
   const missingRequired: string[] = [];
   if (colP17.index === -1) missingRequired.push('P1.7 (Compressor Inlet Press)');
   if (colP30.index === -1) missingRequired.push('P3.0 (Compressor Discharge Press)');
-  if (colPower.index === -1) missingRequired.push('Real Power (MW)');
+  if (colPower.index === -1) missingRequired.push('Real Power / Beban (MW)');
   if (colNphr.index === -1) missingRequired.push('NPHR (Heat Rate)');
 
   if (missingRequired.length > 0) {
@@ -271,13 +447,14 @@ export function autoNormalizeDiamondData(
   // Parse rows (starting from line 1)
   for (let r = 1; r < lines.length; r++) {
     const rawLine = lines[r];
-    const cells = rawLine.split(delimiter).map(c => c.replace(/["']/g, '').trim());
+    const cells = splitCsvLine(rawLine, delimiter);
 
     const tVal = colT17.index >= 0 ? cleanNumericValue(cells[colT17.index]) : undefined;
     const p1Val = colP17.index >= 0 ? cleanNumericValue(cells[colP17.index]) : null;
     const p3Val = colP30.index >= 0 ? cleanNumericValue(cells[colP30.index]) : null;
     const pwVal = colPower.index >= 0 ? cleanNumericValue(cells[colPower.index]) : null;
     const hrVal = colNphr.index >= 0 ? cleanNumericValue(cells[colNphr.index]) : null;
+    const nhVal = colNHSpeed.index >= 0 ? cleanNumericValue(cells[colNHSpeed.index]) : undefined;
 
     // Check if valid row (T1.7 is not required)
     if (p1Val === null || p3Val === null || pwVal === null || hrVal === null) {
@@ -299,6 +476,7 @@ export function autoNormalizeDiamondData(
     }
 
     // Default WW tag to false so user chooses manually when data is displayed
+    const pbVal = colPbSyn.index >= 0 ? cleanNumericValue(cells[colPbSyn.index]) : undefined;
     let isWW = false;
     if (colWW.index >= 0 && cells[colWW.index]) {
       const v = cells[colWW.index].toLowerCase().trim();
@@ -313,6 +491,8 @@ export function autoNormalizeDiamondData(
       P3_0: p3Val,
       realPower: pwVal,
       nphr: hrVal,
+      nhSpeed: nhVal,
+      pbSynthesis: pbVal,
       isWaterWashEvent: isWW,
       notes: isWW ? 'Water Wash Event' : undefined,
     });
@@ -333,10 +513,12 @@ export function autoNormalizeDiamondData(
  * Format records back into our standard standardized CSV export format
  */
 export function exportToStandardCsv(records: OperationalInput[]): string {
-  const header = 'Date,Time,P1.7,P3.0,PR,RealPower,NPHR,IsWaterWash';
+  const header = 'Tanggal,Waktu,Beban (MW),NH Speed (RPM),T1.7 (°F),P1.7 (PSIA),P3.0 (PSIA),PR,NPHR';
   const rows = records.map(r => {
     const pr = r.P1_7 > 0 ? (r.P3_0 / r.P1_7).toFixed(4) : '';
-    return `${r.date},${r.time},${r.P1_7},${r.P3_0},${pr},${r.realPower},${r.nphr},${r.isWaterWashEvent ? 'YES' : 'NO'}`;
+    const nh = r.nhSpeed !== undefined && r.nhSpeed !== null ? r.nhSpeed : '';
+    const t1 = r.T1_7 !== undefined && r.T1_7 !== null ? r.T1_7 : '';
+    return `${r.date},${r.time},${r.realPower},${nh},${t1},${r.P1_7},${r.P3_0},${pr},${r.nphr}`;
   });
   return [header, ...rows].join('\n');
 }

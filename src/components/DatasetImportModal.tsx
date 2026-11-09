@@ -4,29 +4,25 @@ import {
   AlertTriangle,
   AlertCircle,
   CheckCircle2,
-  FileText,
   Upload,
   X,
-  ArrowRight,
   Download,
   Filter,
   CheckCheck,
   FileSpreadsheet,
 } from 'lucide-react';
 import { OperationalInput } from '../types';
-import { scanRecordsForAnomalies, RecordAnomalyReport } from '../utils/anomalyValidation';
+import { scanRecordsForAnomalies } from '../utils/anomalyValidation';
 import { AnomalyWarningModal } from './AnomalyWarningModal';
 import {
   autoNormalizeDiamondData,
-  ColumnMappingResult,
-  exportToStandardCsv,
-  FIELD_PATTERNS,
 } from '../utils/dataNormalizer';
+import { isTimeInRange19to21 } from '../utils/calculations';
 
 interface DatasetImportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onImportData: (records: OperationalInput[], setAsBaseline?: boolean) => void;
+  onImportData: (records: OperationalInput[]) => void;
 }
 
 export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
@@ -34,64 +30,58 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
   onClose,
   onImportData,
 }) => {
-  const [csvText, setCsvText] = useState('');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [previewRows, setPreviewRows] = useState<OperationalInput[]>([]);
-  const [autoSetBaseline, setAutoSetBaseline] = useState(true);
-  const [mappingResult, setMappingResult] = useState<ColumnMappingResult | null>(null);
-  const [showMappingDetails, setShowMappingDetails] = useState(false);
   const [filter19to21Only, setFilter19to21Only] = useState(false);
   const [showAnomalyModal, setShowAnomalyModal] = useState<boolean>(false);
 
-  // Filter rows if user chooses representative operating window (19:00 - 21:00 or >21MW)
+  // Filter rows if user chooses representative operating window (range 19:00 - 21:00)
   const displayedRows = useMemo(() => {
     return filter19to21Only
-      ? previewRows.filter((r) => {
-          const h = parseInt(r.time?.slice(0, 2) || '0', 10);
-          return (h >= 19 && h <= 21) || r.realPower >= 21.0;
-        })
+      ? previewRows.filter((r) => isTimeInRange19to21(r.time) || r.realPower >= 21.0)
       : previewRows;
   }, [filter19to21Only, previewRows]);
 
-  // Scan displayed rows for anomalies (must be declared before any early return)
+  // Scan displayed rows for anomalies
   const detectedAnomalies = useMemo(() => {
     return scanRecordsForAnomalies(displayedRows);
   }, [displayedRows]);
+
+  // Summary counts of parameters detected in rows
+  const parameterPresence = useMemo(() => {
+    if (previewRows.length === 0) return { hasT17: false, hasNHSpeed: false };
+    const hasT17 = previewRows.some((r) => r.T1_7 !== undefined && r.T1_7 !== null && !isNaN(r.T1_7));
+    const hasNHSpeed = previewRows.some((r) => r.nhSpeed !== undefined && r.nhSpeed !== null && !isNaN(r.nhSpeed));
+    return { hasT17, hasNHSpeed };
+  }, [previewRows]);
 
   if (!isOpen) return null;
 
   const parseCsvContent = (text: string, fileName?: string | null) => {
     setParseError(null);
     if (!text.trim()) {
-      setParseError('Please paste CSV text or select a file first.');
+      setParseError('Silakan pilih file Excel (.xlsx) atau CSV terlebih dahulu.');
       return;
     }
 
     try {
-      // Use intelligent auto-normalizer that handles disordered columns, comma decimals, tags, etc.
       const result = autoNormalizeDiamondData(text, fileName || undefined);
 
       if (result.extractedRecords.length === 0) {
         setParseError(
           result.warnings.length > 0
             ? result.warnings.join(' ')
-            : 'No valid data rows could be extracted. Please ensure required turbine parameters (P1.7, P3.0, Real Power, NPHR) exist in the file.'
+            : 'Tidak ada baris data valid yang dapat diekstrak. Pastikan parameter turbin (P1.7, P3.0, Beban, NPHR) tersedia pada file.'
         );
-        setMappingResult(result);
         return;
       }
 
-      setMappingResult(result);
       setPreviewRows(result.extractedRecords);
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : 'Failed to parse file.';
+      const errMsg = err instanceof Error ? err.message : 'Gagal memproses file.';
       setParseError(`Parse error: ${errMsg}`);
     }
-  };
-
-  const handleParse = () => {
-    parseCsvContent(csvText, uploadedFileName);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,12 +96,43 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
       reader.onload = (event) => {
         try {
           const buffer = event.target?.result as ArrayBuffer;
-          const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+          const workbook = XLSX.read(new Uint8Array(buffer), {
+            type: 'array',
+            cellDates: true,
+          });
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
+
+          // Normalize any date cells into explicit YYYY-MM-DD strings so CSV conversion is 100% unambiguous
+          if (worksheet && worksheet['!ref']) {
+            const range = XLSX.utils.decode_range(worksheet['!ref']);
+            for (let R = range.s.r; R <= range.e.r; ++R) {
+              for (let C = range.s.c; C <= range.e.c; ++C) {
+                const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+                const cell = worksheet[cellRef];
+                if (!cell) continue;
+
+                if (cell.t === 'd' && cell.v instanceof Date) {
+                  const y = cell.v.getUTCFullYear();
+                  const m = String(cell.v.getUTCMonth() + 1).padStart(2, '0');
+                  const d = String(cell.v.getUTCDate()).padStart(2, '0');
+                  cell.t = 's';
+                  cell.v = `${y}-${m}-${d}`;
+                  cell.w = cell.v;
+                } else if (cell.t === 'n' && cell.v >= 35000 && cell.v <= 65000) {
+                  const dc = XLSX.SSF.parse_date_code(cell.v);
+                  if (dc && dc.y && dc.m && dc.d) {
+                    cell.t = 's';
+                    cell.v = `${dc.y}-${String(dc.m).padStart(2, '0')}-${String(dc.d).padStart(2, '0')}`;
+                    cell.w = cell.v;
+                  }
+                }
+              }
+            }
+          }
+
           // Convert sheet into CSV text for uniform parsing
           const csv = XLSX.utils.sheet_to_csv(worksheet);
-          setCsvText(csv);
           parseCsvContent(csv, file.name);
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : 'Error reading Excel file';
@@ -123,14 +144,11 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
       const reader = new FileReader();
       reader.onload = (event) => {
         const text = event.target?.result as string;
-        setCsvText(text);
         parseCsvContent(text, file.name);
       };
       reader.readAsText(file);
     }
   };
-
-
 
   const handleConfirmImport = () => {
     if (displayedRows.length === 0) return;
@@ -145,33 +163,33 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
 
   const executeImport = () => {
     if (displayedRows.length > 0) {
-      onImportData(displayedRows, autoSetBaseline);
+      onImportData(displayedRows);
       onClose();
     }
   };
 
-  const handleDownloadStandardized = () => {
+  const executeImportExcludingAnomalies = () => {
     if (displayedRows.length === 0) return;
-    const csvData = exportToStandardCsv(displayedRows);
-    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `standardized_operational_data_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const anomalousIndices = new Set(detectedAnomalies.map((a) => a.recordIndex));
+    const cleanRows = displayedRows.filter((_, idx) => !anomalousIndices.has(idx + 1));
+    if (cleanRows.length > 0) {
+      onImportData(cleanRows);
+      setShowAnomalyModal(false);
+      onClose();
+    }
   };
 
   const handleDownloadStandardizedExcel = () => {
     if (displayedRows.length === 0) return;
     const rows = displayedRows.map((r) => ({
-      Date: r.date,
-      Time: r.time,
-      'P1.7 (PSIA)': r.P1_7,
-      'P3.0 (PSIA)': r.P3_0,
-      PR: r.P1_7 > 0 ? Number((r.P3_0 / r.P1_7).toFixed(4)) : null,
-      'Real Power (MW)': r.realPower,
+      'Tanggal (YYYY-MM-DD)': r.date,
+      'Waktu (HH:MM)': r.time,
+      'Beban (MW)': r.realPower,
+      'NH Speed (RPM)': r.nhSpeed ?? null,
+      'T1.7 (°F)': r.T1_7 ?? null,
+      'P1.7 / PT006 (PSIA)': r.P1_7,
+      'P3.0 / PT007 (PSIA)': r.P3_0,
+      'PR (Calc)': r.P1_7 > 0 ? Number((r.P3_0 / r.P1_7).toFixed(4)) : null,
       'NPHR (kcal/kWh)': r.nphr,
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -180,9 +198,38 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
     XLSX.writeFile(wb, `standardized_operational_data_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
+  const handleDownloadExcelTemplate = () => {
+    const templateRows = [
+      {
+        'Tanggal (YYYY-MM-DD)': '2026-10-24',
+        'Waktu (HH:MM)': '19:00',
+        'Beban (MW)': 21.60,
+        'NH Speed (RPM)': 11670,
+        'T1.7 (°F)': 85.5,
+        'P1.7': 14.60,
+        'P3.0': 265.79,
+        'NPHR': 2435,
+      },
+      {
+        'Tanggal (YYYY-MM-DD)': '2026-10-25',
+        'Waktu (HH:MM)': '19:00',
+        'Beban (MW)': 18.90,
+        'NH Speed (RPM)': 11399,
+        'T1.7 (°F)': 84.8,
+        'P1.7': 14.64,
+        'P3.0': 265.00,
+        'NPHR': 2450,
+      },
+    ];
+    const ws = XLSX.utils.json_to_sheet(templateRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template_Operasional');
+    XLSX.writeFile(wb, 'Template_Upload_Operasional.xlsx');
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="bg-white rounded-lg border border-slate-300 shadow-2xl max-w-4xl w-full p-6 space-y-4 max-h-[94vh] flex flex-col">
+      <div className="bg-white rounded-lg border border-slate-300 shadow-2xl max-w-5xl w-full p-6 space-y-4 max-h-[94vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200 pb-3">
           <div>
@@ -194,7 +241,7 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Paste or upload raw Diamond exports in <strong>any column order</strong>. The system automatically identifies required parameters and reorders them into our standardized monitoring format.
+              Upload file Excel (.xlsx) atau CSV. Kolom otomatis dipetakan (termasuk <strong>T1.7</strong> & <strong>NH Speed</strong>) dan distandardisasi.
             </p>
           </div>
           <button
@@ -208,84 +255,36 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
 
         {/* Input Area */}
         <div className="space-y-3 flex-1 overflow-y-auto pr-1">
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
+          {/* File Selector & Template Link */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-md">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
               <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Select Data CSV / Excel (.xlsx)</span>
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                <span>Pilih File Excel (.xlsx) / CSV</span>
                 {uploadedFileName && (
-                  <span className="text-sky-700 font-semibold">({uploadedFileName})</span>
+                  <span className="text-sky-700 font-bold">({uploadedFileName})</span>
                 )}
               </label>
-              <input
-                type="file"
-                accept=".csv,.xlsx,.xls,.txt,.tsv"
-                onChange={handleFileUpload}
-                className="text-xs text-slate-500 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100 cursor-pointer"
-              />
+              <button
+                type="button"
+                onClick={handleDownloadExcelTemplate}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 underline"
+                title="Download template Excel dengan format kolom standar"
+              >
+                <Download className="w-3 h-3" />
+                <span>Download Template Excel</span>
+              </button>
             </div>
-            <textarea
-              rows={4}
-              value={csvText}
-              onChange={(e) => setCsvText(e.target.value)}
-              placeholder="Paste raw data here or upload CSV / Excel (.xlsx):&#10;Power_MW, Jam, NPHR, Tanggal, P3_0, P1_7&#10;23.4, 20:00, 3447.1, 2024-11-05, 243.8, 14.58&#10;22.8, 20:00, 3438.7, 2025-01-16, 241.4, 14.57"
-              className="w-full p-2.5 font-mono text-xs border border-slate-300 rounded bg-slate-50 text-slate-900 focus:outline-none focus:ring-1 focus:ring-sky-500"
+            <input
+              type="file"
+              accept=".csv,.xlsx,.xls,.txt,.tsv"
+              onChange={handleFileUpload}
+              className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100 cursor-pointer"
             />
           </div>
 
-          <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleParse}
-                className="px-3.5 py-1.5 text-xs font-semibold bg-sky-700 text-white rounded hover:bg-sky-800 shadow-xs transition-colors"
-              >
-                Auto-Extract & Standardize Format
-              </button>
 
-              {mappingResult && (
-                <button
-                  type="button"
-                  onClick={() => setShowMappingDetails(!showMappingDetails)}
-                  className="px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors"
-                >
-                  {showMappingDetails ? 'Hide Column Mapping' : 'View Detected Column Mapping'}
-                </button>
-              )}
-            </div>
-          </div>
 
-          {/* Column Mapping Inspection Drawer */}
-          {mappingResult && showMappingDetails && (
-            <div className="p-3.5 bg-slate-50 border border-slate-300 rounded-md space-y-2 text-xs">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
-                <span className="font-bold text-slate-900">Automated Column Detection & Normalization Map</span>
-                <span className="text-[11px] text-slate-500 font-mono">
-                  Delimiter detected: '{mappingResult.detectedDelimiter === '\t' ? 'TAB' : mappingResult.detectedDelimiter}'
-                </span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-                {mappingResult.mappedHeaders.map((m) => (
-                  <div key={m.targetField} className="p-2 rounded bg-white border border-slate-200">
-                    <div className="text-slate-500 font-medium">Target Field:</div>
-                    <div className="font-bold text-sky-800">{m.targetField}</div>
-                    <div className="flex items-center gap-1 mt-1 text-slate-600">
-                      <ArrowRight className="w-3 h-3 text-slate-400" />
-                      <span className="truncate font-mono" title={m.detectedColumn}>
-                        {m.detectedColumn || '<Not found>'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {mappingResult.unmappedColumns.length > 0 && (
-                <div className="pt-1 text-[11px] text-slate-500">
-                  <span className="font-medium">Ignored extra Diamond columns: </span>
-                  {mappingResult.unmappedColumns.map((c) => c.columnName).join(', ')}
-                </div>
-              )}
-            </div>
-          )}
 
           {parseError && (
             <div className="p-3 bg-rose-50 border border-rose-300 rounded text-xs text-rose-800 flex items-start gap-2">
@@ -301,8 +300,18 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
                 <div className="flex items-center gap-2 flex-wrap">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span className="font-bold text-xs text-slate-900">
-                    Standardized {displayedRows.length} of {previewRows.length} rows
+                    Preview Data: {displayedRows.length} dari {previewRows.length} baris siap diimpor
                   </span>
+                  {parameterPresence.hasT17 && (
+                    <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                      T1.7 Aktif ({previewRows.filter(r => r.T1_7 !== undefined && r.T1_7 !== null).length} baris)
+                    </span>
+                  )}
+                  {parameterPresence.hasNHSpeed && (
+                    <span className="text-[11px] font-semibold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                      NH Speed Aktif ({previewRows.filter(r => r.nhSpeed !== undefined && r.nhSpeed !== null).length} baris)
+                    </span>
+                  )}
                 </div>
 
                 {/* Filter option */}
@@ -315,10 +324,10 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
                         ? 'bg-amber-600 text-white border-amber-700'
                         : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                     }`}
-                    title="Filter to 19:00-21:00 or >21MW operating condition"
+                    title="Filter data hanya jam 19:00-21:00 atau beban 20-24 MW"
                   >
                     <Filter className="w-3 h-3" />
-                    <span>{filter19to21Only ? 'Showing 19-21h / >21MW Only' : 'Filter 19-21h'}</span>
+                    <span>{filter19to21Only ? 'Menampilkan 19-21h / 20-24MW Saja' : 'Filter 19-21h / 20-24MW'}</span>
                   </button>
                 </div>
               </div>
@@ -329,7 +338,7 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                     <span>
-                      Terdeteksi <strong>{detectedAnomalies.length}</strong> data dengan potensi anomali/nilai di luar batas wajar operasional.
+                      Terdeteksi <strong>{detectedAnomalies.length}</strong> data dengan potensi anomali/nilai di luar rentang wajar operasional.
                     </span>
                   </div>
                   <button
@@ -342,66 +351,74 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
                 </div>
               )}
 
-              {/* Baseline Option & Export Link */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs px-1 gap-2">
-                <label className="flex items-center gap-2 cursor-pointer text-slate-700 font-medium">
-                  <input
-                    type="checkbox"
-                    checked={autoSetBaseline}
-                    onChange={(e) => setAutoSetBaseline(e.target.checked)}
-                    className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 w-4 h-4"
-                  />
-                  <span>Set 1st record as Initial Baseline Reference</span>
-                </label>
-                
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleDownloadStandardized}
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 hover:text-sky-900 underline"
-                    title="Download standardized CSV file formatted with Date, Time, P1.7, P3.0, PR, RealPower, NPHR"
-                  >
-                    <Download className="w-3 h-3" />
-                    <span>Download CSV</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDownloadStandardizedExcel}
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 underline"
-                    title="Download standardized Excel (.xlsx) file"
-                  >
-                    <Download className="w-3 h-3" />
-                    <span>Download Excel (.xlsx)</span>
-                  </button>
-                </div>
+              {/* Export Links */}
+              <div className="flex items-center justify-end text-xs px-1">
+                <button
+                  type="button"
+                  onClick={handleDownloadStandardizedExcel}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 underline"
+                  title="Download Excel (.xlsx) standardized"
+                >
+                  <Download className="w-3 h-3" />
+                  <span>Download Excel (.xlsx)</span>
+                </button>
               </div>
 
-              {/* Standardized Table Preview */}
-              <div className="overflow-x-auto max-h-56 border border-slate-200 rounded bg-white shadow-2xs">
+              {/* Standardized Table Preview with ALL Parameters Explicitly Displayed */}
+              <div className="overflow-x-auto max-h-64 border border-slate-200 rounded bg-white shadow-2xs">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-100 text-slate-700 border-b border-slate-200 sticky top-0 font-semibold text-[11px]">
                     <tr>
-                      <th className="py-2 px-3">Date</th>
-                      <th className="py-2 px-3">Time</th>
-                      <th className="py-2 px-3">P1.7 (PSIA)</th>
-                      <th className="py-2 px-3">P3.0 (PSIA)</th>
-                      <th className="py-2 px-3">PR (Calc)</th>
-                      <th className="py-2 px-3">Power (MW)</th>
-                      <th className="py-2 px-3">NPHR</th>
+                      <th className="py-2 px-3 whitespace-nowrap">Tanggal</th>
+                      <th className="py-2 px-3 whitespace-nowrap">Waktu</th>
+                      <th className="py-2 px-3 whitespace-nowrap">Beban (MW)</th>
+                      <th className="py-2 px-3 whitespace-nowrap bg-sky-50 text-sky-900 border-x border-sky-100">
+                        NH Speed (RPM)
+                      </th>
+                      <th className="py-2 px-3 whitespace-nowrap bg-amber-50 text-amber-950 border-r border-amber-100">
+                        T1.7 (°F)
+                      </th>
+                      <th className="py-2 px-3 whitespace-nowrap">P1.7 / PT006 (PSIA)</th>
+                      <th className="py-2 px-3 whitespace-nowrap">P3.0 / PT007 (PSIA)</th>
+                      <th className="py-2 px-3 whitespace-nowrap">PR (Calc)</th>
+                      <th className="py-2 px-3 whitespace-nowrap">NPHR</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-[11px]">
                     {displayedRows.map((r, idx) => {
                       const pr = r.P1_7 > 0 ? (r.P3_0 / r.P1_7).toFixed(4) : '—';
+                      const hasT = r.T1_7 !== undefined && r.T1_7 !== null && !isNaN(r.T1_7);
+                      const hasNH = r.nhSpeed !== undefined && r.nhSpeed !== null && !isNaN(r.nhSpeed);
+
                       return (
-                        <tr key={idx} className="hover:bg-slate-50">
-                          <td className="py-1.5 px-3 font-medium text-slate-900 whitespace-nowrap">{r.date}</td>
-                          <td className="py-1.5 px-3 text-slate-600 whitespace-nowrap">{r.time}</td>
-                          <td className="py-1.5 px-3 text-slate-800">{r.P1_7.toFixed(2)}</td>
-                          <td className="py-1.5 px-3 text-slate-800">{r.P3_0.toFixed(2)}</td>
-                          <td className="py-1.5 px-3 font-mono font-medium text-slate-700">{pr}</td>
-                          <td className="py-1.5 px-3 text-slate-800">{r.realPower.toFixed(2)}</td>
-                          <td className="py-1.5 px-3 text-slate-800">{r.nphr.toLocaleString()}</td>
+                        <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-1.5 px-3 font-medium text-slate-900 whitespace-nowrap">
+                            {r.date}
+                          </td>
+                          <td className="py-1.5 px-3 text-slate-600 whitespace-nowrap">
+                            {r.time}
+                          </td>
+                          <td className="py-1.5 px-3 text-slate-800 font-semibold">
+                            {r.realPower.toFixed(2)}
+                          </td>
+                          <td className="py-1.5 px-3 font-mono font-medium text-sky-900 bg-sky-50/40 border-x border-sky-100 whitespace-nowrap">
+                            {hasNH ? r.nhSpeed!.toLocaleString() : '—'}
+                          </td>
+                          <td className="py-1.5 px-3 font-mono font-bold text-amber-900 bg-amber-50/40 border-r border-amber-100 whitespace-nowrap">
+                            {hasT ? `${Number(r.T1_7).toFixed(2)}°F` : '—'}
+                          </td>
+                          <td className="py-1.5 px-3 text-slate-800">
+                            {r.P1_7.toFixed(2)}
+                          </td>
+                          <td className="py-1.5 px-3 text-slate-800">
+                            {r.P3_0.toFixed(2)}
+                          </td>
+                          <td className="py-1.5 px-3 font-mono font-medium text-slate-700">
+                            {pr}
+                          </td>
+                          <td className="py-1.5 px-3 text-slate-800">
+                            {r.nphr.toLocaleString()}
+                          </td>
                         </tr>
                       );
                     })}
@@ -416,8 +433,8 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
         <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-2">
           <span className="text-xs text-slate-500">
             {displayedRows.length > 0
-              ? `${displayedRows.length} standardized rows ready`
-              : 'Paste or upload Diamond data to begin'}
+              ? `${displayedRows.length} baris data siap diimpor`
+              : 'Pilih file Excel atau CSV untuk memulai'}
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -425,19 +442,20 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors"
             >
-              Cancel
+              Batal
             </button>
             <button
               type="button"
               disabled={displayedRows.length === 0}
               onClick={handleConfirmImport}
-              className="px-4 py-2 text-xs font-bold text-white bg-sky-700 rounded hover:bg-sky-800 disabled:opacity-50 shadow-xs transition-colors"
+              className="px-4 py-2 text-xs font-bold text-white bg-sky-700 rounded hover:bg-sky-800 disabled:opacity-50 shadow-xs transition-colors cursor-pointer"
             >
-              Import {displayedRows.length} Standardized Records
+              Impor {displayedRows.length} Data Operasional
             </button>
           </div>
         </div>
       </div>
+
       {/* Anomaly Confirmation Modal */}
       <AnomalyWarningModal
         isOpen={showAnomalyModal}
@@ -446,10 +464,11 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
           setShowAnomalyModal(false);
           executeImport();
         }}
+        onExcludeAnomaliesAndContinue={executeImportExcludingAnomalies}
         reports={detectedAnomalies}
         mode="bulk"
         title="Peringatan Anomali Data Unggahan (Import Data)"
-        submitAnywayLabel="Tetap Simpan"
+        submitAnywayLabel="Tetap Simpan Semua"
       />
     </div>
   );

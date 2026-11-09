@@ -4,6 +4,7 @@ import {
   Edit3,
   Trash2,
   Compass,
+  Activity,
 } from 'lucide-react';
 import { ActiveNavTab, OperationalRecord, OverallWaterWashStatus } from '../types';
 
@@ -73,6 +74,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const navItems: { id: ActiveNavTab; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <Gauge className="w-4 h-4" /> },
+    { id: 'pbSynthesis', label: 'PB Synthesis', icon: <Activity className="w-4 h-4" /> },
     { id: 'input', label: 'Input Data', icon: <Edit3 className="w-4 h-4" /> },
   ];
 

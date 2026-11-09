@@ -366,38 +366,7 @@ export function calculateParameterForecast(
   const latestPoint = validPoints[validPoints.length - 1];
   const currentDet = Number(latestPoint.value.toFixed(2));
 
-  // 8. If raw Current deterioration >= Threshold:
-  // Do NOT calculate days remaining.
-  // Display: "THRESHOLD REACHED". Do not display a future forecast date.
-  if (currentDet >= threshold) {
-    return {
-      parameter: param,
-      displayName,
-      unit,
-      currentDeterioration: currentDet,
-      currentFitted: null,
-      threshold,
-      remainingDeterioration: 0,
-      isAvailable: true,
-      validDaysCount: validPoints.length,
-      slope: null,
-      intercept: null,
-      rSquared: null,
-      daysToThreshold: null,
-      exactDaysToThreshold: null,
-      hoursToThreshold: 0,
-      exactHoursToThreshold: 0,
-      slopePerHour: null,
-      estimatedDate: null,
-      status: 'THRESHOLD REACHED',
-      elapsedDaysData: validPoints.map((p) => ({
-        date: p.date,
-        elapsedDays: p.t,
-        deterioration: p.value,
-        fitted: null,
-      })),
-    };
-  }
+
 
   // 10. Minimum Data: at least 7 valid daily observations in current cycle
   if (validPoints.length < MIN_FORECAST_OBSERVATIONS) {
@@ -488,6 +457,34 @@ export function calculateParameterForecast(
     smoothed: smoothedPoints[idx]?.value ?? p.value,
     fitted: Number((slope * p.t + intercept).toFixed(2)),
   }));
+
+  // 8. If raw Current deterioration >= Threshold:
+  // Status = THRESHOLD REACHED, but preserve slope, intercept, R², and fitted data for visual trajectory
+  if (currentDet >= threshold) {
+    const slopePerHour = Number((slope / DEFAULT_RUNNING_HOURS_PER_DAY).toFixed(5));
+    return {
+      parameter: param,
+      displayName,
+      unit,
+      currentDeterioration: currentDet,
+      currentFitted,
+      threshold,
+      remainingDeterioration: 0,
+      isAvailable: true,
+      validDaysCount: validPoints.length,
+      slope,
+      intercept,
+      rSquared,
+      daysToThreshold: 0,
+      exactDaysToThreshold: 0,
+      hoursToThreshold: 0,
+      exactHoursToThreshold: 0,
+      slopePerHour,
+      estimatedDate: latestPoint.date,
+      status: 'THRESHOLD REACHED',
+      elapsedDaysData,
+    };
+  }
 
   // 9. If trend is not increasing (b <= 0):
   if (slope <= 0) {
