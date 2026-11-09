@@ -73,7 +73,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const navItems: { id: ActiveNavTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: <Gauge className="w-4 h-4" /> },
+    { id: 'dashboard', label: 'Efisiensi Kompresor', icon: <Gauge className="w-4 h-4" /> },
     { id: 'pbSynthesis', label: 'PB Synthesis', icon: <Activity className="w-4 h-4" /> },
     { id: 'input', label: 'Input Data', icon: <Edit3 className="w-4 h-4" /> },
   ];
@@ -81,7 +81,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
       {/* Top Banner */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="max-w-[1440px] mx-auto px-3 sm:px-5 lg:px-6 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded bg-slate-900 flex items-center justify-center text-white shrink-0 shadow-xs">
             <Gauge className="w-5 h-5 text-sky-400" />
@@ -132,7 +132,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* 3 Main Navigation Tabs */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-[1440px] mx-auto px-3 sm:px-5 lg:px-6">
         <nav className="flex space-x-2 border-t border-slate-100 py-1" aria-label="Tabs">
           {navItems.map((item) => {
             const isActive = activeTab === item.id;

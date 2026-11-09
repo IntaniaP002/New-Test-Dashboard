@@ -649,7 +649,7 @@ export default function App() {
       />
 
       {/* Main Content Workspace */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+      <main className="flex-1 max-w-[1440px] w-full mx-auto p-3 sm:p-5 lg:p-6">
         {activeTab === 'dashboard' && (
           <DashboardView
             latestRecord={latestRecord ?? undefined}

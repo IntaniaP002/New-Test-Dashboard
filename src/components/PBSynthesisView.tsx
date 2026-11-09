@@ -1409,22 +1409,22 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs table-auto">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-[11px]">
                 <tr>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Waktu &amp; Tanggal</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Beban (MW)</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap text-blue-700">PB Synthesis</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap text-rose-700">Batas Atas (1.18x)</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap text-amber-700">Mendekati Batas Atas (+4.0 PSIA)</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap text-rose-700">Batas Bawah (0.82x)</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap text-amber-700">Mendekati Batas Bawah (-4.0 PSIA)</th>
-                  <th className="py-2.5 px-4 whitespace-nowrap text-center text-purple-950 font-black bg-purple-100/90 border-x border-purple-200 text-xs uppercase tracking-wider">
+                  <th className="py-2 px-2 whitespace-nowrap">Waktu &amp; Tanggal</th>
+                  <th className="py-2 px-1.5 text-right whitespace-nowrap">Beban (MW)</th>
+                  <th className="py-2 px-1.5 text-right whitespace-nowrap text-blue-700">PB Synthesis</th>
+                  <th className="py-2 px-1.5 text-right whitespace-nowrap text-rose-700">Batas Atas (1.18x)</th>
+                  <th className="py-2 px-1.5 text-right whitespace-nowrap text-amber-700">Mendekati Atas (+4)</th>
+                  <th className="py-2 px-1.5 text-right whitespace-nowrap text-rose-700">Batas Bawah (0.82x)</th>
+                  <th className="py-2 px-1.5 text-right whitespace-nowrap text-amber-700">Mendekati Bawah (-4)</th>
+                  <th className="py-2 px-2.5 whitespace-nowrap text-center text-purple-950 font-black bg-purple-100/90 border-x border-purple-200 text-xs uppercase tracking-wider">
                     ★ PT007 (Testing)
                   </th>
-                  <th className="py-2.5 px-3 whitespace-nowrap text-slate-800">Selisih PT007 thd Batas (Atas / Bawah)</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Status Area</th>
-                  <th className="py-2.5 px-3 text-center">Pilih</th>
+                  <th className="py-2 px-2 whitespace-nowrap text-slate-800">Selisih Batas</th>
+                  <th className="py-2 px-1.5 text-center whitespace-nowrap">Status Area</th>
+                  <th className="py-2 px-1 text-center">Pilih</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
@@ -1449,69 +1449,69 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                       }`}
                     >
                       {/* Waktu & Tanggal */}
-                      <td className="py-2.5 px-3 whitespace-nowrap">
+                      <td className="py-2 px-2 whitespace-nowrap">
                         <span className="font-bold text-slate-900 font-sans">{r.date}</span>
-                        <span className="ml-1.5 font-mono text-violet-700 font-bold bg-violet-100 px-1 py-0.2 rounded text-[10px]">
+                        <span className="ml-1 font-mono text-violet-700 font-bold bg-violet-100 px-1 py-0.2 rounded text-[10px]">
                           {r.time || '19:00'}
                         </span>
                       </td>
 
                       {/* Beban */}
-                      <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">
-                        {r.beban.toFixed(2)} <span className="text-[10px] text-slate-400 font-sans font-normal">MW</span>
+                      <td className="py-2 px-1.5 text-right font-bold text-slate-900 whitespace-nowrap">
+                        {r.beban.toFixed(2)} <span className="text-[9px] text-slate-400 font-sans font-normal">MW</span>
                       </td>
 
                       {/* PB Synthesis */}
-                      <td className="py-2.5 px-3 font-bold text-blue-700 whitespace-nowrap">
+                      <td className="py-2 px-1.5 text-right font-bold text-blue-700 whitespace-nowrap">
                         {r.pbSynthesis.toFixed(2)}
                       </td>
 
                       {/* Batas Atas (1.18x) */}
-                      <td className="py-2.5 px-3 text-rose-700 whitespace-nowrap font-semibold">
+                      <td className="py-2 px-1.5 text-right text-rose-700 whitespace-nowrap font-semibold">
                         {r.upperThreshold.toFixed(2)}
                       </td>
 
                       {/* Mendekati Batas Atas (+4.0 PSIA) */}
-                      <td className="py-2.5 px-3 text-amber-700 whitespace-nowrap">
+                      <td className="py-2 px-1.5 text-right text-amber-700 whitespace-nowrap">
                         {r.earlyUpper.toFixed(2)}
                       </td>
 
                       {/* Batas Bawah (0.82x) */}
-                      <td className="py-2.5 px-3 text-rose-700 whitespace-nowrap font-semibold">
+                      <td className="py-2 px-1.5 text-right text-rose-700 whitespace-nowrap font-semibold">
                         {r.lowerThreshold.toFixed(2)}
                       </td>
 
                       {/* Mendekati Batas Bawah (-4.0 PSIA) */}
-                      <td className="py-2.5 px-3 text-amber-700 whitespace-nowrap">
+                      <td className="py-2 px-1.5 text-right text-amber-700 whitespace-nowrap">
                         {r.earlyLower.toFixed(2)}
                       </td>
 
                       {/* PT007 (Testing Data) - STANDOUT & BIGGER */}
-                      <td className="py-2.5 px-4 text-center whitespace-nowrap bg-purple-50/90 border-x border-purple-200">
-                        <span className="inline-block text-sm sm:text-base font-black text-purple-950 font-mono px-3 py-1 rounded-md bg-white border-2 border-purple-300 shadow-2xs">
+                      <td className="py-2 px-2.5 text-center whitespace-nowrap bg-purple-50/90 border-x border-purple-200">
+                        <span className="inline-block text-xs sm:text-sm font-black text-purple-950 font-mono px-2 py-0.5 rounded bg-white border-2 border-purple-300 shadow-2xs">
                           {r.pt007.toFixed(2)}
                         </span>
-                        <span className="text-[9px] text-purple-700 block font-sans font-bold mt-0.5">PSIA</span>
+                        <span className="text-[8px] text-purple-700 block font-sans font-bold leading-none mt-0.5">PSIA</span>
                       </td>
 
-                      {/* Selisih PT007 dengan Batas Atas / Bawah (Tanda - jika melebihi batas bawah, + jika melebihi batas atas) */}
-                      <td className="py-2.5 px-3 whitespace-nowrap text-xs font-mono">
-                        <div className="flex flex-col gap-0.5 text-[11px]">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-[10px] text-rose-600 font-sans font-medium">Batas Atas:</span>
+                      {/* Selisih PT007 dengan Batas Atas / Bawah */}
+                      <td className="py-2 px-2 whitespace-nowrap text-xs font-mono">
+                        <div className="flex flex-col gap-0.5 text-[10px]">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[9px] text-rose-600 font-sans font-medium">Batas Atas:</span>
                             <span className={`font-bold ${isExceedAtas ? 'text-amber-700 font-black' : 'text-slate-800'}`}>{deltaAtasStr}</span>
                           </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-[10px] text-rose-600 font-sans font-medium">Batas Bawah:</span>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[9px] text-rose-600 font-sans font-medium">Batas Bawah:</span>
                             <span className={`font-bold ${isExceedBawah ? 'text-amber-700 font-black' : 'text-slate-800'}`}>{deltaBawahStr}</span>
                           </div>
                         </div>
                       </td>
 
                       {/* Zone Status */}
-                      <td className="py-2.5 px-3 whitespace-nowrap">
+                      <td className="py-2 px-1.5 text-center whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-black border shadow-2xs font-sans ${
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black border shadow-2xs font-sans ${
                             r.zone === 'NORMAL'
                               ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                               : r.zone === 'EARLY_UPPER' || r.zone === 'EARLY_LOWER'
@@ -1533,13 +1533,13 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                             : r.zone === 'EARLY_UPPER' || r.zone === 'EARLY_LOWER'
                             ? 'CAUTION'
                             : r.zone === 'MELEWATI_BATAS_ATAS'
-                            ? 'BATAS ATAS (ALARM)'
-                            : 'BATAS BAWAH (ALARM)'}
+                            ? 'BATAS ATAS'
+                            : 'BATAS BAWAH'}
                         </span>
                       </td>
 
                       {/* Actions */}
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                      <td className="py-2 px-1 text-center whitespace-nowrap">
                         <button
                           type="button"
                           onClick={(e) => {

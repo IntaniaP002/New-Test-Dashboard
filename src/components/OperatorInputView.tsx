@@ -475,7 +475,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                 onClick={() => onNavigate('dashboard')}
                 className="text-xs font-semibold text-emerald-800 underline hover:text-emerald-950"
               >
-                View Dashboard
+                Lihat Efisiensi Kompresor
               </button>
             )}
           </div>
@@ -947,27 +947,27 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                   </div>
                   {selectedRecordId && (
                     <span className="text-[11px] font-semibold text-sky-800 bg-white px-2.5 py-0.5 rounded border border-sky-200 shadow-2xs self-start sm:self-auto shrink-0">
-                      Active in Dashboard: {displayedRecords.find(d => d.id === selectedRecordId)?.date || selectedRecordId}
+                      Active in Efisiensi Kompresor: {displayedRecords.find(d => d.id === selectedRecordId)?.date || selectedRecordId}
                     </span>
                   )}
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    {/* Exact 11 Headers from Screenshot 12.42.12 */}
+                  <table className="w-full text-left text-xs table-auto">
+                    {/* Exact 11 Headers optimized to fit without horizontal cut-off */}
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-[11px]">
                       <tr>
-                        <th className="py-2.5 px-4 whitespace-nowrap">Date</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Dashboard Movement</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">P1.7 (PSIA)</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">P3.0 (PSIA)</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">PR</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Real Power (MW)</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">NPHR (kcal/kWh)</th>
-                        <th className="py-2.5 px-3 text-center whitespace-nowrap">Perf. Index</th>
-                        <th className="py-2.5 px-3 text-center whitespace-nowrap">Baseline Reference</th>
-                        <th className="py-2.5 px-3 text-center whitespace-nowrap">WW Status</th>
-                        {onDeleteRecord && <th className="py-2.5 px-3 text-center whitespace-nowrap">Action</th>}
+                        <th className="py-2 px-2.5 whitespace-nowrap">Date</th>
+                        <th className="py-2 px-1.5 text-center whitespace-nowrap">Navigasi</th>
+                        <th className="py-2 px-2 text-right whitespace-nowrap">P1.7 (PSIA)</th>
+                        <th className="py-2 px-2 text-right whitespace-nowrap">P3.0 (PSIA)</th>
+                        <th className="py-2 px-2 text-right whitespace-nowrap">PR</th>
+                        <th className="py-2 px-2 text-right whitespace-nowrap">Power (MW)</th>
+                        <th className="py-2 px-2 text-right whitespace-nowrap">NPHR</th>
+                        <th className="py-2 px-1.5 text-center whitespace-nowrap">Perf. Index</th>
+                        <th className="py-2 px-1.5 text-center whitespace-nowrap">Baseline</th>
+                        <th className="py-2 px-1.5 text-center whitespace-nowrap">WW Status</th>
+                        {onDeleteRecord && <th className="py-2 px-1 text-center whitespace-nowrap">Aksi</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-xs">
@@ -988,15 +988,15 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                                 ? 'bg-sky-50/30'
                                 : ''
                             }`}
-                            title="Click anywhere to inspect this record in the Dashboard"
+                            title="Klik untuk evaluasi record ini di Efisiensi Kompresor"
                           >
-                            {/* Date: e.g. 2026-11-02 (clean without subtext) */}
-                            <td className="py-2.5 px-4 font-medium text-slate-900 whitespace-nowrap">
+                            {/* Date: e.g. 2026-11-02 */}
+                            <td className="py-2 px-2.5 font-medium text-slate-900 whitespace-nowrap">
                               <span className={isSelected ? 'text-sky-900 font-bold' : ''}>{r.date}</span>
                             </td>
 
-                            {/* Dashboard Movement: Inspect / Active */}
-                            <td className="py-2.5 px-3 whitespace-nowrap">
+                            {/* Efisiensi Kompresor Movement: Inspect / Active */}
+                            <td className="py-2 px-1.5 text-center whitespace-nowrap">
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -1007,48 +1007,48 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                                     onNavigate('dashboard');
                                   }
                                 }}
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all shadow-2xs cursor-pointer ${
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold transition-all shadow-2xs cursor-pointer ${
                                   isSelected
                                     ? 'bg-sky-600 text-white shadow-xs font-bold'
                                     : 'bg-white hover:bg-sky-50 text-sky-700 hover:text-sky-900 border border-slate-300 hover:border-sky-300'
                                 }`}
-                                title={`Inspect ${r.date} di Dashboard`}
+                                title={`Inspect ${r.date} di Efisiensi Kompresor`}
                               >
-                                <Eye className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-sky-500'}`} />
+                                <Eye className={`w-3 h-3 ${isSelected ? 'text-white' : 'text-sky-500'}`} />
                                 <span>{isSelected ? 'Active' : 'Inspect'}</span>
                               </button>
                             </td>
 
                             {/* P1.7 (PSIA) */}
-                            <td className="py-2.5 px-3 text-slate-800 whitespace-nowrap">
+                            <td className="py-2 px-2 text-right text-slate-800 whitespace-nowrap font-mono text-[11px]">
                               {r.P1_7.toFixed(2)}
                             </td>
 
                             {/* P3.0 (PSIA) */}
-                            <td className="py-2.5 px-3 text-slate-800 whitespace-nowrap">
+                            <td className="py-2 px-2 text-right text-slate-800 whitespace-nowrap font-mono text-[11px]">
                               {r.P3_0.toFixed(2)}
                             </td>
 
                             {/* PR in Bold */}
-                            <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">
+                            <td className="py-2 px-2 text-right font-bold text-slate-900 whitespace-nowrap font-mono text-[11px]">
                               {r.pr.toFixed(4)}
                             </td>
 
                             {/* Real Power (MW) */}
-                            <td className="py-2.5 px-3 text-slate-800 whitespace-nowrap">
+                            <td className="py-2 px-2 text-right text-slate-800 whitespace-nowrap font-mono text-[11px]">
                               {r.realPower.toFixed(2)}
                             </td>
 
                             {/* NPHR (kcal/kWh) */}
-                            <td className="py-2.5 px-3 text-slate-800 whitespace-nowrap">
+                            <td className="py-2 px-2 text-right text-slate-800 whitespace-nowrap font-mono text-[11px]">
                               {r.nphr.toLocaleString()}
                             </td>
 
-                            {/* Perf. Index: 80% (red), 0% (green), 20% (green) */}
-                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            {/* Perf. Index */}
+                            <td className="py-2 px-1.5 text-center whitespace-nowrap">
                               {r.performanceIndex !== null && r.performanceIndex !== undefined ? (
                                 <span
-                                  className={`inline-block px-2 py-0.5 rounded text-xs font-bold border ${
+                                  className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-bold border ${
                                     r.performanceIndex >= 80
                                       ? 'bg-rose-100 text-rose-800 border-rose-300'
                                       : r.performanceIndex >= 50
@@ -1063,12 +1063,12 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                               )}
                             </td>
 
-                            {/* Baseline Reference: Set as Baseline or ACTIVE BASELINE badge */}
-                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            {/* Baseline Reference: Set Baseline or ACTIVE badge */}
+                            <td className="py-2 px-1.5 text-center whitespace-nowrap">
                               {isActive ? (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-bold bg-emerald-600 text-white shadow-2xs">
-                                  <Star className="w-3 h-3 fill-white" />
-                                  <span>ACTIVE BASELINE</span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-600 text-white shadow-2xs">
+                                  <Star className="w-2.5 h-2.5 fill-white" />
+                                  <span>ACTIVE</span>
                                 </span>
                               ) : onSetBaselineRecord ? (
                                 <button
@@ -1077,11 +1077,11 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                                     e.stopPropagation();
                                     onSetBaselineRecord(r);
                                   }}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
                                   title="Set as baseline"
                                 >
-                                  <Compass className="w-3.5 h-3.5 text-slate-400" />
-                                  <span>Set as Baseline</span>
+                                  <Compass className="w-3 h-3 text-slate-400" />
+                                  <span>Set Baseline</span>
                                 </button>
                               ) : (
                                 <span className="text-slate-400 text-xs">—</span>
@@ -1089,7 +1089,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                             </td>
 
                             {/* WW Status: + Tag WW or WW EVENT badge */}
-                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            <td className="py-2 px-1.5 text-center whitespace-nowrap">
                               {onToggleWaterWash ? (
                                 <button
                                   type="button"
@@ -1097,7 +1097,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                                     e.stopPropagation();
                                     onToggleWaterWash(r.id);
                                   }}
-                                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded text-xs font-bold transition-colors shadow-2xs cursor-pointer ${
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold transition-colors shadow-2xs cursor-pointer ${
                                     r.isWaterWashEvent
                                       ? 'bg-sky-600 text-white hover:bg-sky-700'
                                       : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-300'
@@ -1106,7 +1106,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                                 >
                                   {r.isWaterWashEvent ? (
                                     <>
-                                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                      <Check className="w-3 h-3 stroke-[3]" />
                                       <span>WW EVENT</span>
                                     </>
                                   ) : (
@@ -1115,7 +1115,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                                 </button>
                               ) : (
                                 r.isWaterWashEvent && (
-                                  <span className="px-2 py-0.5 text-xs font-bold bg-sky-100 text-sky-800 rounded">
+                                  <span className="px-1.5 py-0.5 text-[11px] font-bold bg-sky-100 text-sky-800 rounded">
                                     WW
                                   </span>
                                 )
@@ -1124,7 +1124,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
 
                             {/* Action: Trash Icon */}
                             {onDeleteRecord && (
-                              <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                              <td className="py-2 px-1 text-center whitespace-nowrap">
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -1138,10 +1138,10 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                                       details: `Beban: ${r.realPower.toFixed(2)} MW | P3.0: ${r.P3_0.toFixed(2)} PSIA | PR: ${r.PR?.toFixed(4) || '-'}`,
                                     });
                                   }}
-                                  className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer"
+                                  className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer inline-flex items-center justify-center"
                                   title="Hapus data harian ini (dengan konfirmasi)"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </td>
                             )}
@@ -1291,22 +1291,22 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left text-xs table-auto">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-[11px]">
                       <tr>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Date</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">PB Movement</th>
-                        <th className="py-2.5 px-2.5 whitespace-nowrap">Time</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">P1.7 (PSIA)</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">P3.0 / PT007 (PSIA)</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">PR</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Real Power (MW)</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">NH Speed (RPM)</th>
-                        <th className="py-2.5 px-2.5 whitespace-nowrap">T1.7 (°F)</th>
-                        <th className="py-2.5 px-3 text-center whitespace-nowrap">f(NH) / Y</th>
-                        <th className="py-2.5 px-3 text-center whitespace-nowrap">PB Syn (NH)</th>
-                        <th className="py-2.5 px-3 text-center whitespace-nowrap">PT007 Status</th>
-                        {onDeleteRecord && <th className="py-2.5 px-3 text-center whitespace-nowrap">Action</th>}
+                        <th className="py-2 px-2 whitespace-nowrap">Date</th>
+                        <th className="py-2 px-1.5 text-center whitespace-nowrap">Navigasi</th>
+                        <th className="py-2 px-1.5 text-center whitespace-nowrap">Time</th>
+                        <th className="py-2 px-1.5 text-right whitespace-nowrap">P1.7 (PSIA)</th>
+                        <th className="py-2 px-1.5 text-right whitespace-nowrap">PT007 (PSIA)</th>
+                        <th className="py-2 px-1.5 text-right whitespace-nowrap">PR</th>
+                        <th className="py-2 px-1.5 text-right whitespace-nowrap">Power (MW)</th>
+                        <th className="py-2 px-1.5 text-right whitespace-nowrap">NH (RPM)</th>
+                        <th className="py-2 px-1.5 text-right whitespace-nowrap">T1.7 (°F)</th>
+                        <th className="py-2 px-1 text-center whitespace-nowrap">f(NH)</th>
+                        <th className="py-2 px-1.5 text-center whitespace-nowrap">PB Syn</th>
+                        <th className="py-2 px-1.5 text-center whitespace-nowrap">Status</th>
+                        {onDeleteRecord && <th className="py-2 px-1 text-center whitespace-nowrap">Aksi</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-xs">
@@ -1336,12 +1336,12 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                             title="Click anywhere to inspect this record in PB Synthesis"
                           >
                             {/* Date */}
-                            <td className="py-2.5 px-3 whitespace-nowrap font-medium text-slate-900">
+                            <td className="py-2 px-2 whitespace-nowrap font-medium text-slate-900">
                               <span className={isSelected ? 'text-violet-900 font-bold' : ''}>{r.date}</span>
                             </td>
 
                             {/* PB Movement */}
-                            <td className="py-2.5 px-3 whitespace-nowrap">
+                            <td className="py-2 px-1.5 text-center whitespace-nowrap">
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -1352,65 +1352,65 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                                     onNavigate('pbSynthesis');
                                   }
                                 }}
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all shadow-2xs cursor-pointer ${
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold transition-all shadow-2xs cursor-pointer ${
                                   isSelected
                                     ? 'bg-violet-600 text-white shadow-xs font-bold'
                                     : 'bg-white hover:bg-violet-50 text-violet-700 hover:text-violet-900 border border-slate-300 hover:border-violet-300'
                                 }`}
                                 title={`Inspect ${r.date} ${r.time || ''} di PB Synthesis`}
                               >
-                                <Eye className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-violet-500'}`} />
+                                <Eye className={`w-3 h-3 ${isSelected ? 'text-white' : 'text-violet-500'}`} />
                                 <span>{isSelected ? 'Active' : 'Inspect'}</span>
                               </button>
                             </td>
 
                             {/* Time */}
-                            <td className="py-2.5 px-2.5 whitespace-nowrap font-mono text-slate-600">
-                              <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-[11px]">
+                            <td className="py-2 px-1.5 text-center whitespace-nowrap font-mono text-slate-600">
+                              <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-[10px]">
                                 {r.time || '19:00'}
                               </span>
                             </td>
 
                             {/* P1.7 */}
-                            <td className="py-2.5 px-3 text-slate-800 whitespace-nowrap">
+                            <td className="py-2 px-1.5 text-right text-slate-800 whitespace-nowrap font-mono text-[11px]">
                               {pt006.toFixed(2)}
                             </td>
 
                             {/* P3.0 / PT007 */}
-                            <td className="py-2.5 px-3 font-semibold text-slate-900 whitespace-nowrap">
+                            <td className="py-2 px-1.5 text-right font-semibold text-slate-900 whitespace-nowrap font-mono text-[11px]">
                               {pt007.toFixed(2)}
                             </td>
 
                             {/* PR */}
-                            <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">
+                            <td className="py-2 px-1.5 text-right font-bold text-slate-900 whitespace-nowrap font-mono text-[11px]">
                               {r.pr.toFixed(4)}
                             </td>
 
                             {/* Real Power */}
-                            <td className="py-2.5 px-3 text-slate-800 whitespace-nowrap">
+                            <td className="py-2 px-1.5 text-right text-slate-800 whitespace-nowrap font-mono text-[11px]">
                               {r.realPower.toFixed(2)}
                             </td>
 
                             {/* NH Speed */}
-                            <td className="py-2.5 px-3 font-mono text-slate-700 whitespace-nowrap">
+                            <td className="py-2 px-1.5 text-right font-mono text-slate-700 whitespace-nowrap text-[11px]">
                               {nh.toLocaleString()}
                             </td>
 
                             {/* T1.7 */}
-                            <td className="py-2.5 px-2.5 font-mono text-slate-700 whitespace-nowrap">
+                            <td className="py-2 px-1.5 text-right font-mono text-slate-700 whitespace-nowrap text-[11px]">
                               {t17.toFixed(1)}°F
                             </td>
 
                             {/* f(NH) / Y */}
-                            <td className="py-2.5 px-3 font-mono text-center text-slate-700 whitespace-nowrap">
+                            <td className="py-2 px-1 font-mono text-center text-slate-700 whitespace-nowrap text-[11px]">
                               {evalRes ? evalRes.fNH.toFixed(2) : '—'}
                             </td>
 
                             {/* PB Syn (NH) */}
-                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            <td className="py-2 px-1.5 text-center whitespace-nowrap font-mono text-[11px]">
                               {evalRes ? (
                                 <span className="font-bold text-slate-900">
-                                  {evalRes.pbSynthesis} PSIA
+                                  {evalRes.pbSynthesis}
                                 </span>
                               ) : (
                                 <span className="text-slate-400">—</span>
@@ -1418,10 +1418,10 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                             </td>
 
                             {/* PT007 Status: NORMAL (green), EARLY (amber), OVER (rose) */}
-                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            <td className="py-2 px-1.5 text-center whitespace-nowrap">
                               {evalRes ? (
                                 <span
-                                  className={`inline-block px-2.5 py-0.5 rounded text-xs font-bold border ${
+                                  className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold border ${
                                     evalRes.zone === 'NORMAL'
                                       ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                       : evalRes.zone === 'EARLY_UPPER' || evalRes.zone === 'EARLY_LOWER'
@@ -1435,8 +1435,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                                     : evalRes.zone === 'EARLY_UPPER' || evalRes.zone === 'EARLY_LOWER'
                                     ? 'CAUTION'
                                     : evalRes.zone === 'MELEWATI_BATAS_ATAS'
-                                    ? 'BATAS ATAS (ALARM)'
-                                    : 'BATAS BAWAH (ALARM)'}
+                                    ? 'BATAS ATAS'
+                                    : 'BATAS BAWAH'}
                                 </span>
                               ) : (
                                 <span className="text-slate-400">—</span>
@@ -1445,7 +1445,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
 
                             {/* Action: Trash Icon */}
                             {onDeleteRecord && (
-                              <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                              <td className="py-2 px-1 text-center whitespace-nowrap">
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -1458,10 +1458,10 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                                       details: `Beban: ${r.realPower.toFixed(2)} MW | PT006: ${r.P1_7.toFixed(2)} PSIA | PT007: ${r.P3_0.toFixed(2)} PSIA`,
                                     });
                                   }}
-                                  className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer"
-                                  title="Hapus data pembacaan ini (dengan konfirmasi)"
+                                  className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                  title="Hapus baris data ini (dengan konfirmasi)"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </td>
                             )}
