@@ -699,6 +699,7 @@ export default function App() {
             onUpdateDatePBSynthesis={handleUpdateDatePBSynthesis}
             onSetPbBaselineRecord={handleSetPbBaselineRecord}
             onDeleteRecord={handleDeleteRecord}
+            onOpenImport={() => setIsImportModalOpen(true)}
           />
         )}
       </main>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import {
   AlertTriangle,
@@ -56,6 +56,22 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
     return { hasT17, hasNHSpeed };
   }, [previewRows]);
 
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Reset file input and preview state whenever modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setUploadedFileName(null);
+      setParseError(null);
+      setPreviewRows([]);
+      setFilter19to21Only(false);
+      setShowAnomalyModal(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const parseCsvContent = (text: string, fileName?: string | null) => {
@@ -88,8 +104,12 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadedFileName(file.name);
+    setParseError(null);
 
-    const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+    // Reset input value so operator can re-select the same file or choose another file anytime
+    e.target.value = '';
+
+    const isExcel = /\.(xlsx|xls|xlsm|xlsb)$/i.test(file.name);
 
     if (isExcel) {
       const reader = new FileReader();
@@ -98,37 +118,42 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
           const buffer = event.target?.result as ArrayBuffer;
           const workbook = XLSX.read(new Uint8Array(buffer), {
             type: 'array',
-            cellDates: true,
           });
-          const firstSheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[firstSheetName];
 
-          // Normalize any date cells into explicit YYYY-MM-DD strings so CSV conversion is 100% unambiguous
-          if (worksheet && worksheet['!ref']) {
-            const range = XLSX.utils.decode_range(worksheet['!ref']);
-            for (let R = range.s.r; R <= range.e.r; ++R) {
-              for (let C = range.s.c; C <= range.e.c; ++C) {
-                const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
-                const cell = worksheet[cellRef];
-                if (!cell) continue;
+          if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+            setParseError('Berkas Excel tidak memiliki sheet yang valid.');
+            return;
+          }
 
-                if (cell.t === 'd' && cell.v instanceof Date) {
-                  const y = cell.v.getUTCFullYear();
-                  const m = String(cell.v.getUTCMonth() + 1).padStart(2, '0');
-                  const d = String(cell.v.getUTCDate()).padStart(2, '0');
-                  cell.t = 's';
-                  cell.v = `${y}-${m}-${d}`;
-                  cell.w = cell.v;
-                } else if (cell.t === 'n' && cell.v >= 35000 && cell.v <= 65000) {
-                  const dc = XLSX.SSF.parse_date_code(cell.v);
-                  if (dc && dc.y && dc.m && dc.d) {
-                    cell.t = 's';
-                    cell.v = `${dc.y}-${String(dc.m).padStart(2, '0')}-${String(dc.d).padStart(2, '0')}`;
-                    cell.w = cell.v;
-                  }
-                }
+          // Smart Sheet Selection: Find the sheet that contains turbine operational data
+          let chosenSheetName = workbook.SheetNames[0];
+          let bestScore = -1;
+
+          for (const sName of workbook.SheetNames) {
+            const ws = workbook.Sheets[sName];
+            if (!ws || !ws['!ref']) continue;
+            try {
+              const sampleCsv = XLSX.utils.sheet_to_csv(ws).slice(0, 4000).toLowerCase();
+              let score = 0;
+              if (sampleCsv.includes('p1.7') || sampleCsv.includes('p17') || sampleCsv.includes('pt006') || sampleCsv.includes('pt-006') || sampleCsv.includes('inlet')) score += 500;
+              if (sampleCsv.includes('p3.0') || sampleCsv.includes('p30') || sampleCsv.includes('pt007') || sampleCsv.includes('pt-007') || sampleCsv.includes('discharge')) score += 500;
+              if (sampleCsv.includes('date') || sampleCsv.includes('tanggal') || sampleCsv.includes('tgl')) score += 300;
+              if (sampleCsv.includes('beban') || sampleCsv.includes('power') || sampleCsv.includes('mw') || sampleCsv.includes('realpower')) score += 300;
+              if (sampleCsv.includes('nh') || sampleCsv.includes('speed') || sampleCsv.includes('rpm')) score += 200;
+
+              if (score > bestScore) {
+                bestScore = score;
+                chosenSheetName = sName;
               }
+            } catch {
+              // skip unreadable sheet
             }
+          }
+
+          const worksheet = workbook.Sheets[chosenSheetName];
+          if (!worksheet) {
+            setParseError('Sheet data tidak ditemukan pada berkas Excel.');
+            return;
           }
 
           // Convert sheet into CSV text for uniform parsing
@@ -136,7 +161,7 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
           parseCsvContent(csv, file.name);
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : 'Error reading Excel file';
-          setParseError(`Failed to parse Excel file: ${msg}`);
+          setParseError(`Gagal membaca berkas Excel: ${msg}`);
         }
       };
       reader.readAsArrayBuffer(file);
@@ -276,8 +301,9 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
               </button>
             </div>
             <input
+              ref={fileInputRef}
               type="file"
-              accept=".csv,.xlsx,.xls,.txt,.tsv"
+              accept=".csv,.xlsx,.xls,.xlsm,.xlsb,.txt,.tsv"
               onChange={handleFileUpload}
               className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100 cursor-pointer"
             />

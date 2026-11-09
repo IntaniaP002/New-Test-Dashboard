@@ -352,18 +352,38 @@ export function autoNormalizeDiamondData(
     };
   }
 
+  // Helper to safely determine if a candidate cell matches a target field pattern (ignoring pure numbers, dates, times, and empty strings)
+  const isCandidateHeaderCell = (cellValue: string, patterns: string[]): boolean => {
+    if (!cellValue) return false;
+    const trimmed = cellValue.replace(/["']/g, '').trim().toLowerCase();
+    if (trimmed.length < 2) return false;
+
+    // Check if cell is a pure number, ISO/slash date, or time format -> definitely data, not a header
+    if (!isNaN(Number(trimmed.replace(/,/g, '.')))) return false;
+    if (/^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/.test(trimmed)) return false;
+    if (/^\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}/.test(trimmed)) return false;
+    if (/^\d{1,2}[:.]\d{2}/.test(trimmed)) return false;
+
+    return patterns.some((p) => {
+      if (trimmed === p) return true;
+      if (p.length >= 2 && trimmed.includes(p)) return true;
+      if (trimmed.length >= 3 && p.includes(trimmed)) return true;
+      return false;
+    });
+  };
+
   // Dynamically scan the first 25 lines to find the true header row (the line matching the highest number of known fields)
   let bestHeaderRowIndex = 0;
   let maxMatchedFields = -1;
   const maxScanLines = Math.min(25, lines.length);
 
   for (let l = 0; l < maxScanLines; l++) {
-    const candidateCells = splitCsvLine(lines[l], delimiter).map((c) => c.toLowerCase().trim());
+    const candidateCells = splitCsvLine(lines[l], delimiter);
     if (candidateCells.length < 2) continue;
 
     let score = 0;
     for (const [, patterns] of Object.entries(FIELD_PATTERNS)) {
-      if (candidateCells.some((h) => patterns.some((p) => h === p || h.includes(p) || p.includes(h)))) {
+      if (candidateCells.some((h) => isCandidateHeaderCell(h, patterns))) {
         score++;
       }
     }
@@ -389,15 +409,17 @@ export function autoNormalizeDiamondData(
     // 2. Exact match
     for (let i = 0; i < lowerHeaders.length; i++) {
       const h = lowerHeaders[i];
+      if (!h) continue;
       if (patterns.includes(h)) {
         return { index: i, colName: rawHeaders[i], conf: 'high' };
       }
     }
 
-    // 3. Substring / contains match
+    // 3. Substring match (ensure h is non-empty and has at least 2 chars)
     for (let i = 0; i < lowerHeaders.length; i++) {
       const h = lowerHeaders[i];
-      if (patterns.some(p => h.includes(p) || p.includes(h))) {
+      if (!h || h.length < 2) continue;
+      if (patterns.some(p => (p.length >= 2 && h.includes(p)) || (h.length >= 3 && p.includes(h)))) {
         return { index: i, colName: rawHeaders[i], conf: 'medium' };
       }
     }

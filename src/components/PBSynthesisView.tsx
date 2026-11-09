@@ -55,6 +55,7 @@ interface PBSynthesisViewProps {
   onDeleteRecord?: (recordId: string) => void;
   selectedRecordId?: string | null;
   onSelectRecord?: (recordId: string | null) => void;
+  onOpenImport?: () => void;
 }
 
 const STORAGE_KEY_PB_OP_EXTRA = 'pb_synthesis_uploaded_records_v6';
@@ -66,6 +67,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
   onDeleteRecord,
   selectedRecordId: propSelectedRecordId,
   onSelectRecord,
+  onOpenImport,
 }) => {
   // Extra uploaded/imported records stored locally if user uploads directly on this page
   const [extraUploadedRecords, setExtraUploadedRecords] = useState<PBOperationInputRecord[]>(() => {
@@ -513,6 +515,18 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
               Evaluasi langsung titik data operasional (PT007 testing terhadap 4 garis batas: 0.82x, 0.829x, 1.171x, 1.18x). Semua input data dimasukkan di halaman <strong>Input Data</strong>.
             </p>
           </div>
+
+          {onOpenImport && (
+            <button
+              type="button"
+              onClick={onOpenImport}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-300 rounded transition-colors shadow-2xs cursor-pointer self-start md:self-auto shrink-0"
+              title="Upload & impor dataset Excel (.xlsx) atau CSV"
+            >
+              <Upload className="w-3.5 h-3.5 text-sky-600" />
+              <span>Import Dataset (.xlsx)</span>
+            </button>
+          )}
         </div>
 
         {/* Record Selector Dropdown / Bar */}
@@ -997,6 +1011,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
           // Continuous sample points along Beban 1.0 to 23.0 MW using Speedronic benchmark interpolation
           const samples: {
             beban: number;
+            pbSynthesis: number;
             batasBawah: number;
             earlyBawah: number;
             earlyAtas: number;
@@ -1006,6 +1021,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
             const exp = getExpectedCurveAtBeban(b);
             samples.push({
               beban: Number(b.toFixed(2)),
+              pbSynthesis: exp.pbSynthesis,
               batasBawah: exp.lowerThreshold,
               earlyBawah: exp.earlyLower, // Ambang Alarm Bawah = lowerThreshold - 4.0 PSIA
               earlyAtas: exp.earlyUpper,   // Ambang Alarm Atas = upperThreshold + 4.0 PSIA
@@ -1058,6 +1074,9 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
             .join(' ');
           const pathEarlyBawah = samples
             .map((s, idx) => `${idx === 0 ? 'M' : 'L'} ${toX(s.beban).toFixed(1)} ${toY(s.earlyBawah).toFixed(1)}`)
+            .join(' ');
+          const pathNominal = samples
+            .map((s, idx) => `${idx === 0 ? 'M' : 'L'} ${toX(s.beban).toFixed(1)} ${toY(s.pbSynthesis).toFixed(1)}`)
             .join(' ');
           const pathBatasAtas = samples
             .map((s, idx) => `${idx === 0 ? 'M' : 'L'} ${toX(s.beban).toFixed(1)} ${toY(s.batasAtas).toFixed(1)}`)
@@ -1197,7 +1216,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                 ))}
 
                 {/* Supervisor Excel Right Floating Legend */}
-                <g transform={`translate(${padL + plotW + 12}, ${padT + plotH / 2 - 45})`}>
+                <g transform={`translate(${padL + plotW + 12}, ${padT + plotH / 2 - 55})`}>
                   {/* Legend Batas Atas (Yellow Solid) */}
                   <line x1={0} y1={0} x2={20} y2={0} stroke="#eab308" strokeWidth="2.8" strokeLinecap="round" />
                   <text x={26} y={3.5} fill="#1e293b" fontSize="10" fontWeight="bold">
@@ -1205,21 +1224,27 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                   </text>
 
                   {/* Legend Early Warning (Amber Dashed) */}
-                  <line x1={0} y1={22} x2={20} y2={22} stroke="#d97706" strokeWidth="2" strokeDasharray="4 3" strokeLinecap="round" />
-                  <text x={26} y={25.5} fill="#1e293b" fontSize="9.5" fontWeight="semibold">
+                  <line x1={0} y1={20} x2={20} y2={20} stroke="#d97706" strokeWidth="2" strokeDasharray="4 3" strokeLinecap="round" />
+                  <text x={26} y={23.5} fill="#1e293b" fontSize="9.5" fontWeight="semibold">
                     Early Warning (±4)
                   </text>
 
+                  {/* Legend PB Synthesis Nominal (Blue Dashed) */}
+                  <line x1={0} y1={40} x2={20} y2={40} stroke="#0284c7" strokeWidth="2" strokeDasharray="5 3" strokeLinecap="round" />
+                  <text x={26} y={43.5} fill="#0369a1" fontSize="9.5" fontWeight="bold">
+                    Target PB Syn (1.00x)
+                  </text>
+
                   {/* Legend Batas Normal (Red Solid) */}
-                  <line x1={0} y1={44} x2={20} y2={44} stroke="#dc2626" strokeWidth="2.8" strokeLinecap="round" />
-                  <text x={26} y={47.5} fill="#1e293b" fontSize="10" fontWeight="bold">
+                  <line x1={0} y1={60} x2={20} y2={60} stroke="#dc2626" strokeWidth="2.8" strokeLinecap="round" />
+                  <text x={26} y={63.5} fill="#1e293b" fontSize="10" fontWeight="bold">
                     Batas Bawah (0.82x)
                   </text>
 
                   {/* Legend PT007 (Emerald Dot) */}
-                  <circle cx={10} cy={66} r={5} fill="#059669" stroke="#ffffff" strokeWidth="1.5" filter="url(#dot-shadow)" />
-                  <text x={26} y={69.5} fill="#1e293b" fontSize="10" fontWeight="bold">
-                    PT007
+                  <circle cx={10} cy={80} r={5} fill="#059669" stroke="#ffffff" strokeWidth="1.5" filter="url(#dot-shadow)" />
+                  <text x={26} y={83.5} fill="#1e293b" fontSize="10" fontWeight="bold">
+                    PT007 (Titik Operasi)
                   </text>
                 </g>
 
@@ -1231,13 +1256,27 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                 <path d={ribbonMendekatiBawahPath} fill="rgba(245, 158, 11, 0.16)" />
 
                 {/* 3. Normal Operating Zone (between earlyBawah and earlyAtas) */}
-                <path d={ribbonNormalPath} fill="rgba(16, 185, 129, 0.12)" />
+                <path d={ribbonNormalPath} fill="rgba(16, 185, 129, 0.16)" />
 
                 {/* 4. Mendekati Batas Atas (between earlyAtas and Batas Atas) */}
                 <path d={ribbonMendekatiAtasPath} fill="rgba(245, 158, 11, 0.16)" />
 
                 {/* 5. Alarm Atas Zone (above Batas Atas) */}
                 <path d={ribbonBeyondAlarmAtasPath} fill="rgba(239, 68, 68, 0.08)" />
+
+                {/* In-Chart Watermark: Zona Normal (0.82x s/d 1.18x) */}
+                <text
+                  x={toX(13.0)}
+                  y={toY(samples[Math.min(samples.length - 1, Math.floor(samples.length * 0.55))].pbSynthesis + 10)}
+                  textAnchor="middle"
+                  fill="#059669"
+                  opacity="0.32"
+                  fontSize="12"
+                  fontWeight="bold"
+                  letterSpacing="0.08em"
+                >
+                  ZONA NORMAL (0.82x s/d 1.18x)
+                </text>
 
                 {/* Curve Lines (drawn from top to bottom) */}
                 {/* Line 1 (Paling Atas): Batas Atas (1.18x) - Yellow Solid Line */}
@@ -1259,7 +1298,18 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                   strokeLinecap="round"
                 />
 
-                {/* Line 3: Mendekati Batas Bawah (+4.0 PSIA di atas Batas Bawah) - Amber Dashed */}
+                {/* Line 3 (Tengah / Acuan Desain): PB Synthesis Target (1.00x) - Blue Dashed Line */}
+                <path
+                  d={pathNominal}
+                  fill="none"
+                  stroke="#0284c7"
+                  strokeWidth="2.0"
+                  strokeDasharray="5 3"
+                  strokeLinecap="round"
+                  opacity="0.85"
+                />
+
+                {/* Line 4: Mendekati Batas Bawah (+4.0 PSIA di atas Batas Bawah) - Amber Dashed */}
                 <path
                   d={pathEarlyBawah}
                   fill="none"
@@ -1269,7 +1319,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                   strokeLinecap="round"
                 />
 
-                {/* Line 4 (Paling Bawah): Batas Normal / Batas Bawah (0.82x) - Red Solid Line */}
+                {/* Line 5 (Paling Bawah): Batas Normal / Batas Bawah (0.82x) - Red Solid Line */}
                 <path
                   d={pathBatasBawah}
                   fill="none"
@@ -1288,6 +1338,16 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                   textAnchor="end"
                 >
                   Batas Atas (1.18x)
+                </text>
+                <text
+                  x={toX(22.2)}
+                  y={toY(samples[samples.length - 1].pbSynthesis + 4)}
+                  fill="#0284c7"
+                  fontSize="10"
+                  fontWeight="bold"
+                  textAnchor="end"
+                >
+                  Target PB Syn (1.00x)
                 </text>
                 <text
                   x={toX(22.2)}
