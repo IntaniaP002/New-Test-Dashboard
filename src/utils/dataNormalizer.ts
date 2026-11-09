@@ -23,25 +23,27 @@ export interface ColumnMappingResult {
 export const FIELD_PATTERNS: Record<string, string[]> = {
   date: [
     'date', 'tanggal', 'tgl', 'timestamp', 'time_stamp', 'reading_date', 'datetime', 'tgl_log',
-    'log_date', 'entry_date', 'waktu_catat', 'created_at', 'tanggal (yyyy-mm-dd)'
+    'log_date', 'entry_date', 'waktu_catat', 'created_at', 'tanggal (yyyy-mm-dd)', 'tgl/date', 'day'
   ],
   time: [
-    'time', 'jam', 'waktu', 'hour', 'pukul', 'log_time', 'time_log', 'hh:mm', 'hh:mm:ss', 'waktu (hh:mm)'
+    'time', 'jam', 'waktu', 'hour', 'pukul', 'log_time', 'time_log', 'hh:mm', 'hh:mm:ss', 'waktu (hh:mm)',
+    'jam log', 'waktu pengambilan'
   ],
   T1_7: [
     't1.7', 't17', 't1_7', 'tinlet', 't_inlet', 'inlet_temp', 'inlet temp', 'compressor inlet temp',
     'cit', 'suhu_inlet', 'suhu inlet', 'suhu masuk', 't_in', 'temp_inlet', 't1', 't1.7 (°f)',
-    't1.7(°f)', 't1.7 (f)', 't1.7(f)', 't 1.7', 't1_7 (°f)'
+    't1.7(°f)', 't1.7 (f)', 't1.7(f)', 't 1.7', 't1_7 (°f)', 't1.7 (deg f)', 't1.7 f', 'suhu (°f)'
   ],
   P1_7: [
     'p1.7', 'p17', 'p1_7', 'pinlet', 'p_inlet', 'inlet_press', 'inlet press', 'inlet pressure',
     'cip', 'tekanan_inlet', 'tekanan inlet', 'tekanan masuk', 'p_in', 'press_inlet', 'p1',
-    'pt006', 'pt 006', 'p1.7 / pt006', 'p1.7 (psia)', 'p1.7 / pt006 (psia)'
+    'pt006', 'pt 006', 'p1.7 / pt006', 'p1.7 (psia)', 'p1.7 / pt006 (psia)', 'pt-006', 'pt_006', 'p 1.7', 'pt6'
   ],
   P3_0: [
     'p3.0', 'p30', 'p3_0', 'pdisch', 'p_disch', 'discharge_press', 'discharge pressure', 'cdp',
     'compressor discharge pressure', 'p3', 'tekanan_discharge', 'tekanan buang', 'p_out', 'tekanan_kompresor',
-    'pt007', 'pt 007', 'p3.0 / pt007', 'p3.0 (psia)', 'p3.0 / pt007 (psia)'
+    'pt007', 'pt 007', 'p3.0 / pt007', 'p3.0 (psia)', 'p3.0 / pt007 (psia)', 'pt-007', 'pt_007', 'p 3.0', 'pt7',
+    'pb aktual', 'pb testing', 'pb target', 'testing pt007'
   ],
   PR: [
     'pr', 'pressure ratio', 'pressure_ratio', 'rasio tekanan', 'rasio_tekanan', 'rc', 'pr (calc)'
@@ -49,15 +51,16 @@ export const FIELD_PATTERNS: Record<string, string[]> = {
   realPower: [
     'realpower', 'real_power', 'real power', 'power', 'mw', 'megawatt', 'generator output',
     'gross mw', 'gross_mw', 'net mw', 'load', 'beban', 'beban (mw)', 'beban(mw)', 'daya', 'daya aktif',
-    'active power', 'gen_mw', 'power_output', 'gross_power', 'real power (mw)'
+    'active power', 'gen_mw', 'power_output', 'gross_power', 'real power (mw)', 'beban turbin', 'beban turbin (mw)',
+    'turbin mw', 'load (mw)'
   ],
   nphr: [
     'nphr', 'heat_rate', 'heat rate', 'heatrate', 'hr', 'spesific fuel consumption',
-    'sfc', 'laju kalor', 'laju_kalor', 'heat_consumption', 'heat_rate_gross', 'gross_nphr', 'nphr (kcal/kwh)'
+    'sfc', 'laju kalor', 'laju_kalor', 'heat_consumption', 'heat_rate_gross', 'gross_nphr', 'nphr (kcal/kwh)', 'nphr(kcal/kwh)'
   ],
   nhSpeed: [
     'nhspeed', 'nh_speed', 'nh speed', 'nh', 'speed', 'rpm', 'kecepatan_nh', 'kecepatan nh', 'speedronic',
-    'nh speed (rpm)', 'nh speed(rpm)'
+    'nh speed (rpm)', 'nh speed(rpm)', 'nh (rpm)', 'n-high', 'nh raw'
   ],
   pbSynthesis: [
     'pbsynthesis', 'pb_synthesis', 'pbsyn', 'pb_syn', 'pb synthesis', 'pb syn',
@@ -349,10 +352,31 @@ export function autoNormalizeDiamondData(
     };
   }
 
-  // Header inspection
-  const headerLine = lines[0];
+  // Dynamically scan the first 25 lines to find the true header row (the line matching the highest number of known fields)
+  let bestHeaderRowIndex = 0;
+  let maxMatchedFields = -1;
+  const maxScanLines = Math.min(25, lines.length);
+
+  for (let l = 0; l < maxScanLines; l++) {
+    const candidateCells = splitCsvLine(lines[l], delimiter).map((c) => c.toLowerCase().trim());
+    if (candidateCells.length < 2) continue;
+
+    let score = 0;
+    for (const [, patterns] of Object.entries(FIELD_PATTERNS)) {
+      if (candidateCells.some((h) => patterns.some((p) => h === p || h.includes(p) || p.includes(h)))) {
+        score++;
+      }
+    }
+    if (score > maxMatchedFields) {
+      maxMatchedFields = score;
+      bestHeaderRowIndex = l;
+    }
+  }
+
+  // Header inspection using the detected true header row
+  const headerLine = lines[bestHeaderRowIndex];
   const rawHeaders = splitCsvLine(headerLine, delimiter);
-  const lowerHeaders = rawHeaders.map(h => h.toLowerCase());
+  const lowerHeaders = rawHeaders.map(h => h.toLowerCase().trim());
 
   // Find column index for each field
   const findColumn = (targetField: string, patterns: string[]): { index: number; colName: string; conf: 'high' | 'medium' } => {
@@ -418,9 +442,12 @@ export function autoNormalizeDiamondData(
 
   mappedHeaders.push(
     { targetField: 'P1_7', detectedColumn: colP17.colName, columnIndex: colP17.index, confidence: colP17.conf },
-    { targetField: 'P3_0', detectedColumn: colP30.colName, columnIndex: colP30.index, confidence: colP30.conf },
-    { targetField: 'nphr', detectedColumn: colNphr.colName, columnIndex: colNphr.index, confidence: colNphr.conf }
+    { targetField: 'P3_0', detectedColumn: colP30.colName, columnIndex: colP30.index, confidence: colP30.conf }
   );
+
+  if (colNphr.index >= 0) {
+    mappedHeaders.push({ targetField: 'nphr', detectedColumn: colNphr.colName, columnIndex: colNphr.index, confidence: colNphr.conf });
+  }
 
   if (colPbSyn.index >= 0) {
     mappedHeaders.push({ targetField: 'pbSynthesis', detectedColumn: colPbSyn.colName, columnIndex: colPbSyn.index, confidence: colPbSyn.conf });
@@ -431,23 +458,23 @@ export function autoNormalizeDiamondData(
 
   const warnings: string[] = [];
 
-  // Required fields check (P1.7, P3.0, Real Power, NPHR)
+  // Essential fields check (P1.7, P3.0, and Real Power / Beban)
   const missingRequired: string[] = [];
-  if (colP17.index === -1) missingRequired.push('P1.7 (Compressor Inlet Press)');
-  if (colP30.index === -1) missingRequired.push('P3.0 (Compressor Discharge Press)');
-  if (colPower.index === -1) missingRequired.push('Real Power / Beban (MW)');
-  if (colNphr.index === -1) missingRequired.push('NPHR (Heat Rate)');
+  if (colP17.index === -1) missingRequired.push('P1.7 / PT006 (Tekanan Inlet)');
+  if (colP30.index === -1) missingRequired.push('P3.0 / PT007 (Tekanan Discharge)');
+  if (colPower.index === -1) missingRequired.push('Beban Turbin / Real Power (MW)');
 
   if (missingRequired.length > 0) {
-    warnings.push(`Missing parameters: ${missingRequired.join(', ')}. Please assign column positions manually.`);
+    warnings.push(`Parameter penting belum terdeteksi: ${missingRequired.join(', ')}.`);
   }
 
   const extractedRecords: OperationalInput[] = [];
 
-  // Parse rows (starting from line 1)
-  for (let r = 1; r < lines.length; r++) {
+  // Parse data rows starting immediately after the detected header row
+  for (let r = bestHeaderRowIndex + 1; r < lines.length; r++) {
     const rawLine = lines[r];
     const cells = splitCsvLine(rawLine, delimiter);
+    if (cells.length < 2) continue;
 
     const tVal = colT17.index >= 0 ? cleanNumericValue(cells[colT17.index]) : undefined;
     const p1Val = colP17.index >= 0 ? cleanNumericValue(cells[colP17.index]) : null;
@@ -456,10 +483,13 @@ export function autoNormalizeDiamondData(
     const hrVal = colNphr.index >= 0 ? cleanNumericValue(cells[colNphr.index]) : null;
     const nhVal = colNHSpeed.index >= 0 ? cleanNumericValue(cells[colNHSpeed.index]) : undefined;
 
-    // Check if valid row (T1.7 is not required)
-    if (p1Val === null || p3Val === null || pwVal === null || hrVal === null) {
+    // Check if row has the essential turbine operational readings (T1.7, NH, and NPHR have sensible fallbacks)
+    if (p1Val === null || p3Val === null || pwVal === null) {
       continue;
     }
+
+    // Default NPHR to nominal 2450 if not present in uploaded dataset
+    const finalNphr = hrVal !== null ? hrVal : 2450;
 
     // Handle date and time
     let dateStr = colDate.index >= 0 ? standardizeDate(cells[colDate.index]) : new Date().toISOString().slice(0, 10);
@@ -490,7 +520,7 @@ export function autoNormalizeDiamondData(
       P1_7: p1Val,
       P3_0: p3Val,
       realPower: pwVal,
-      nphr: hrVal,
+      nphr: finalNphr,
       nhSpeed: nhVal,
       pbSynthesis: pbVal,
       isWaterWashEvent: isWW,

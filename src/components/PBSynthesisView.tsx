@@ -25,6 +25,7 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
+  Layers,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -107,6 +108,14 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
   const [zoomLevel, setZoomLevel] = useState<number>(1.0);
   const [hoveredRecordId, setHoveredRecordId] = useState<string | null>(null);
 
+  // Dedicated filters for the PB Synthesis Operation Curve Chart
+  const [chartDateFilter, setChartDateFilter] = useState<string>('ALL');
+  const [chartStartDateFilter, setChartStartDateFilter] = useState<string>('');
+  const [chartEndDateFilter, setChartEndDateFilter] = useState<string>('');
+  const [chartZoneFilter, setChartZoneFilter] = useState<string>('ALL');
+  const [chartShowOnlySelected, setChartShowOnlySelected] = useState<boolean>(false);
+  const [showPointLabels, setShowPointLabels] = useState<boolean>(true);
+
   // Combine records from Input Data page and any extra uploaded records into standard evaluated format
   // Note: Uses individual raw records (un-averaged) so each data entry/time reading appears on the PB Synthesis chart
   const allMonitoredRecords = useMemo<PBOperationInputRecord[]>(() => {
@@ -176,6 +185,55 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
       onSelectRecord(id);
     }
   };
+
+  // Unique chronological dates for chart filtering
+  const uniqueDates = useMemo<string[]>(() => {
+    const dates: string[] = Array.from(new Set(allMonitoredRecords.map((r) => r.date)));
+    return dates.sort((a, b) => b.localeCompare(a));
+  }, [allMonitoredRecords]);
+
+  // Filtered operational points displayed on the Operation Curve SVG Chart
+  const chartFilteredRecords = useMemo(() => {
+    let list = [...allMonitoredRecords];
+
+    // If user opts to only inspect the active point
+    if (chartShowOnlySelected && selectedRecordId) {
+      const match = list.filter((r) => r.id === selectedRecordId);
+      if (match.length > 0) return match;
+    }
+
+    // Filter by single specific date
+    if (chartDateFilter !== 'ALL') {
+      list = list.filter((r) => r.date === chartDateFilter);
+    }
+
+    // Filter by date range
+    if (chartStartDateFilter) {
+      list = list.filter((r) => r.date >= chartStartDateFilter);
+    }
+    if (chartEndDateFilter) {
+      list = list.filter((r) => r.date <= chartEndDateFilter);
+    }
+
+    // Filter by zone
+    if (chartZoneFilter === 'NORMAL') {
+      list = list.filter((r) => r.zone === 'NORMAL');
+    } else if (chartZoneFilter === 'CAUTION') {
+      list = list.filter((r) => r.zone === 'EARLY_UPPER' || r.zone === 'EARLY_LOWER');
+    } else if (chartZoneFilter === 'ALARM') {
+      list = list.filter((r) => r.zone === 'MELEWATI_BATAS_ATAS' || r.zone === 'MELEWATI_BATAS_BAWAH');
+    }
+
+    return list;
+  }, [
+    allMonitoredRecords,
+    chartDateFilter,
+    chartStartDateFilter,
+    chartEndDateFilter,
+    chartZoneFilter,
+    chartShowOnlySelected,
+    selectedRecordId,
+  ]);
 
   // Set default selection to latest record when records change if none selected
   useEffect(() => {
@@ -798,6 +856,138 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
           </div>
         </div>
 
+        {/* Chart Interactive Filter Toolbar */}
+        <div className="bg-slate-50/90 rounded-xl p-3 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 font-bold text-slate-700 mr-1">
+              <Filter className="w-3.5 h-3.5 text-violet-600" />
+              <span>Filter Titik Grafik:</span>
+            </div>
+
+            {/* Filter Tanggal Dropdown */}
+            <div className="flex items-center gap-1 bg-white border border-slate-300 rounded px-2.5 py-1 shadow-2xs">
+              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+              <select
+                value={chartDateFilter}
+                onChange={(e) => setChartDateFilter(e.target.value)}
+                className="text-xs font-semibold text-slate-700 bg-transparent border-0 focus:outline-none cursor-pointer"
+                title="Filter titik grafik berdasarkan tanggal operasi"
+              >
+                <option value="ALL">Semua Tanggal ({allMonitoredRecords.length} titik)</option>
+                {uniqueDates.map((d) => {
+                  const count = allMonitoredRecords.filter((r) => r.date === d).length;
+                  return (
+                    <option key={d} value={d}>
+                      Tanggal {d} ({count} titik)
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Date Range Inputs */}
+            <div className="hidden lg:flex items-center gap-1 bg-white border border-slate-300 rounded px-2 py-0.5 shadow-2xs text-[11px] text-slate-600">
+              <span className="text-slate-400">Rentang:</span>
+              <input
+                type="date"
+                value={chartStartDateFilter}
+                onChange={(e) => {
+                  setChartStartDateFilter(e.target.value);
+                  setChartDateFilter('ALL');
+                }}
+                className="px-1 py-0.5 text-[11px] border border-slate-200 rounded font-mono"
+                title="Dari Tanggal"
+              />
+              <span className="text-slate-400">s/d</span>
+              <input
+                type="date"
+                value={chartEndDateFilter}
+                onChange={(e) => {
+                  setChartEndDateFilter(e.target.value);
+                  setChartDateFilter('ALL');
+                }}
+                className="px-1 py-0.5 text-[11px] border border-slate-200 rounded font-mono"
+                title="Sampai Tanggal"
+              />
+            </div>
+
+            {/* Filter Status / Zona Operasi */}
+            <div className="flex items-center gap-1 bg-white border border-slate-300 rounded px-2.5 py-1 shadow-2xs">
+              <Layers className="w-3.5 h-3.5 text-slate-400" />
+              <select
+                value={chartZoneFilter}
+                onChange={(e) => setChartZoneFilter(e.target.value)}
+                className="text-xs font-semibold text-slate-700 bg-transparent border-0 focus:outline-none cursor-pointer"
+                title="Filter berdasarkan status zona titik"
+              >
+                <option value="ALL">Semua Zona</option>
+                <option value="NORMAL">Normal ({allMonitoredRecords.filter((r) => r.zone === 'NORMAL').length})</option>
+                <option value="CAUTION">Caution ({allMonitoredRecords.filter((r) => r.zone === 'EARLY_UPPER' || r.zone === 'EARLY_LOWER').length})</option>
+                <option value="ALARM">Alarm ({allMonitoredRecords.filter((r) => r.zone === 'MELEWATI_BATAS_ATAS' || r.zone === 'MELEWATI_BATAS_BAWAH').length})</option>
+              </select>
+            </div>
+
+            {/* Tampilan Titik: Semua vs Hanya Titik Aktif */}
+            <div className="inline-flex rounded border border-slate-300 bg-white p-0.5 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setChartShowOnlySelected(false)}
+                className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
+                  !chartShowOnlySelected ? 'bg-violet-600 text-white font-bold' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Semua Titik
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartShowOnlySelected(true)}
+                className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
+                  chartShowOnlySelected ? 'bg-violet-600 text-white font-bold' : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Hanya tampilkan titik aktif yang sedang diinspeksi"
+              >
+                Hanya Titik Aktif
+              </button>
+            </div>
+
+            {/* Toggle Label Angka */}
+            <label className="inline-flex items-center gap-1.5 cursor-pointer text-[11px] font-medium text-slate-700 select-none ml-1">
+              <input
+                type="checkbox"
+                checked={showPointLabels}
+                onChange={(e) => setShowPointLabels(e.target.checked)}
+                className="rounded text-violet-600 focus:ring-violet-500 h-3.5 w-3.5 cursor-pointer"
+              />
+              <span>Label Angka</span>
+            </label>
+
+            {/* Reset Filter Button */}
+            {(chartDateFilter !== 'ALL' || chartStartDateFilter || chartEndDateFilter || chartZoneFilter !== 'ALL' || chartShowOnlySelected) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setChartDateFilter('ALL');
+                  setChartStartDateFilter('');
+                  setChartEndDateFilter('');
+                  setChartZoneFilter('ALL');
+                  setChartShowOnlySelected(false);
+                }}
+                className="px-2 py-0.5 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded shadow-2xs cursor-pointer transition-colors"
+              >
+                Reset Filter
+              </button>
+            )}
+          </div>
+
+          {/* Filter Summary Count */}
+          <div className="flex items-center gap-1.5 self-start md:self-auto shrink-0 text-slate-500 text-[11px]">
+            <span>Titik Ditampilkan:</span>
+            <span className="font-bold text-violet-900 bg-violet-100 px-2 py-0.5 rounded border border-violet-200">
+              {chartFilteredRecords.length} / {allMonitoredRecords.length} Titik
+            </span>
+          </div>
+        </div>
+
         {/* High-Precision Interactive SVG Chart with X = Beban 1-23, Y = Tekanan disesuaikan data */}
         {(() => {
           // X domain: Beban Turbin (1.00 to 23.00 MW per user request)
@@ -824,7 +1014,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
           }
 
           // Calculate dynamic Y range based on recorded data for batas bawah and batas atas
-          const validRecords = allMonitoredRecords.filter((r) => r.beban >= 0.5 && r.beban <= 24);
+          const validRecords = (chartFilteredRecords.length > 0 ? chartFilteredRecords : allMonitoredRecords).filter((r) => r.beban >= 0.5 && r.beban <= 24);
           let rawMinY = 90;
           let rawMaxY = 320;
 
@@ -1111,7 +1301,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                 </text>
 
                 {/* SCATTER POINTS: (Beban, PT007) with Crystal-Clear Enlarged Dots and Callout Badges */}
-                {allMonitoredRecords.map((r, i) => {
+                {chartFilteredRecords.map((r, i) => {
                   const cx = toX(r.beban);
                   const cy = toY(r.pt007);
                   const isSelected = selectedRecordId === r.id;
@@ -1126,6 +1316,9 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                   const labelOffsetY = i % 2 === 0 ? -18 : -28;
                   const labelOffsetX = i % 2 === 0 ? -16 : 16;
 
+                  // Only show small floating number badge if toggled ON and dataset is reasonably sized, or if currently selected/hovered
+                  const shouldShowCallout = (showPointLabels && chartFilteredRecords.length <= 25) || isSelected || isHovered;
+
                   return (
                     <g
                       key={r.id}
@@ -1134,42 +1327,46 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                       onMouseLeave={() => setHoveredRecordId(null)}
                       className="cursor-pointer group"
                     >
-                      {/* Leader line to data callout label */}
-                      <line
-                        x1={cx}
-                        y1={cy}
-                        x2={cx + labelOffsetX}
-                        y2={cy + labelOffsetY + 7}
-                        stroke="#94a3b8"
-                        strokeWidth={isSelected || isHovered ? "1.4" : "0.9"}
-                        opacity={isSelected || isHovered ? "1" : "0.75"}
-                      />
+                      {shouldShowCallout && (
+                        <>
+                          {/* Leader line to data callout label */}
+                          <line
+                            x1={cx}
+                            y1={cy}
+                            x2={cx + labelOffsetX}
+                            y2={cy + labelOffsetY + 7}
+                            stroke="#94a3b8"
+                            strokeWidth={isSelected || isHovered ? "1.4" : "0.9"}
+                            opacity={isSelected || isHovered ? "1" : "0.75"}
+                          />
 
-                      {/* Small Callout Label (PT007 value formatted like Excel) */}
-                      <rect
-                        x={cx + labelOffsetX - 19}
-                        y={cy + labelOffsetY - 9}
-                        width={38}
-                        height={16}
-                        rx={3}
-                        fill="#ffffff"
-                        stroke={isSelected ? "#ec4899" : isHovered ? "#6366f1" : "#cbd5e1"}
-                        strokeWidth={isSelected || isHovered ? "1.5" : "0.9"}
-                        filter="url(#dot-shadow)"
-                        className="transition-all"
-                      />
-                      <text
-                        x={cx + labelOffsetX}
-                        y={cy + labelOffsetY + 3}
-                        textAnchor="middle"
-                        fill={isSelected ? "#831843" : "#0f172a"}
-                        fontSize="9.5"
-                        fontFamily="monospace"
-                        fontWeight="bold"
-                        className="pointer-events-none"
-                      >
-                        {r.pt007.toFixed(1).replace('.', ',')}
-                      </text>
+                          {/* Small Callout Label (PT007 value formatted like Excel) */}
+                          <rect
+                            x={cx + labelOffsetX - 19}
+                            y={cy + labelOffsetY - 9}
+                            width={38}
+                            height={16}
+                            rx={3}
+                            fill="#ffffff"
+                            stroke={isSelected ? "#ec4899" : isHovered ? "#6366f1" : "#cbd5e1"}
+                            strokeWidth={isSelected || isHovered ? "1.5" : "0.9"}
+                            filter="url(#dot-shadow)"
+                            className="transition-all"
+                          />
+                          <text
+                            x={cx + labelOffsetX}
+                            y={cy + labelOffsetY + 3}
+                            textAnchor="middle"
+                            fill={isSelected ? "#831843" : "#0f172a"}
+                            fontSize="9.5"
+                            fontFamily="monospace"
+                            fontWeight="bold"
+                            className="pointer-events-none"
+                          >
+                            {r.pt007.toFixed(1).replace('.', ',')}
+                          </text>
+                        </>
+                      )}
 
                       {/* Data Point Dot - Enlarged & Distinct for Clear Visual Position */}
                       <circle
@@ -1185,6 +1382,29 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                     </g>
                   );
                 })}
+
+                {/* Empty State Banner when filter yields 0 points */}
+                {chartFilteredRecords.length === 0 && (
+                  <g transform={`translate(${padL + plotW / 2}, ${padT + plotH / 2})`}>
+                    <rect
+                      x="-150"
+                      y="-28"
+                      width="300"
+                      height="56"
+                      rx="8"
+                      fill="#ffffff"
+                      stroke="#cbd5e1"
+                      strokeWidth="1.5"
+                      filter="url(#dot-shadow)"
+                    />
+                    <text textAnchor="middle" y="-6" fill="#334155" fontSize="12" fontWeight="bold">
+                      Tidak ada titik operasi yang cocok
+                    </text>
+                    <text textAnchor="middle" y="14" fill="#64748b" fontSize="10.5">
+                      Ganti pilihan filter tanggal atau klik Reset Filter
+                    </text>
+                  </g>
+                )}
 
                 {/* Floating Interactive Hover Tooltip for Instant Inspection */}
                 {hoveredRecord && hoveredRecord.id !== selectedRecordId && (
