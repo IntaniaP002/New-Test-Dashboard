@@ -631,10 +631,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-lg sm:text-xl font-black text-rose-950 uppercase tracking-wide">
-                      KONDISI ALARM: {activeEvaluation.zone === 'MELEWATI_BATAS_ATAS' ? 'BATAS ATAS' : 'BATAS BAWAH'}
-                    </span>
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-200 text-rose-950 font-extrabold border border-rose-300">
-                      Rekomendasi Water Wash
+                      RECOMMEND WATER WASHING
                     </span>
                   </div>
                   <p className="text-xs sm:text-sm text-rose-900 font-bold mt-1">
@@ -644,7 +641,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
               </div>
               <div className="sm:text-right shrink-0">
                 <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-rose-600 text-white font-black text-xs uppercase tracking-wider shadow-2xs">
-                  REKOMENDASI WATER WASH
+                  RECOMMEND WATER WASHING
                 </span>
               </div>
             </div>
@@ -937,7 +934,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                 <option value="ALL">Semua Zona</option>
                 <option value="NORMAL">Normal ({allMonitoredRecords.filter((r) => r.zone === 'NORMAL').length})</option>
                 <option value="CAUTION">Caution ({allMonitoredRecords.filter((r) => r.zone === 'EARLY_UPPER' || r.zone === 'EARLY_LOWER').length})</option>
-                <option value="ALARM">Alarm ({allMonitoredRecords.filter((r) => r.zone === 'MELEWATI_BATAS_ATAS' || r.zone === 'MELEWATI_BATAS_BAWAH').length})</option>
+                <option value="ALARM">Recommend Water Washing ({allMonitoredRecords.filter((r) => r.zone === 'MELEWATI_BATAS_ATAS' || r.zone === 'MELEWATI_BATAS_BAWAH').length})</option>
               </select>
             </div>
 
@@ -1562,7 +1559,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
           <div className="p-2.5 bg-rose-50/70 border border-rose-200 rounded-lg flex items-center gap-2">
             <span className="w-3.5 h-3.5 rounded-full bg-rose-500 shrink-0" />
             <div>
-              <span className="font-bold text-rose-950 block">Kondisi Alarm (Rekomendasi Water Wash)</span>
+              <span className="font-bold text-rose-950 block">Recommend Water Washing</span>
               <span className="text-[11px] text-rose-800">Selisih melebihi batas lebih dari 4.0 PSIA (&gt; +4.0 PSIA di atas Batas Atas atau &lt; -4.0 PSIA di bawah Batas Bawah).</span>
             </div>
           </div>
@@ -1594,8 +1591,8 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                 <option value="NORMAL">Normal</option>
                 <option value="EARLY_UPPER">Mendekati Batas Atas</option>
                 <option value="EARLY_LOWER">Mendekati Batas Bawah</option>
-                <option value="MELEWATI_BATAS_ATAS">Batas Atas (Alarm)</option>
-                <option value="MELEWATI_BATAS_BAWAH">Batas Bawah (Alarm)</option>
+                <option value="MELEWATI_BATAS_ATAS">Batas Atas (Recommend Water Washing)</option>
+                <option value="MELEWATI_BATAS_BAWAH">Batas Bawah (Recommend Water Washing)</option>
               </select>
             </div>
 
