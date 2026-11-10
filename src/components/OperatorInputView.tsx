@@ -22,6 +22,8 @@ import {
   ChevronDown,
   ChevronUp,
   Filter,
+  AlertTriangle,
+  Copy,
 } from 'lucide-react';
 import {
   BaselineConfig,
@@ -40,6 +42,8 @@ import {
 } from '../utils/calculations';
 import { validateRecordAnomalies, RecordAnomalyReport } from '../utils/anomalyValidation';
 import { AnomalyWarningModal } from './AnomalyWarningModal';
+import { findExactDuplicate, ExactDuplicateMatch } from '../utils/duplicateValidation';
+import { DuplicateWarningModal } from './DuplicateWarningModal';
 import { exportOperationalRecordsExcel } from '../utils/export';
 
 interface OperatorInputViewProps {
@@ -110,6 +114,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
   const [submitMessage, setSubmitMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showAnomalyModal, setShowAnomalyModal] = useState<boolean>(false);
   const [pendingAnomalyReport, setPendingAnomalyReport] = useState<RecordAnomalyReport | null>(null);
+  const [showDuplicateModal, setShowDuplicateModal] = useState<boolean>(false);
   const [showRefTable, setShowRefTable] = useState<boolean>(false);
 
   // Download official Excel operational template
@@ -272,6 +277,45 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     return evaluatePBOperationPoint(b, nh, t, p1, p3);
   }, [realPower, nhSpeed, T1_7, P1_7, P3_0]);
 
+  // Candidate operational data for exact duplicate detection
+  const candidateData = useMemo(() => {
+    const pw = parseFloat(realPower.trim().replace(',', '.'));
+    const p1 = parseFloat(P1_7.trim().replace(',', '.'));
+    const p3 = parseFloat(P3_0.trim().replace(',', '.'));
+    const hr = parseFloat(nphr.trim().replace(',', '.'));
+    const t = parseFloat(T1_7.trim().replace(',', '.'));
+    const nh = parseNHSpeed(nhSpeed);
+
+    if (
+      !date ||
+      !time ||
+      isNaN(pw) || pw <= 0 ||
+      isNaN(p1) || p1 <= 0 ||
+      isNaN(p3) || p3 <= 0 ||
+      isNaN(hr) || hr <= 0
+    ) {
+      return null;
+    }
+
+    return {
+      date,
+      time,
+      realPower: pw,
+      P1_7: p1,
+      P3_0: p3,
+      pr: calculatedPR,
+      nphr: hr,
+      T1_7: !isNaN(t) ? t : null,
+      nhSpeed: !isNaN(nh) ? nh : null,
+    };
+  }, [date, time, realPower, P1_7, P3_0, nphr, T1_7, nhSpeed, calculatedPR]);
+
+  // Live duplicate detection: checks if an exact identical record already exists in records
+  const liveDuplicateMatch = useMemo<ExactDuplicateMatch | null>(() => {
+    if (!candidateData || !records || records.length === 0) return null;
+    return findExactDuplicate(candidateData, records);
+  }, [candidateData, records]);
+
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
     if (!date) errs.date = 'Date is required';
@@ -341,7 +385,35 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     e.preventDefault();
     if (!validate()) return;
 
-    // Check for potential anomalies based on user operational rules:
+    // 1. Check for exact duplicate input to notify operator and prevent accidental double-entry:
+    if (liveDuplicateMatch) {
+      setShowDuplicateModal(true);
+      return;
+    }
+
+    // 2. Check for potential anomalies based on user operational rules:
+    const anomalyReport = validateRecordAnomalies({
+      P1_7,
+      P3_0,
+      realPower,
+      nphr,
+      date,
+      time,
+    });
+
+    if (anomalyReport.hasAnomalies) {
+      setPendingAnomalyReport(anomalyReport);
+      setShowAnomalyModal(true);
+      return;
+    }
+
+    await executeSubmitRecord();
+  };
+
+  // Called when operator confirms in DuplicateWarningModal that they want to proceed saving the duplicate
+  const handleConfirmDuplicateSubmit = async () => {
+    setShowDuplicateModal(false);
+
     const anomalyReport = validateRecordAnomalies({
       P1_7,
       P3_0,
@@ -788,6 +860,40 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Exact Duplicate Warning Banner (Inline) */}
+          {liveDuplicateMatch && (
+            <div className="p-3.5 bg-amber-50/95 border-2 border-amber-400 rounded-lg text-amber-950 text-xs flex items-start gap-3 shadow-xs animate-in fade-in duration-150">
+              <div className="p-1.5 bg-amber-200/80 rounded-full text-amber-800 shrink-0 mt-0.5">
+                <AlertTriangle className="w-4 h-4 text-amber-700" />
+              </div>
+              <div className="space-y-1.5 flex-1">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="font-extrabold text-amber-950 text-xs uppercase tracking-wide flex items-center gap-1.5">
+                    <span>⚠️ Peringatan: Data Duplikat Terdeteksi!</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-200 text-amber-900 border border-amber-300">
+                    Data Sudah Pernah Diinput
+                  </span>
+                </div>
+                <p className="text-amber-900 leading-relaxed text-xs">
+                  Data dengan tanggal <strong>{liveDuplicateMatch.existingRecord.date} {liveDuplicateMatch.existingRecord.time || ''}</strong> dan parameter teknis yang sama persis (Beban: <strong>{liveDuplicateMatch.existingRecord.realPower.toFixed(2)} MW</strong>, P1.7: <strong>{liveDuplicateMatch.existingRecord.P1_7.toFixed(2)}</strong>, P3.0: <strong>{liveDuplicateMatch.existingRecord.P3_0.toFixed(2)}</strong>, NPHR: <strong>{liveDuplicateMatch.existingRecord.nphr.toFixed(1)}</strong>) sudah tersimpan di riwayat.
+                </p>
+                <div className="p-2 bg-amber-100/70 border border-amber-300/80 rounded text-[11px] text-amber-950 font-medium flex items-center justify-between gap-2">
+                  <span>
+                    💡 <strong>Pemberitahuan:</strong> Jika Anda tetap menyimpan data ini, maka catatan data akan menjadi ganda (<strong>doubled</strong>).
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowDuplicateModal(true)}
+                    className="underline font-bold text-amber-900 hover:text-amber-950 shrink-0 cursor-pointer"
+                  >
+                    Lihat Detail Perbandingan
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Submit Button */}
           <div className="pt-2 flex justify-end">
@@ -1631,6 +1737,17 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Exact Duplicate Confirmation Modal */}
+      {candidateData && liveDuplicateMatch && (
+        <DuplicateWarningModal
+          isOpen={showDuplicateModal}
+          onClose={() => setShowDuplicateModal(false)}
+          onConfirmSubmitAnyway={handleConfirmDuplicateSubmit}
+          candidateData={candidateData}
+          existingRecord={liveDuplicateMatch.existingRecord}
+        />
       )}
     </div>
   );

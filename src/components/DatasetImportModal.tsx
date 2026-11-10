@@ -10,10 +10,12 @@ import {
   Filter,
   CheckCheck,
   FileSpreadsheet,
+  Copy,
 } from 'lucide-react';
-import { OperationalInput } from '../types';
+import { OperationalInput, OperationalRecord } from '../types';
 import { scanRecordsForAnomalies } from '../utils/anomalyValidation';
 import { AnomalyWarningModal } from './AnomalyWarningModal';
+import { findExactDuplicate } from '../utils/duplicateValidation';
 import {
   autoNormalizeDiamondData,
 } from '../utils/dataNormalizer';
@@ -23,17 +25,20 @@ interface DatasetImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImportData: (records: OperationalInput[]) => void;
+  existingRecords?: OperationalRecord[];
 }
 
 export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
   isOpen,
   onClose,
   onImportData,
+  existingRecords = [],
 }) => {
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [previewRows, setPreviewRows] = useState<OperationalInput[]>([]);
   const [filter19to21Only, setFilter19to21Only] = useState(false);
+  const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [showAnomalyModal, setShowAnomalyModal] = useState<boolean>(false);
 
   // Filter rows if user chooses representative operating window (range 19:00 - 21:00)
@@ -56,6 +61,33 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
     return { hasT17, hasNHSpeed };
   }, [previewRows]);
 
+  // Detect exact duplicate rows against existing records in system
+  const duplicateIndices = useMemo(() => {
+    if (!existingRecords || existingRecords.length === 0 || displayedRows.length === 0) {
+      return new Set<number>();
+    }
+    const dupes = new Set<number>();
+    displayedRows.forEach((row, idx) => {
+      const match = findExactDuplicate(
+        {
+          date: row.date,
+          time: row.time,
+          realPower: row.realPower,
+          P1_7: row.P1_7,
+          P3_0: row.P3_0,
+          nphr: row.nphr,
+          T1_7: row.T1_7,
+          nhSpeed: row.nhSpeed,
+        },
+        existingRecords
+      );
+      if (match) {
+        dupes.add(idx);
+      }
+    });
+    return dupes;
+  }, [displayedRows, existingRecords]);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Reset file input and preview state whenever modal opens
@@ -65,6 +97,7 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
       setParseError(null);
       setPreviewRows([]);
       setFilter19to21Only(false);
+      setSkipDuplicates(true);
       setShowAnomalyModal(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -187,8 +220,12 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
   };
 
   const executeImport = () => {
-    if (displayedRows.length > 0) {
-      onImportData(displayedRows);
+    let targetRows = displayedRows;
+    if (skipDuplicates && duplicateIndices.size > 0) {
+      targetRows = displayedRows.filter((_, idx) => !duplicateIndices.has(idx));
+    }
+    if (targetRows.length > 0) {
+      onImportData(targetRows);
       onClose();
     }
   };
@@ -196,7 +233,10 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
   const executeImportExcludingAnomalies = () => {
     if (displayedRows.length === 0) return;
     const anomalousIndices = new Set(detectedAnomalies.map((a) => a.recordIndex));
-    const cleanRows = displayedRows.filter((_, idx) => !anomalousIndices.has(idx + 1));
+    let cleanRows = displayedRows.filter((_, idx) => !anomalousIndices.has(idx + 1));
+    if (skipDuplicates && duplicateIndices.size > 0) {
+      cleanRows = cleanRows.filter((_, idx) => !duplicateIndices.has(idx));
+    }
     if (cleanRows.length > 0) {
       onImportData(cleanRows);
       setShowAnomalyModal(false);
@@ -358,6 +398,29 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
                 </div>
               </div>
 
+              {/* Duplicate Notification Banner */}
+              {duplicateIndices.size > 0 && (
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-2">
+                    <Copy className="w-4 h-4 text-amber-600 shrink-0" />
+                    <div>
+                      <span>
+                        Terdeteksi <strong>{duplicateIndices.size}</strong> data yang <strong>sudah ada di riwayat sistem</strong> (tanggal, jam, dan nilai parameter persis sama).
+                      </span>
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-2 font-semibold text-amber-900 cursor-pointer select-none text-[11px] shrink-0 bg-amber-100/80 hover:bg-amber-100 px-2.5 py-1 rounded border border-amber-300">
+                    <input
+                      type="checkbox"
+                      checked={skipDuplicates}
+                      onChange={(e) => setSkipDuplicates(e.target.checked)}
+                      className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 h-3.5 w-3.5"
+                    />
+                    <span>Lewati Duplikat (Cegah Data Ganda)</span>
+                  </label>
+                </div>
+              )}
+
               {/* Anomaly Detection Banner */}
               {detectedAnomalies.length > 0 && (
                 <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-950 flex items-center justify-between gap-3 shadow-2xs">
@@ -415,11 +478,28 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
                       const pr = r.P1_7 > 0 ? (r.P3_0 / r.P1_7).toFixed(4) : '—';
                       const hasT = r.T1_7 !== undefined && r.T1_7 !== null && !isNaN(r.T1_7);
                       const hasNH = r.nhSpeed !== undefined && r.nhSpeed !== null && !isNaN(r.nhSpeed);
+                      const isDupe = duplicateIndices.has(idx);
 
                       return (
-                        <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                        <tr
+                          key={idx}
+                          className={`hover:bg-slate-50 transition-colors ${
+                            isDupe ? (skipDuplicates ? 'bg-amber-50/40 text-slate-500' : 'bg-amber-50/70') : ''
+                          }`}
+                        >
                           <td className="py-1.5 px-3 font-medium text-slate-900 whitespace-nowrap">
-                            {r.date}
+                            <div className="flex items-center gap-1.5">
+                              <span>{r.date}</span>
+                              {isDupe && (
+                                <span
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shrink-0"
+                                  title="Data ini sudah tersimpan persis sama di sistem (tanggal, jam, dan seluruh parameter)"
+                                >
+                                  <Copy className="w-2.5 h-2.5" />
+                                  Sudah Ada
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-1.5 px-3 text-slate-600 whitespace-nowrap">
                             {r.time}
@@ -456,30 +536,47 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
         </div>
 
         {/* Modal Actions */}
-        <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-2">
-          <span className="text-xs text-slate-500">
-            {displayedRows.length > 0
-              ? `${displayedRows.length} baris data siap diimpor`
-              : 'Pilih file Excel atau CSV untuk memulai'}
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors"
-            >
-              Batal
-            </button>
-            <button
-              type="button"
-              disabled={displayedRows.length === 0}
-              onClick={handleConfirmImport}
-              className="px-4 py-2 text-xs font-bold text-white bg-sky-700 rounded hover:bg-sky-800 disabled:opacity-50 shadow-xs transition-colors cursor-pointer"
-            >
-              Impor {displayedRows.length} Data Operasional
-            </button>
-          </div>
-        </div>
+        {(() => {
+          const effectiveCount = skipDuplicates
+            ? displayedRows.length - duplicateIndices.size
+            : displayedRows.length;
+
+          return (
+            <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <span className="text-xs text-slate-500">
+                {displayedRows.length > 0 ? (
+                  <>
+                    <span><strong>{displayedRows.length}</strong> baris data dibaca</span>
+                    {duplicateIndices.size > 0 && (
+                      <span className="ml-1.5 text-amber-700 font-medium">
+                        ({skipDuplicates ? `${duplicateIndices.size} duplikat dilewati` : `${duplicateIndices.size} duplikat diikutsertakan`})
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  'Pilih file Excel atau CSV untuk memulai'
+                )}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={effectiveCount === 0}
+                  onClick={handleConfirmImport}
+                  className="px-4 py-2 text-xs font-bold text-white bg-sky-700 rounded hover:bg-sky-800 disabled:opacity-50 shadow-xs transition-colors cursor-pointer"
+                >
+                  Impor {effectiveCount} Data Operasional
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Anomaly Confirmation Modal */}

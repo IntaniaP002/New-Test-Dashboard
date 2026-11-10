@@ -649,7 +649,7 @@ export default function App() {
       />
 
       {/* Main Content Workspace */}
-      <main className="flex-1 max-w-[1440px] w-full mx-auto p-3 sm:p-5 lg:p-6">
+      <main className="flex-1 max-w-[1800px] w-full mx-auto p-3 sm:p-5 lg:p-6">
         {activeTab === 'dashboard' && (
           <DashboardView
             latestRecord={latestRecord ?? undefined}
@@ -720,6 +720,7 @@ export default function App() {
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onImportData={handleImportData}
+        existingRecords={records}
       />
 
       {/* In-App Clear Data Confirmation Modal (100% reliable inside sandbox iframes) */}
@@ -768,7 +769,7 @@ export default function App() {
 
       {/* Engineering Footer */}
       <footer className="border-t border-slate-200 bg-white py-3.5 px-4 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div className="max-w-[1800px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>
             Water Washing Monitoring • Decision Logic: {WATER_WASH_DECISION_RULES.minIndicatorsMet}-out-of-4 Parameter Rule
           </span>

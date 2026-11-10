@@ -115,7 +115,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
   const [chartStartDateFilter, setChartStartDateFilter] = useState<string>('');
   const [chartEndDateFilter, setChartEndDateFilter] = useState<string>('');
   const [chartZoneFilter, setChartZoneFilter] = useState<string>('ALL');
-  const [chartShowOnlySelected, setChartShowOnlySelected] = useState<boolean>(false);
+  const [chartShowOnlySelected, setChartShowOnlySelected] = useState<boolean>(true);
   const [showPointLabels, setShowPointLabels] = useState<boolean>(true);
 
   // Combine records from Input Data page and any extra uploaded records into standard evaluated format
@@ -973,7 +973,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
             </label>
 
             {/* Reset Filter Button */}
-            {(chartDateFilter !== 'ALL' || chartStartDateFilter || chartEndDateFilter || chartZoneFilter !== 'ALL' || chartShowOnlySelected) && (
+            {(chartDateFilter !== 'ALL' || chartStartDateFilter || chartEndDateFilter || chartZoneFilter !== 'ALL' || !chartShowOnlySelected) && (
               <button
                 type="button"
                 onClick={() => {
@@ -981,7 +981,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                   setChartStartDateFilter('');
                   setChartEndDateFilter('');
                   setChartZoneFilter('ALL');
-                  setChartShowOnlySelected(false);
+                  setChartShowOnlySelected(true);
                 }}
                 className="px-2 py-0.5 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded shadow-2xs cursor-pointer transition-colors"
               >
@@ -1736,19 +1736,39 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
             <table className="w-full text-left text-xs table-auto">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-[11px]">
                 <tr>
-                  <th className="py-2 px-2 whitespace-nowrap">Waktu &amp; Tanggal</th>
-                  <th className="py-2 px-1.5 text-right whitespace-nowrap">Beban (MW)</th>
-                  <th className="py-2 px-1.5 text-right whitespace-nowrap text-blue-700">PB Synthesis</th>
-                  <th className="py-2 px-1.5 text-right whitespace-nowrap text-rose-700">Batas Atas (1.18x)</th>
-                  <th className="py-2 px-1.5 text-right whitespace-nowrap text-amber-700">Mendekati Atas (-4)</th>
-                  <th className="py-2 px-1.5 text-right whitespace-nowrap text-rose-700">Batas Bawah (0.82x)</th>
-                  <th className="py-2 px-1.5 text-right whitespace-nowrap text-amber-700">Mendekati Bawah (+4)</th>
-                  <th className="py-2 px-2.5 whitespace-nowrap text-center text-purple-950 font-black bg-purple-100/90 border-x border-purple-200 text-xs uppercase tracking-wider">
-                    ★ PT007 (Testing)
+                  <th className="py-2 px-2 whitespace-nowrap text-slate-800">Waktu &amp; Tanggal</th>
+                  <th className="py-2 px-1 text-right whitespace-nowrap text-slate-800">
+                    <div>Beban</div>
+                    <div className="text-[9px] font-normal text-slate-400">MW</div>
                   </th>
-                  <th className="py-2 px-2 whitespace-nowrap text-slate-800">Selisih Batas</th>
-                  <th className="py-2 px-1.5 text-center whitespace-nowrap">Status Area</th>
-                  <th className="py-2 px-1 text-center">Pilih</th>
+                  <th className="py-2 px-1 text-right whitespace-nowrap text-blue-700">
+                    <div>PB Synthesis</div>
+                  </th>
+                  <th className="py-2 px-1 text-right whitespace-nowrap text-rose-700">
+                    <div>Batas Atas</div>
+                    <div className="text-[9px] font-normal text-rose-500">1.18x</div>
+                  </th>
+                  <th className="py-2 px-1 text-right whitespace-nowrap text-amber-700">
+                    <div>Mendekati Atas</div>
+                    <div className="text-[9px] font-normal text-amber-600">-4.0</div>
+                  </th>
+                  <th className="py-2 px-1 text-right whitespace-nowrap text-rose-700">
+                    <div>Batas Bawah</div>
+                    <div className="text-[9px] font-normal text-rose-500">0.82x</div>
+                  </th>
+                  <th className="py-2 px-1 text-right whitespace-nowrap text-amber-700">
+                    <div>Mendekati Bawah</div>
+                    <div className="text-[9px] font-normal text-amber-600">+4.0</div>
+                  </th>
+                  <th className="py-2 px-1.5 whitespace-nowrap text-center text-purple-950 font-black bg-purple-100/90 border-x border-purple-200 text-xs">
+                    <div>★ PT007</div>
+                    <div className="text-[9px] font-bold text-purple-700">Testing</div>
+                  </th>
+                  <th className="py-2 px-1.5 whitespace-nowrap text-slate-800">
+                    <div>Selisih Batas</div>
+                  </th>
+                  <th className="py-2 px-1.5 text-center whitespace-nowrap text-slate-800">Status</th>
+                  <th className="py-2 px-1 text-center whitespace-nowrap text-slate-800">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
@@ -1756,13 +1776,13 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                   const isSelected = selectedRecordId === r.id;
                   const isExceedBawah = r.pt007 < r.lowerThreshold;
                   const deltaBawahStr = isExceedBawah
-                    ? `-${(r.lowerThreshold - r.pt007).toFixed(2)} PSIA`
-                    : `${(r.pt007 - r.lowerThreshold).toFixed(2)} PSIA`;
+                    ? `-${(r.lowerThreshold - r.pt007).toFixed(2)}`
+                    : `${(r.pt007 - r.lowerThreshold).toFixed(2)}`;
 
                   const isExceedAtas = r.pt007 > r.upperThreshold;
                   const deltaAtasStr = isExceedAtas
-                    ? `+${(r.pt007 - r.upperThreshold).toFixed(2)} PSIA`
-                    : `${(r.upperThreshold - r.pt007).toFixed(2)} PSIA`;
+                    ? `+${(r.pt007 - r.upperThreshold).toFixed(2)}`
+                    : `${(r.upperThreshold - r.pt007).toFixed(2)}`;
 
                   return (
                     <tr
@@ -1773,78 +1793,83 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                       }`}
                     >
                       {/* Waktu & Tanggal */}
-                      <td className="py-2 px-2 whitespace-nowrap">
-                        <span className="font-bold text-slate-900 font-sans">{r.date}</span>
-                        <span className="ml-1 font-mono text-violet-700 font-bold bg-violet-100 px-1 py-0.2 rounded text-[10px]">
-                          {r.time || '19:00'}
-                        </span>
+                      <td className="py-1.5 px-2 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-slate-900 font-sans">{r.date}</span>
+                          <span className="font-mono text-violet-700 font-bold bg-violet-50 border border-violet-200 px-1 py-0.5 rounded text-[10px]">
+                            {r.time || '19:00'}
+                          </span>
+                        </div>
                       </td>
 
                       {/* Beban */}
-                      <td className="py-2 px-1.5 text-right font-bold text-slate-900 whitespace-nowrap">
-                        {r.beban.toFixed(2)} <span className="text-[9px] text-slate-400 font-sans font-normal">MW</span>
+                      <td className="py-1.5 px-1 text-right font-bold text-slate-900 whitespace-nowrap">
+                        {r.beban.toFixed(2)}
                       </td>
 
                       {/* PB Synthesis */}
-                      <td className="py-2 px-1.5 text-right font-bold text-blue-700 whitespace-nowrap">
+                      <td className="py-1.5 px-1 text-right font-bold text-blue-700 whitespace-nowrap">
                         {r.pbSynthesis.toFixed(2)}
                       </td>
 
                       {/* Batas Atas (1.18x) */}
-                      <td className="py-2 px-1.5 text-right text-rose-700 whitespace-nowrap font-semibold">
+                      <td className="py-1.5 px-1 text-right text-rose-700 whitespace-nowrap font-semibold">
                         {r.upperThreshold.toFixed(2)}
                       </td>
 
-                      {/* Mendekati Batas Atas (+4.0 PSIA) */}
-                      <td className="py-2 px-1.5 text-right text-amber-700 whitespace-nowrap">
+                      {/* Mendekati Batas Atas (-4.0 PSIA) */}
+                      <td className="py-1.5 px-1 text-right text-amber-700 whitespace-nowrap font-medium">
                         {r.earlyUpper.toFixed(2)}
                       </td>
 
                       {/* Batas Bawah (0.82x) */}
-                      <td className="py-2 px-1.5 text-right text-rose-700 whitespace-nowrap font-semibold">
+                      <td className="py-1.5 px-1 text-right text-rose-700 whitespace-nowrap font-semibold">
                         {r.lowerThreshold.toFixed(2)}
                       </td>
 
-                      {/* Mendekati Batas Bawah (-4.0 PSIA) */}
-                      <td className="py-2 px-1.5 text-right text-amber-700 whitespace-nowrap">
+                      {/* Mendekati Batas Bawah (+4.0 PSIA) */}
+                      <td className="py-1.5 px-1 text-right text-amber-700 whitespace-nowrap font-medium">
                         {r.earlyLower.toFixed(2)}
                       </td>
 
-                      {/* PT007 (Testing Data) - STANDOUT & BIGGER */}
-                      <td className="py-2 px-2.5 text-center whitespace-nowrap bg-purple-50/90 border-x border-purple-200">
-                        <span className="inline-block text-xs sm:text-sm font-black text-purple-950 font-mono px-2 py-0.5 rounded bg-white border-2 border-purple-300 shadow-2xs">
+                      {/* PT007 (Testing Data) */}
+                      <td className="py-1.5 px-1.5 text-center whitespace-nowrap bg-purple-50/90 border-x border-purple-200">
+                        <span className="inline-block text-xs font-black text-purple-950 font-mono px-1.5 py-0.5 rounded bg-white border border-purple-300 shadow-2xs">
                           {r.pt007.toFixed(2)}
                         </span>
-                        <span className="text-[8px] text-purple-700 block font-sans font-bold leading-none mt-0.5">PSIA</span>
                       </td>
 
                       {/* Selisih PT007 dengan Batas Atas / Bawah */}
-                      <td className="py-2 px-2 whitespace-nowrap text-xs font-mono">
-                        <div className="flex flex-col gap-0.5 text-[10px]">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-[9px] text-rose-600 font-sans font-medium">Batas Atas:</span>
-                            <span className={`font-bold ${isExceedAtas ? 'text-amber-700 font-black' : 'text-slate-800'}`}>{deltaAtasStr}</span>
+                      <td className="py-1.5 px-1.5 whitespace-nowrap text-[10px] font-mono">
+                        <div className="flex flex-col gap-0.5 leading-tight">
+                          <div className="flex items-center justify-between gap-1.5">
+                            <span className="text-[9px] text-slate-400 font-sans">Atas:</span>
+                            <span className={`font-bold ${isExceedAtas ? 'text-rose-600 font-black' : 'text-slate-700'}`}>
+                              {deltaAtasStr}
+                            </span>
                           </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-[9px] text-rose-600 font-sans font-medium">Batas Bawah:</span>
-                            <span className={`font-bold ${isExceedBawah ? 'text-amber-700 font-black' : 'text-slate-800'}`}>{deltaBawahStr}</span>
+                          <div className="flex items-center justify-between gap-1.5">
+                            <span className="text-[9px] text-slate-400 font-sans">Bawah:</span>
+                            <span className={`font-bold ${isExceedBawah ? 'text-rose-600 font-black' : 'text-slate-700'}`}>
+                              {deltaBawahStr}
+                            </span>
                           </div>
                         </div>
                       </td>
 
                       {/* Zone Status */}
-                      <td className="py-2 px-1.5 text-center whitespace-nowrap">
+                      <td className="py-1.5 px-1.5 text-center whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black border shadow-2xs font-sans ${
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border shadow-2xs font-sans ${
                             r.zone === 'NORMAL'
-                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                               : r.zone === 'EARLY_UPPER' || r.zone === 'EARLY_LOWER'
-                              ? 'bg-amber-100 text-amber-800 border-amber-300'
+                              ? 'bg-amber-50 text-amber-800 border-amber-300'
                               : 'bg-rose-600 text-white border-rose-700 font-extrabold shadow-xs'
                           }`}
                         >
                           <span
-                            className={`w-1.5 h-1.5 rounded-full ${
+                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                               r.zone === 'NORMAL'
                                 ? 'bg-emerald-600'
                                 : r.zone === 'EARLY_UPPER' || r.zone === 'EARLY_LOWER'
@@ -1855,27 +1880,27 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                           {r.zone === 'NORMAL'
                             ? 'NORMAL'
                             : r.zone === 'EARLY_LOWER'
-                            ? 'MENDEKATI BAWAH'
+                            ? 'Mendekati Bawah'
                             : r.zone === 'EARLY_UPPER'
-                            ? 'MENDEKATI ATAS'
+                            ? 'Mendekati Atas'
                             : r.zone === 'MELEWATI_BATAS_ATAS'
-                            ? 'ALARM ATAS'
-                            : 'ALARM BAWAH'}
+                            ? 'Alarm Atas'
+                            : 'Alarm Bawah'}
                         </span>
                       </td>
 
                       {/* Actions */}
-                      <td className="py-2 px-1 text-center whitespace-nowrap">
+                      <td className="py-1.5 px-1 text-center whitespace-nowrap">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedRecordId(r.id);
                           }}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer ${
                             isSelected
-                              ? 'bg-violet-700 text-white'
-                              : 'bg-slate-100 hover:bg-violet-100 text-slate-700'
+                              ? 'bg-violet-700 text-white shadow-2xs'
+                              : 'bg-slate-100 hover:bg-violet-100 text-slate-700 border border-slate-200'
                           }`}
                         >
                           {isSelected ? 'Aktif' : 'Pilih'}

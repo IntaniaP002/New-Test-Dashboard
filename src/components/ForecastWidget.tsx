@@ -219,40 +219,6 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
     }
   };
 
-  // Dynamic snapshot information based on selected historical date
-  const snapshotInfo = React.useMemo(() => {
-    const record = (inputHistoryRecords || []).find((r) => r.date === selectedDate);
-    
-    let statusText = 'Normal';
-    let badgeClass = 'text-emerald-800';
-    
-    if (record?.overallStatus === 'RECOMMEND_WW' || waterWashStatus === 'DUE_NOW') {
-      const weight = record?.performanceIndex ?? 80;
-      statusText = `Recommend Water Wash (${weight}%)`;
-      badgeClass = 'text-rose-800 font-extrabold';
-    } else if (record?.overallStatus === 'CAUTION' || record?.overallStatus === 'MONITORING' || isPantauOperationalState) {
-      const weight = record?.performanceIndex ?? 60;
-      statusText = `Caution (${weight}%)`;
-      badgeClass = 'text-amber-800 font-bold';
-    }
-
-    const reachedNames = reachedParameters && reachedParameters.length > 0
-      ? reachedParameters.map((p) => getParamLabel(p)).join(', ')
-      : (() => {
-          const names: string[] = [];
-          if (record?.prThresholdReached) names.push('PR');
-          if (record?.p3ThresholdReached) names.push('P3.0');
-          if (record?.nphrThresholdReached) names.push('NPHR');
-          if (record?.powerThresholdReached) names.push('Real Power');
-          return names.length > 0 ? names.join(', ') : null;
-        })();
-
-    return {
-      statusText,
-      badgeClass,
-      reachedNames,
-    };
-  }, [selectedDate, inputHistoryRecords, waterWashStatus, isPantauOperationalState, reachedParameters]);
 
   // Raw daily combined dataset with forecast projections
   const rawAllChartData = React.useMemo(() => {
@@ -636,34 +602,6 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
         </div>
       </div>
 
-      {/* Historical Calibration Informative Banner */}
-      {shouldScopeToSelectedDate && (
-        <div className="p-3 bg-amber-50/90 border border-amber-300 rounded-md text-xs text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-2xs">
-          <div className="flex items-start gap-2">
-            <Clock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-            <div>
-              <span className="font-bold text-amber-900">Historical Snapshot Active ({selectedDate}):</span>{' '}
-              Forecast regresi linear dikalibrasi menggunakan data input harian sampai tanggal <strong>{selectedDate}</strong>.{' '}
-              {snapshotInfo.reachedNames ? (
-                <>
-                  Pada titik ini, parameter <strong>{snapshotInfo.reachedNames}</strong> telah melampaui batas ambang.
-                  {' '}Hasil forecast sepenuhnya konsisten dengan status <strong className={snapshotInfo.badgeClass}>{snapshotInfo.statusText}</strong> di atas.
-                </>
-              ) : (
-                <>
-                  Pada titik ini, seluruh parameter masih berada dalam batas normal.
-                  {' '}Hasil forecast sepenuhnya konsisten dengan status <strong className={snapshotInfo.badgeClass}>{snapshotInfo.statusText}</strong> di atas.
-                </>
-              )}
-              {baselineDate && selectedDate && selectedDate < baselineDate && (
-                <div className="mt-1 text-amber-800 text-[11px] font-medium">
-                  Catatan: Tanggal snapshot ini ({selectedDate}) berada sebelum tanggal Baseline Aktif saat ini ({baselineDate}).
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Main Forecast Highlight Banner: "Berapa hari lagi sampai Water Wash selanjutnya" */}
       {!hasBaseline ? (

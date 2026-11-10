@@ -635,24 +635,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="mt-2 text-xs space-y-1 text-slate-600 border-t border-slate-100 pt-2">
               <div className="flex justify-between items-baseline">
-                <span>Deterioration:</span>
-                <span className={`font-semibold ${activeRecord?.prDeterioration && activeRecord.prDeterioration >= thresholds.prWWThreshold ? 'text-rose-700' : 'text-slate-800'}`}>
+                <span className="shrink-0">Deterioration:</span>
+                <span className={`font-semibold text-right ml-auto ${activeRecord?.prDeterioration && activeRecord.prDeterioration >= thresholds.prWWThreshold ? 'text-rose-700' : 'text-slate-800'}`}>
                   {activeRecord?.prDeterioration !== null && activeRecord?.prDeterioration !== undefined
                     ? `${activeRecord.prDeterioration > 0 ? '+' : ''}${activeRecord.prDeterioration}%`
                     : 'N/A'}
                 </span>
               </div>
-              <div className="flex justify-between items-baseline text-[11px] text-slate-500">
-                <span>Delta vs Baseline:</span>
-                <span className="font-mono font-medium text-slate-700">
+              <div className="flex justify-between items-baseline text-[11px] text-slate-500 gap-2">
+                <span className="shrink-0">Delta vs Baseline:</span>
+                <span className="font-mono font-medium text-slate-700 text-right ml-auto whitespace-nowrap">
                   {activeRecord?.prDelta !== null && activeRecord?.prDelta !== undefined
                     ? `${activeRecord.prDelta > 0 ? '+' : ''}${activeRecord.prDelta.toFixed(4)}`
                     : (hasBaseline && baseline.PR && activeRecord ? `${(activeRecord.pr - baseline.PR) > 0 ? '+' : ''}${(activeRecord.pr - baseline.PR).toFixed(4)}` : '—')}
                 </span>
               </div>
-              <div className="flex justify-between text-slate-500 text-[11px]">
-                <span>Threshold:</span>
-                <span>≥ {thresholds.prWWThreshold}%</span>
+              <div className="flex justify-between items-baseline text-slate-500 text-[11px] gap-2">
+                <span className="shrink-0">Threshold:</span>
+                <span className="text-right ml-auto whitespace-nowrap">≥ {thresholds.prWWThreshold}%</span>
               </div>
             </div>
           </div>
@@ -685,24 +685,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="mt-2 text-xs space-y-1 text-slate-600 border-t border-slate-100 pt-2">
               <div className="flex justify-between items-baseline">
-                <span>Deterioration:</span>
-                <span className={`font-semibold ${activeRecord?.p3Deterioration && activeRecord.p3Deterioration >= thresholds.p3WWThreshold ? 'text-rose-700' : 'text-slate-800'}`}>
+                <span className="shrink-0">Deterioration:</span>
+                <span className={`font-semibold text-right ml-auto ${activeRecord?.p3Deterioration && activeRecord.p3Deterioration >= thresholds.p3WWThreshold ? 'text-rose-700' : 'text-slate-800'}`}>
                   {activeRecord?.p3Deterioration !== null && activeRecord?.p3Deterioration !== undefined
                     ? `${activeRecord.p3Deterioration > 0 ? '+' : ''}${activeRecord.p3Deterioration}%`
                     : 'N/A'}
                 </span>
               </div>
-              <div className="flex justify-between items-baseline text-[11px] text-slate-500">
-                <span>Delta vs Baseline:</span>
-                <span className="font-mono font-medium text-slate-700">
+              <div className="flex justify-between items-baseline text-[11px] text-slate-500 gap-2">
+                <span className="shrink-0">Delta vs Baseline:</span>
+                <span className="font-mono font-medium text-slate-700 text-right ml-auto whitespace-nowrap">
                   {activeRecord?.p3Delta !== null && activeRecord?.p3Delta !== undefined
                     ? `${activeRecord.p3Delta > 0 ? '+' : ''}${activeRecord.p3Delta.toFixed(2)} PSIA`
                     : (hasBaseline && baseline.P3_0 && activeRecord ? `${(activeRecord.P3_0 - baseline.P3_0) > 0 ? '+' : ''}${(activeRecord.P3_0 - baseline.P3_0).toFixed(2)} PSIA` : '—')}
                 </span>
               </div>
-              <div className="flex justify-between text-slate-500 text-[11px]">
-                <span>Threshold:</span>
-                <span>≥ {thresholds.p3WWThreshold}%</span>
+              <div className="flex justify-between items-baseline text-slate-500 text-[11px] gap-2">
+                <span className="shrink-0">Threshold:</span>
+                <span className="text-right ml-auto whitespace-nowrap">≥ {thresholds.p3WWThreshold}%</span>
               </div>
             </div>
           </div>
@@ -747,24 +747,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="mt-2 text-xs space-y-1 text-slate-600 border-t border-slate-100 pt-2">
               <div className="flex justify-between items-baseline">
-                <span>Deterioration:</span>
-                <span className={`font-semibold ${activeRecord?.nphrDeterioration && activeRecord.nphrDeterioration >= thresholds.nphrWWThreshold ? 'text-rose-700' : 'text-slate-800'}`}>
+                <span className="shrink-0">Deterioration:</span>
+                <span className={`font-semibold text-right ml-auto ${activeRecord?.nphrDeterioration && activeRecord.nphrDeterioration >= thresholds.nphrWWThreshold ? 'text-rose-700' : 'text-slate-800'}`}>
                   {activeRecord?.nphrDeterioration !== null && activeRecord?.nphrDeterioration !== undefined
                     ? `${activeRecord.nphrDeterioration > 0 ? '+' : ''}${activeRecord.nphrDeterioration}%`
                     : 'N/A'}
                 </span>
               </div>
-              <div className="flex justify-between items-baseline text-[11px] text-slate-500">
-                <span>Delta vs Baseline:</span>
-                <span className="font-mono font-medium text-slate-700">
+              <div className="flex justify-between items-baseline text-[11px] text-slate-500 gap-2">
+                <span className="shrink-0">Delta vs Baseline:</span>
+                <span className="font-mono font-medium text-slate-700 text-right ml-auto whitespace-nowrap">
                   {activeRecord?.nphrDelta !== null && activeRecord?.nphrDelta !== undefined
                     ? `${activeRecord.nphrDelta > 0 ? '+' : ''}${activeRecord.nphrDelta.toFixed(1)} kcal/kWh`
                     : (hasBaseline && baseline.nphr && activeRecord ? `${(activeRecord.nphr - baseline.nphr) > 0 ? '+' : ''}${(activeRecord.nphr - baseline.nphr).toFixed(1)} kcal/kWh` : '—')}
                 </span>
               </div>
-              <div className="flex justify-between text-slate-500 text-[11px]">
-                <span>Threshold:</span>
-                <span>≥ {thresholds.nphrWWThreshold}% (Early: {thresholds.nphrEarlyMonitoring}%)</span>
+              <div className="flex justify-between items-baseline text-slate-500 text-[11px] gap-2">
+                <span className="shrink-0">Threshold:</span>
+                <span className="text-right ml-auto whitespace-nowrap">
+                  ≥ {thresholds.nphrWWThreshold}% <span className="text-[10px] text-slate-400 font-normal">(Early: {thresholds.nphrEarlyMonitoring}%)</span>
+                </span>
               </div>
             </div>
           </div>
@@ -797,24 +799,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="mt-2 text-xs space-y-1 text-slate-600 border-t border-slate-100 pt-2">
               <div className="flex justify-between items-baseline">
-                <span>Deterioration:</span>
-                <span className={`font-semibold ${activeRecord?.powerDeterioration && activeRecord.powerDeterioration >= thresholds.powerWWThreshold ? 'text-rose-700' : 'text-slate-800'}`}>
+                <span className="shrink-0">Deterioration:</span>
+                <span className={`font-semibold text-right ml-auto ${activeRecord?.powerDeterioration && activeRecord.powerDeterioration >= thresholds.powerWWThreshold ? 'text-rose-700' : 'text-slate-800'}`}>
                   {activeRecord?.powerDeterioration !== null && activeRecord?.powerDeterioration !== undefined
                     ? `${activeRecord.powerDeterioration > 0 ? '+' : ''}${activeRecord.powerDeterioration}%`
                     : 'N/A'}
                 </span>
               </div>
-              <div className="flex justify-between items-baseline text-[11px] text-slate-500">
-                <span>Delta vs Baseline:</span>
-                <span className="font-mono font-medium text-slate-700">
+              <div className="flex justify-between items-baseline text-[11px] text-slate-500 gap-2">
+                <span className="shrink-0">Delta vs Baseline:</span>
+                <span className="font-mono font-medium text-slate-700 text-right ml-auto whitespace-nowrap">
                   {activeRecord?.powerDelta !== null && activeRecord?.powerDelta !== undefined
                     ? `${activeRecord.powerDelta > 0 ? '+' : ''}${activeRecord.powerDelta.toFixed(2)} MW`
                     : (hasBaseline && baseline.realPower && activeRecord ? `${(activeRecord.realPower - baseline.realPower) > 0 ? '+' : ''}${(activeRecord.realPower - baseline.realPower).toFixed(2)} MW` : '—')}
                 </span>
               </div>
-              <div className="flex justify-between text-slate-500 text-[11px]">
-                <span>Threshold:</span>
-                <span>≥ {thresholds.powerWWThreshold}%</span>
+              <div className="flex justify-between items-baseline text-slate-500 text-[11px] gap-2">
+                <span className="shrink-0">Threshold:</span>
+                <span className="text-right ml-auto whitespace-nowrap">≥ {thresholds.powerWWThreshold}%</span>
               </div>
             </div>
           </div>
