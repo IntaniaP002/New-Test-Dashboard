@@ -1495,12 +1495,12 @@ export const DEFAULT_PB_OPERATION_CURVE_POINTS: PBOperationCurvePoint[] = [
   { beban: 15.00, nhSpeed: 11046, yInterpolated: 16.35, pt006: 14.65, pbSynthesis: 239.50, earlyUpper: 278.61, earlyLower: 200.39, upperThreshold: 282.61, lowerThreshold: 196.39 },
   { beban: 16.00, nhSpeed: 11141, yInterpolated: 16.86, pt006: 14.65, pbSynthesis: 247.02, earlyUpper: 287.48, earlyLower: 206.56, upperThreshold: 291.48, lowerThreshold: 202.56 },
   { beban: 17.22, nhSpeed: 11256, yInterpolated: 17.48, pt006: 14.64, pbSynthesis: 255.94, earlyUpper: 298.01, earlyLower: 213.87, upperThreshold: 302.01, lowerThreshold: 209.87 },
-  { beban: 18.00, nhSpeed: 11309, yInterpolated: 17.77, pt006: 14.64, pbSynthesis: 260.13, earlyUpper: 302.95, earlyLower: 217.31, upperThreshold: 306.95, lowerThreshold: 213.31 },
-  { beban: 19.03, nhSpeed: 11399, yInterpolated: 18.25, pt006: 14.64, pbSynthesis: 267.25, earlyUpper: 311.36, earlyLower: 223.15, upperThreshold: 315.36, lowerThreshold: 219.15 },
-  { beban: 20.11, nhSpeed: 11488, yInterpolated: 18.74, pt006: 14.64, pbSynthesis: 274.28, earlyUpper: 319.65, earlyLower: 228.91, upperThreshold: 323.65, lowerThreshold: 224.91 },
-  { beban: 21.02, nhSpeed: 11553, yInterpolated: 19.09, pt006: 14.63, pbSynthesis: 279.23, earlyUpper: 325.49, earlyLower: 232.97, upperThreshold: 329.49, lowerThreshold: 228.97 },
-  { beban: 22.00, nhSpeed: 11619, yInterpolated: 19.44, pt006: 14.63, pbSynthesis: 284.45, earlyUpper: 331.65, earlyLower: 237.25, upperThreshold: 335.65, lowerThreshold: 233.25 },
-  { beban: 23.01, nhSpeed: 11677, yInterpolated: 19.76, pt006: 14.64, pbSynthesis: 289.22, earlyUpper: 337.08, earlyLower: 241.16, upperThreshold: 341.08, lowerThreshold: 237.16 },
+  { beban: 18.00, nhSpeed: 11309, yInterpolated: 17.77, pt006: 14.64, pbSynthesis: 242.00, earlyUpper: 281.56, earlyLower: 202.44, upperThreshold: 285.56, lowerThreshold: 198.44 },
+  { beban: 19.03, nhSpeed: 11350, yInterpolated: 18.00, pt006: 14.64, pbSynthesis: 248.50, earlyUpper: 289.23, earlyLower: 207.77, upperThreshold: 293.23, lowerThreshold: 203.77 },
+  { beban: 20.11, nhSpeed: 11385, yInterpolated: 18.15, pt006: 14.64, pbSynthesis: 254.50, earlyUpper: 296.31, earlyLower: 212.69, upperThreshold: 300.31, lowerThreshold: 208.69 },
+  { beban: 21.02, nhSpeed: 11400, yInterpolated: 18.25, pt006: 14.63, pbSynthesis: 260.00, earlyUpper: 302.80, earlyLower: 217.20, upperThreshold: 306.80, lowerThreshold: 213.20 },
+  { beban: 22.00, nhSpeed: 11418, yInterpolated: 18.35, pt006: 14.63, pbSynthesis: 265.00, earlyUpper: 308.70, earlyLower: 221.30, upperThreshold: 312.70, lowerThreshold: 217.30 },
+  { beban: 23.11, nhSpeed: 11437, yInterpolated: 18.46, pt006: 14.62, pbSynthesis: 269.89, earlyUpper: 314.47, earlyLower: 225.31, upperThreshold: 318.47, lowerThreshold: 221.31 },
 ];
 
 /**
@@ -1556,12 +1556,12 @@ const SMOOTHED_PB_OPERATION_CALIBRATION_POINTS = [
   { beban: 15.00, baseline: 241.50 },
   { beban: 16.00, baseline: 247.02 },
   { beban: 17.22, baseline: 255.94 },
-  { beban: 18.00, baseline: 260.13 },
-  { beban: 19.03, baseline: 267.25 },
-  { beban: 20.11, baseline: 274.28 },
-  { beban: 21.02, baseline: 279.23 },
-  { beban: 22.00, baseline: 284.45 },
-  { beban: 23.01, baseline: 289.22 },
+  { beban: 18.00, baseline: 242.00 },
+  { beban: 19.03, baseline: 248.50 },
+  { beban: 20.11, baseline: 254.50 },
+  { beban: 21.02, baseline: 260.00 },
+  { beban: 22.00, baseline: 265.00 },
+  { beban: 23.11, baseline: 269.89 },
 ];
 
 function evaluateMonotonePchip(beban: number): number {

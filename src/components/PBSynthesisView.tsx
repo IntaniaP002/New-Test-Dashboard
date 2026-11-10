@@ -1005,8 +1005,8 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
           const minBeban = 1.0;
           const maxBeban = 23.0;
 
-          // Calculate dynamic Y range based on recorded data for batas bawah and batas atas
-          const validRecords = (chartFilteredRecords.length > 0 ? chartFilteredRecords : allMonitoredRecords).filter(
+          // The curve represents the turbine's operational envelope from the complete monitored dataset
+          const allValidRecords = allMonitoredRecords.filter(
             (r) => r.beban >= 0.5 && r.beban <= 25 && r.lowerThreshold > 0 && r.upperThreshold > 0
           );
 
@@ -1017,9 +1017,9 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
             batasAtas: number;
           }[] = [];
 
-          if (validRecords.length >= 5) {
+          if (allValidRecords.length > 0) {
             for (let b = 1.0; b <= 23.5; b += 0.5) {
-              const inBin = validRecords.filter((r) => Math.abs(r.beban - b) <= 0.75);
+              const inBin = allValidRecords.filter((r) => Math.abs(r.beban - b) <= 0.75);
               if (inBin.length > 0) {
                 const avgLower = inBin.reduce((acc, c) => acc + c.lowerThreshold, 0) / inBin.length;
                 const avgUpper = inBin.reduce((acc, c) => acc + c.upperThreshold, 0) / inBin.length;
@@ -1029,6 +1029,29 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                   batasAtas: Number(avgUpper.toFixed(2)),
                 });
               }
+            }
+          }
+
+          // If an active point is selected, strictly anchor the curve at activeEvaluation.beban
+          // so the curve at the active point's load EXACTLY matches activeEvaluation's real operating boundaries
+          if (activeEvaluation) {
+            const actBeban = Number(activeEvaluation.beban.toFixed(2));
+            const actLower = Number(activeEvaluation.lowerThreshold.toFixed(2));
+            const actUpper = Number(activeEvaluation.upperThreshold.toFixed(2));
+            const existingIdx = empiricalAnchors.findIndex((a) => Math.abs(a.beban - actBeban) <= 0.4);
+            if (existingIdx >= 0) {
+              empiricalAnchors[existingIdx] = {
+                beban: actBeban,
+                batasBawah: actLower,
+                batasAtas: actUpper,
+              };
+            } else {
+              empiricalAnchors.push({
+                beban: actBeban,
+                batasBawah: actLower,
+                batasAtas: actUpper,
+              });
+              empiricalAnchors.sort((a, b) => a.beban - b.beban);
             }
           }
 
@@ -1098,19 +1121,20 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
           let rawMinY = 90;
           let rawMaxY = 320;
 
-          if (zoomMode === 'AUTO_DATA' && validRecords.length > 0) {
-            const recMin = Math.min(...validRecords.map((r) => Math.min(r.earlyLower, r.pt007)));
-            const recMax = Math.max(...validRecords.map((r) => Math.max(r.earlyUpper, r.pt007)));
-            rawMinY = Math.max(50, Math.floor((recMin - 5) / 5) * 5);
-            rawMaxY = Math.min(380, Math.ceil((recMax + 5) / 5) * 5);
-          } else if (zoomMode === 'FOCUS_PT007' && validRecords.length > 0) {
-            const recMinPT = Math.min(...validRecords.map((r) => r.pt007));
-            const recMaxPT = Math.max(...validRecords.map((r) => r.pt007));
-            rawMinY = Math.max(50, Math.floor((recMinPT - 8) / 5) * 5);
-            rawMaxY = Math.min(380, Math.ceil((recMaxPT + 8) / 5) * 5);
+          const pointsForScale = (chartFilteredRecords.length > 0 ? chartFilteredRecords : allMonitoredRecords);
+          if (zoomMode === 'AUTO_DATA' && pointsForScale.length > 0) {
+            const recMin = Math.min(...pointsForScale.map((r) => Math.min(r.lowerThreshold, r.pt007)));
+            const recMax = Math.max(...pointsForScale.map((r) => Math.max(r.upperThreshold, r.pt007)));
+            rawMinY = Math.max(40, Math.floor((recMin - 15) / 5) * 5);
+            rawMaxY = Math.min(380, Math.ceil((recMax + 15) / 5) * 5);
+          } else if (zoomMode === 'FOCUS_PT007' && pointsForScale.length > 0) {
+            const recMinPT = Math.min(...pointsForScale.map((r) => r.pt007));
+            const recMaxPT = Math.max(...pointsForScale.map((r) => r.pt007));
+            rawMinY = Math.max(40, Math.floor((recMinPT - 15) / 5) * 5);
+            rawMaxY = Math.min(380, Math.ceil((recMaxPT + 15) / 5) * 5);
           } else {
-            rawMinY = 85;
-            rawMaxY = 325;
+            rawMinY = 80;
+            rawMaxY = 330;
           }
 
           // Apply interactive zoom level around center
