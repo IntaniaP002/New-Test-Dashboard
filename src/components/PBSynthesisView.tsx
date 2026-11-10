@@ -484,9 +484,9 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
       'Y = f(NH)': r.fNH,
       'PB Synthesis (NH)': r.pbSynthesis,
       'Batas Atas (1.18x)': r.upperThreshold,
-      'Mendekati Batas Atas (+4.0 PSIA)': r.earlyUpper,
+      'Mendekati Batas Atas (-4.0 PSIA)': r.earlyUpper,
       'Batas Bawah (0.82x)': r.lowerThreshold,
-      'Mendekati Batas Bawah (-4.0 PSIA)': r.earlyLower,
+      'Mendekati Batas Bawah (+4.0 PSIA)': r.earlyLower,
       'Zona Operasi': r.zone,
       'Rekomendasi Water Wash': r.isRecommendWaterWash ? 'YA' : 'TIDAK',
     }));
@@ -608,7 +608,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-lg sm:text-xl font-black text-amber-900 uppercase tracking-wide">
-                      CAUTION
+                      {activeEvaluation.zone === 'EARLY_LOWER' ? 'MENDEKATI BATAS BAWAH' : 'MENDEKATI BATAS ATAS'}
                     </span>
                   </div>
                   <p className="text-xs sm:text-sm text-amber-900 font-bold mt-1">
@@ -618,7 +618,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
               </div>
               <div className="sm:text-right shrink-0">
                 <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-amber-500 text-white font-black text-xs uppercase tracking-wider shadow-2xs">
-                  CAUTION
+                  {activeEvaluation.zone === 'EARLY_LOWER' ? 'MENDEKATI BATAS BAWAH' : 'MENDEKATI BATAS ATAS'}
                 </span>
               </div>
             </div>
@@ -729,25 +729,25 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                     </p>
                   </div>
 
-                  {/* Card 3: Caution (-4.0 PSIA) */}
+                  {/* Card 3: Mendekati Batas Bawah (+4.0 PSIA) */}
                   <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-lg flex flex-col justify-between shadow-2xs">
-                    <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">Caution (-4.0 PSIA)</span>
+                    <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">Mendekati Batas Bawah (+4.0 PSIA)</span>
                     <span className="text-lg font-mono font-black text-amber-950 my-1">
                       {activeEvaluation.earlyLower.toFixed(2)} PSIA
                     </span>
                     <p className="text-[10px] text-amber-700 font-sans">
-                      Rentang: {activeEvaluation.earlyLower.toFixed(2)} – {activeEvaluation.lowerThreshold.toFixed(2)} PSIA
+                      Rentang: {activeEvaluation.lowerThreshold.toFixed(2)} – {activeEvaluation.earlyLower.toFixed(2)} PSIA
                     </p>
                   </div>
 
-                  {/* Card 4: Mendekati Batas Atas (+4.0 PSIA) */}
+                  {/* Card 4: Mendekati Batas Atas (-4.0 PSIA) */}
                   <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-lg flex flex-col justify-between shadow-2xs">
-                    <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">Mendekati Batas Atas (+4.0 PSIA)</span>
+                    <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">Mendekati Batas Atas (-4.0 PSIA)</span>
                     <span className="text-lg font-mono font-black text-amber-950 my-1">
                       {activeEvaluation.earlyUpper.toFixed(2)} PSIA
                     </span>
                     <p className="text-[10px] text-amber-700 font-sans">
-                      Rentang: {activeEvaluation.upperThreshold.toFixed(2)} – {activeEvaluation.earlyUpper.toFixed(2)} PSIA
+                      Rentang: {activeEvaluation.earlyUpper.toFixed(2)} – {activeEvaluation.upperThreshold.toFixed(2)} PSIA
                     </p>
                   </div>
 
@@ -1005,33 +1005,102 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
           const minBeban = 1.0;
           const maxBeban = 23.0;
 
-          // Continuous sample points along Beban 1.0 to 23.0 MW using Speedronic benchmark interpolation
+          // Calculate dynamic Y range based on recorded data for batas bawah and batas atas
+          const validRecords = (chartFilteredRecords.length > 0 ? chartFilteredRecords : allMonitoredRecords).filter(
+            (r) => r.beban >= 0.5 && r.beban <= 25 && r.lowerThreshold > 0 && r.upperThreshold > 0
+          );
+
+          // Extract empirical anchor points across load range from actual recorded turbine data
+          const empiricalAnchors: {
+            beban: number;
+            batasBawah: number;
+            batasAtas: number;
+          }[] = [];
+
+          if (validRecords.length >= 5) {
+            for (let b = 1.0; b <= 23.5; b += 0.5) {
+              const inBin = validRecords.filter((r) => Math.abs(r.beban - b) <= 0.75);
+              if (inBin.length > 0) {
+                const avgLower = inBin.reduce((acc, c) => acc + c.lowerThreshold, 0) / inBin.length;
+                const avgUpper = inBin.reduce((acc, c) => acc + c.upperThreshold, 0) / inBin.length;
+                empiricalAnchors.push({
+                  beban: Number(b.toFixed(2)),
+                  batasBawah: Number(avgLower.toFixed(2)),
+                  batasAtas: Number(avgUpper.toFixed(2)),
+                });
+              }
+            }
+          }
+
+          // Continuous sample points along Beban 1.0 to 23.0 MW
           const samples: {
             beban: number;
+            alarmBawah: number;
             batasBawah: number;
             earlyBawah: number;
             earlyAtas: number;
             batasAtas: number;
+            alarmAtas: number;
           }[] = [];
+
           for (let b = 1.0; b <= 23.001; b += 0.2) {
-            const exp = getExpectedCurveAtBeban(b);
-            samples.push({
-              beban: Number(b.toFixed(2)),
-              batasBawah: exp.lowerThreshold,
-              earlyBawah: exp.earlyLower, // Ambang Alarm Bawah = lowerThreshold - 4.0 PSIA
-              earlyAtas: exp.earlyUpper,   // Ambang Alarm Atas = upperThreshold + 4.0 PSIA
-              batasAtas: exp.upperThreshold,
-            });
+            const curB = Number(b.toFixed(2));
+            if (empiricalAnchors.length >= 2) {
+              let lower = 0;
+              let upper = 0;
+              if (curB <= empiricalAnchors[0].beban) {
+                const slopeL = (empiricalAnchors[1].batasBawah - empiricalAnchors[0].batasBawah) / (empiricalAnchors[1].beban - empiricalAnchors[0].beban);
+                const slopeU = (empiricalAnchors[1].batasAtas - empiricalAnchors[0].batasAtas) / (empiricalAnchors[1].beban - empiricalAnchors[0].beban);
+                lower = empiricalAnchors[0].batasBawah + slopeL * (curB - empiricalAnchors[0].beban);
+                upper = empiricalAnchors[0].batasAtas + slopeU * (curB - empiricalAnchors[0].beban);
+              } else if (curB >= empiricalAnchors[empiricalAnchors.length - 1].beban) {
+                const last = empiricalAnchors.length - 1;
+                const slopeL = (empiricalAnchors[last].batasBawah - empiricalAnchors[last - 1].batasBawah) / (empiricalAnchors[last].beban - empiricalAnchors[last - 1].beban);
+                const slopeU = (empiricalAnchors[last].batasAtas - empiricalAnchors[last - 1].batasAtas) / (empiricalAnchors[last].beban - empiricalAnchors[last - 1].beban);
+                lower = empiricalAnchors[last].batasBawah + slopeL * (curB - empiricalAnchors[last].beban);
+                upper = empiricalAnchors[last].batasAtas + slopeU * (curB - empiricalAnchors[last].beban);
+              } else {
+                for (let i = 0; i < empiricalAnchors.length - 1; i++) {
+                  if (curB >= empiricalAnchors[i].beban && curB <= empiricalAnchors[i + 1].beban) {
+                    const span = empiricalAnchors[i + 1].beban - empiricalAnchors[i].beban;
+                    const frac = span > 0 ? (curB - empiricalAnchors[i].beban) / span : 0;
+                    lower = empiricalAnchors[i].batasBawah + frac * (empiricalAnchors[i + 1].batasBawah - empiricalAnchors[i].batasBawah);
+                    upper = empiricalAnchors[i].batasAtas + frac * (empiricalAnchors[i + 1].batasAtas - empiricalAnchors[i].batasAtas);
+                    break;
+                  }
+                }
+              }
+              const bBawah = Number(lower.toFixed(2));
+              const bAtas = Number(upper.toFixed(2));
+              samples.push({
+                beban: curB,
+                alarmBawah: Number((bBawah - 4.0).toFixed(2)),
+                batasBawah: bBawah,
+                earlyBawah: Number((bBawah + 4.0).toFixed(2)),
+                earlyAtas: Number((bAtas - 4.0).toFixed(2)),
+                batasAtas: bAtas,
+                alarmAtas: Number((bAtas + 4.0).toFixed(2)),
+              });
+            } else {
+              const exp = getExpectedCurveAtBeban(curB);
+              samples.push({
+                beban: curB,
+                alarmBawah: Number((exp.lowerThreshold - 4.0).toFixed(2)),
+                batasBawah: exp.lowerThreshold,
+                earlyBawah: exp.earlyLower,
+                earlyAtas: exp.earlyUpper,
+                batasAtas: exp.upperThreshold,
+                alarmAtas: Number((exp.upperThreshold + 4.0).toFixed(2)),
+              });
+            }
           }
 
-          // Calculate dynamic Y range based on recorded data for batas bawah and batas atas
-          const validRecords = (chartFilteredRecords.length > 0 ? chartFilteredRecords : allMonitoredRecords).filter((r) => r.beban >= 0.5 && r.beban <= 24);
           let rawMinY = 90;
           let rawMaxY = 320;
 
           if (zoomMode === 'AUTO_DATA' && validRecords.length > 0) {
-            const recMin = Math.min(...validRecords.map((r) => Math.min(r.lowerThreshold, r.pt007)));
-            const recMax = Math.max(...validRecords.map((r) => Math.max(r.upperThreshold, r.pt007)));
+            const recMin = Math.min(...validRecords.map((r) => Math.min(r.earlyLower, r.pt007)));
+            const recMax = Math.max(...validRecords.map((r) => Math.max(r.earlyUpper, r.pt007)));
             rawMinY = Math.max(50, Math.floor((recMin - 5) / 5) * 5);
             rawMaxY = Math.min(380, Math.ceil((recMax + 5) / 5) * 5);
           } else if (zoomMode === 'FOCUS_PT007' && validRecords.length > 0) {
@@ -1078,38 +1147,38 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
             .join(' ');
 
           // Build Shaded Ribbon Areas:
-          // 1. Alarm Bawah Zone (below earlyBawah = lowerThreshold - 4.0 down to minP)
+          // 1. Alarm Bawah Zone (below alarmBawah = Batas Bawah - 4.0 down to minP)
           const ribbonBelowAlarmBawahPath = (() => {
-            const up = samples.map((s, idx) => `${idx === 0 ? 'M' : 'L'} ${toX(s.beban).toFixed(1)} ${toY(s.earlyBawah).toFixed(1)}`).join(' ');
+            const up = samples.map((s, idx) => `${idx === 0 ? 'M' : 'L'} ${toX(s.beban).toFixed(1)} ${toY(s.alarmBawah).toFixed(1)}`).join(' ');
             const btmRight = `L ${toX(samples[samples.length - 1].beban).toFixed(1)} ${toY(minP).toFixed(1)}`;
             const btmLeft = `L ${toX(samples[0].beban).toFixed(1)} ${toY(minP).toFixed(1)}`;
             return `${up} ${btmRight} ${btmLeft} Z`;
           })();
 
-          // 2. Mendekati Batas Bawah (Caution: between earlyBawah = lowerThreshold - 4.0 and batasBawah = lowerThreshold)
+          // 2. Mendekati Batas Bawah (between alarmBawah and earlyBawah = Batas Bawah + 4.0)
           const ribbonMendekatiBawahPath = (() => {
             const up = samples.map((s, idx) => `${idx === 0 ? 'M' : 'L'} ${toX(s.beban).toFixed(1)} ${toY(s.earlyBawah).toFixed(1)}`).join(' ');
-            const down = [...samples].reverse().map((s) => `L ${toX(s.beban).toFixed(1)} ${toY(s.batasBawah).toFixed(1)}`).join(' ');
+            const down = [...samples].reverse().map((s) => `L ${toX(s.beban).toFixed(1)} ${toY(s.alarmBawah).toFixed(1)}`).join(' ');
             return `${up} ${down} Z`;
           })();
 
-          // 3. Normal Operating Zone (between batasBawah and batasAtas)
+          // 3. Normal Operating Zone (between earlyBawah = Batas Bawah + 4.0 and earlyAtas = Batas Atas - 4.0)
           const ribbonNormalPath = (() => {
-            const up = samples.map((s, idx) => `${idx === 0 ? 'M' : 'L'} ${toX(s.beban).toFixed(1)} ${toY(s.batasBawah).toFixed(1)}`).join(' ');
-            const down = [...samples].reverse().map((s) => `L ${toX(s.beban).toFixed(1)} ${toY(s.batasAtas).toFixed(1)}`).join(' ');
+            const up = samples.map((s, idx) => `${idx === 0 ? 'M' : 'L'} ${toX(s.beban).toFixed(1)} ${toY(s.earlyAtas).toFixed(1)}`).join(' ');
+            const down = [...samples].reverse().map((s) => `L ${toX(s.beban).toFixed(1)} ${toY(s.earlyBawah).toFixed(1)}`).join(' ');
             return `${up} ${down} Z`;
           })();
 
-          // 4. Mendekati Batas Atas (Caution: between batasAtas = upperThreshold and earlyAtas = upperThreshold + 4.0)
+          // 4. Mendekati Batas Atas (between earlyAtas = Batas Atas - 4.0 and alarmAtas = Batas Atas + 4.0)
           const ribbonMendekatiAtasPath = (() => {
-            const up = samples.map((s, idx) => `${idx === 0 ? 'M' : 'L'} ${toX(s.beban).toFixed(1)} ${toY(s.batasAtas).toFixed(1)}`).join(' ');
+            const up = samples.map((s, idx) => `${idx === 0 ? 'M' : 'L'} ${toX(s.beban).toFixed(1)} ${toY(s.alarmAtas).toFixed(1)}`).join(' ');
             const down = [...samples].reverse().map((s) => `L ${toX(s.beban).toFixed(1)} ${toY(s.earlyAtas).toFixed(1)}`).join(' ');
             return `${up} ${down} Z`;
           })();
 
-          // 5. Alarm Atas Zone (above earlyAtas = upperThreshold + 4.0 up to maxP)
+          // 5. Alarm Atas Zone (above alarmAtas = Batas Atas + 4.0 up to maxP)
           const ribbonBeyondAlarmAtasPath = (() => {
-            const up = samples.map((s, idx) => `${idx === 0 ? 'M' : 'L'} ${toX(s.beban).toFixed(1)} ${toY(s.earlyAtas).toFixed(1)}`).join(' ');
+            const up = samples.map((s, idx) => `${idx === 0 ? 'M' : 'L'} ${toX(s.beban).toFixed(1)} ${toY(s.alarmAtas).toFixed(1)}`).join(' ');
             const topRight = `L ${toX(samples[samples.length - 1].beban).toFixed(1)} ${toY(maxP).toFixed(1)}`;
             const topLeft = `L ${toX(samples[0].beban).toFixed(1)} ${toY(maxP).toFixed(1)}`;
             return `${up} ${topRight} ${topLeft} Z`;
@@ -1250,17 +1319,8 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                 {/* 5. Alarm Atas Zone (above Batas Atas) */}
                 <path d={ribbonBeyondAlarmAtasPath} fill="rgba(239, 68, 68, 0.08)" />
 
-                {/* Curve Lines (drawn from top to bottom) */}
-                {/* Line 1 (Paling Atas): Batas Atas (1.18x) - Yellow Solid Line */}
-                <path
-                  d={pathBatasAtas}
-                  fill="none"
-                  stroke="#eab308"
-                  strokeWidth="2.8"
-                  strokeLinecap="round"
-                />
-
-                {/* Line 2: Mendekati Batas Atas (-4.0 PSIA di bawah Batas Atas) - Amber Dashed */}
+                {/* Curve Lines (drawn from top to bottom in pressure order) */}
+                {/* Line 1 (Paling Atas): Ambang Alarm Atas (+4.0 PSIA di atas Batas Atas) - Amber Dashed */}
                 <path
                   d={pathEarlyAtas}
                   fill="none"
@@ -1270,22 +1330,31 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                   strokeLinecap="round"
                 />
 
-                {/* Line 3: Mendekati Batas Bawah (+4.0 PSIA di atas Batas Bawah) - Amber Dashed */}
+                {/* Line 2: Batas Atas (1.18x) - Yellow Solid Line */}
+                <path
+                  d={pathBatasAtas}
+                  fill="none"
+                  stroke="#eab308"
+                  strokeWidth="2.8"
+                  strokeLinecap="round"
+                />
+
+                {/* Line 3: Batas Bawah (0.82x) - Red Solid Line */}
+                <path
+                  d={pathBatasBawah}
+                  fill="none"
+                  stroke="#dc2626"
+                  strokeWidth="2.8"
+                  strokeLinecap="round"
+                />
+
+                {/* Line 4 (Paling Bawah): Ambang Alarm Bawah (-4.0 PSIA di bawah Batas Bawah) - Amber Dashed */}
                 <path
                   d={pathEarlyBawah}
                   fill="none"
                   stroke="#d97706"
                   strokeWidth="1.8"
                   strokeDasharray="4 3"
-                  strokeLinecap="round"
-                />
-
-                {/* Line 4 (Paling Bawah): Batas Normal / Batas Bawah (0.82x) - Red Solid Line */}
-                <path
-                  d={pathBatasBawah}
-                  fill="none"
-                  stroke="#dc2626"
-                  strokeWidth="2.8"
                   strokeLinecap="round"
                 />
 
@@ -1308,7 +1377,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                   fontWeight="bold"
                   textAnchor="end"
                 >
-                  Batas Normal (0.82x)
+                  Batas Bawah (0.82x)
                 </text>
 
                 {/* SCATTER POINTS: (Beban, PT007) with Crystal-Clear Enlarged Dots and Callout Badges */}
@@ -1546,14 +1615,14 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
             <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 shrink-0" />
             <div>
               <span className="font-bold text-emerald-950 block">Zona Normal (0.82x s/d 1.18x)</span>
-              <span className="text-[11px] text-emerald-800">Nilai PT007 berada aman di antara Batas Bawah dan Batas Atas.</span>
+              <span className="text-[11px] text-emerald-800">Nilai PT007 berada aman di zona hijau di antara Batas Bawah dan Batas Atas.</span>
             </div>
           </div>
           <div className="p-2.5 bg-amber-50/70 border border-amber-200 rounded-lg flex items-center gap-2">
             <span className="w-3.5 h-3.5 rounded-full bg-amber-500 shrink-0" />
             <div>
-              <span className="font-bold text-amber-950 block">Caution</span>
-              <span className="text-[11px] text-amber-800">Selisih melebihi batas dalam toleransi 0 s/d 4.0 PSIA (Bawah: 0 s/d -4.0 PSIA; Atas: 0 s/d +4.0 PSIA).</span>
+              <span className="font-bold text-amber-950 block">Mendekati Batas (Warning)</span>
+              <span className="text-[11px] text-amber-800">Selisih melebihi batas dalam toleransi 4.0 PSIA (Bawah s/d -4.0 PSIA; Atas s/d +4.0 PSIA). Belum recommend water washing.</span>
             </div>
           </div>
           <div className="p-2.5 bg-rose-50/70 border border-rose-200 rounded-lg flex items-center gap-2">
@@ -1647,9 +1716,9 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                   <th className="py-2 px-1.5 text-right whitespace-nowrap">Beban (MW)</th>
                   <th className="py-2 px-1.5 text-right whitespace-nowrap text-blue-700">PB Synthesis</th>
                   <th className="py-2 px-1.5 text-right whitespace-nowrap text-rose-700">Batas Atas (1.18x)</th>
-                  <th className="py-2 px-1.5 text-right whitespace-nowrap text-amber-700">Mendekati Atas (+4)</th>
+                  <th className="py-2 px-1.5 text-right whitespace-nowrap text-amber-700">Mendekati Atas (-4)</th>
                   <th className="py-2 px-1.5 text-right whitespace-nowrap text-rose-700">Batas Bawah (0.82x)</th>
-                  <th className="py-2 px-1.5 text-right whitespace-nowrap text-amber-700">Mendekati Bawah (-4)</th>
+                  <th className="py-2 px-1.5 text-right whitespace-nowrap text-amber-700">Mendekati Bawah (+4)</th>
                   <th className="py-2 px-2.5 whitespace-nowrap text-center text-purple-950 font-black bg-purple-100/90 border-x border-purple-200 text-xs uppercase tracking-wider">
                     ★ PT007 (Testing)
                   </th>
@@ -1761,11 +1830,13 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                           />
                           {r.zone === 'NORMAL'
                             ? 'NORMAL'
-                            : r.zone === 'EARLY_UPPER' || r.zone === 'EARLY_LOWER'
-                            ? 'CAUTION'
+                            : r.zone === 'EARLY_LOWER'
+                            ? 'MENDEKATI BAWAH'
+                            : r.zone === 'EARLY_UPPER'
+                            ? 'MENDEKATI ATAS'
                             : r.zone === 'MELEWATI_BATAS_ATAS'
-                            ? 'BATAS ATAS'
-                            : 'BATAS BAWAH'}
+                            ? 'ALARM ATAS'
+                            : 'ALARM BAWAH'}
                         </span>
                       </td>
 

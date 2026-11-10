@@ -238,7 +238,14 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
 
     const reachedNames = reachedParameters && reachedParameters.length > 0
       ? reachedParameters.map((p) => getParamLabel(p)).join(', ')
-      : null;
+      : (() => {
+          const names: string[] = [];
+          if (record?.prThresholdReached) names.push('PR');
+          if (record?.p3ThresholdReached) names.push('P3.0');
+          if (record?.nphrThresholdReached) names.push('NPHR');
+          if (record?.powerThresholdReached) names.push('Real Power');
+          return names.length > 0 ? names.join(', ') : null;
+        })();
 
     return {
       statusText,
@@ -647,6 +654,11 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                   Pada titik ini, seluruh parameter masih berada dalam batas normal.
                   {' '}Hasil forecast sepenuhnya konsisten dengan status <strong className={snapshotInfo.badgeClass}>{snapshotInfo.statusText}</strong> di atas.
                 </>
+              )}
+              {baselineDate && selectedDate && selectedDate < baselineDate && (
+                <div className="mt-1 text-amber-800 text-[11px] font-medium">
+                  Catatan: Tanggal snapshot ini ({selectedDate}) berada sebelum tanggal Baseline Aktif saat ini ({baselineDate}).
+                </div>
               )}
             </div>
           </div>

@@ -199,8 +199,8 @@ export function getCurrentWaterWashCycleRecords(
 
   let cycleStartDate: string | null = null;
 
-  if (baselineDate) {
-    // If a baseline is configured, count from the chosen baseline date
+  if (baselineDate && sorted.some((r) => r.date >= baselineDate)) {
+    // If a baseline is configured and is present within this records scope, count from baseline date
     cycleStartDate = baselineDate;
   } else {
     // Fallback: use latest Water Wash event in dataset, or the first record date
@@ -367,6 +367,39 @@ export function calculateParameterForecast(
   const currentDet = Number(latestPoint.value.toFixed(2));
 
 
+
+  // If raw Current deterioration >= Threshold:
+  // Even if observations < MIN_FORECAST_OBSERVATIONS, parameter has already breached its limit.
+  if (currentDet >= threshold && validPoints.length < MIN_FORECAST_OBSERVATIONS) {
+    return {
+      parameter: param,
+      displayName,
+      unit,
+      currentDeterioration: currentDet,
+      currentFitted: null,
+      threshold,
+      remainingDeterioration: 0,
+      isAvailable: true,
+      unavailableReason: 'Ambang batas telah tercapai (Threshold Reached).',
+      validDaysCount: validPoints.length,
+      slope: null,
+      intercept: null,
+      rSquared: null,
+      daysToThreshold: 0,
+      exactDaysToThreshold: 0,
+      hoursToThreshold: 0,
+      exactHoursToThreshold: 0,
+      slopePerHour: null,
+      estimatedDate: latestPoint.date,
+      status: 'THRESHOLD REACHED',
+      elapsedDaysData: validPoints.map((p) => ({
+        date: p.date,
+        elapsedDays: p.t,
+        deterioration: p.value,
+        fitted: null,
+      })),
+    };
+  }
 
   // 10. Minimum Data: at least 7 valid daily observations in current cycle
   if (validPoints.length < MIN_FORECAST_OBSERVATIONS) {

@@ -236,8 +236,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
         'f(NH) / Y': evalRes ? evalRes.fNH : '',
         'PB Synthesis (PSIA)': evalRes ? evalRes.pbSynthesis : '',
         'Batas Bawah 0.82x (PSIA)': evalRes ? evalRes.lowerThreshold : '',
-        'Mendekati Batas Bawah (-4.0 PSIA)': evalRes ? evalRes.earlyLower : '',
-        'Mendekati Batas Atas (+4.0 PSIA)': evalRes ? evalRes.earlyUpper : '',
+        'Mendekati Batas Bawah (+4.0 PSIA)': evalRes ? evalRes.earlyLower : '',
+        'Mendekati Batas Atas (-4.0 PSIA)': evalRes ? evalRes.earlyUpper : '',
         'Batas Atas 1.18x (PSIA)': evalRes ? evalRes.upperThreshold : '',
         'Status Evaluasi PT007': evalRes ? evalRes.statusLabel : 'NORMAL',
       };
@@ -726,8 +726,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                       <th className="py-1.5 px-2.5">PT006</th>
                       <th className="py-1.5 px-2.5 text-blue-700 font-bold">PB Synthesis</th>
                       <th className="py-1.5 px-2.5 text-rose-700">Bawah (0.82x)</th>
-                      <th className="py-1.5 px-2.5 text-amber-700">Mendekati Batas Bawah (-4.0 PSIA)</th>
-                      <th className="py-1.5 px-2.5 text-amber-700">Mendekati Batas Atas (+4.0 PSIA)</th>
+                      <th className="py-1.5 px-2.5 text-amber-700">Mendekati Batas Bawah (+4.0 PSIA)</th>
+                      <th className="py-1.5 px-2.5 text-amber-700">Mendekati Batas Atas (-4.0 PSIA)</th>
                       <th className="py-1.5 px-2.5 text-rose-700">Atas (1.18x)</th>
                     </tr>
                   </thead>

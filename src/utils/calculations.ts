@@ -1478,29 +1478,29 @@ export function deriveCycleDeteriorations(
  * Beban (MW) | X (NH speed) | Y (f(NH)) | PT006 (PSIA) | Baseline (Y*PT006) | Early Atas (1.1x) | Early Bawah (0.9x) | Batas Atas (1.2x) | Batas Bawah (0.8x)
  */
 export const DEFAULT_PB_OPERATION_CURVE_POINTS: PBOperationCurvePoint[] = [
-  { beban: 1.43, nhSpeed: 9131, yInterpolated: 6.84, pt006: 14.68, pbSynthesis: 100.37, earlyUpper: 122.44, earlyLower: 78.30, upperThreshold: 118.44, lowerThreshold: 82.30 },
-  { beban: 2.03, nhSpeed: 9357, yInterpolated: 7.76, pt006: 14.68, pbSynthesis: 113.97, earlyUpper: 138.48, earlyLower: 89.46, upperThreshold: 134.48, lowerThreshold: 93.46 },
-  { beban: 3.08, nhSpeed: 9586, yInterpolated: 8.70, pt006: 14.68, pbSynthesis: 127.75, earlyUpper: 154.75, earlyLower: 100.76, upperThreshold: 150.75, lowerThreshold: 104.76 },
-  { beban: 4.01, nhSpeed: 9812, yInterpolated: 9.63, pt006: 14.67, pbSynthesis: 141.26, earlyUpper: 170.69, earlyLower: 111.83, upperThreshold: 166.69, lowerThreshold: 115.83 },
-  { beban: 5.04, nhSpeed: 10007, yInterpolated: 10.44, pt006: 14.67, pbSynthesis: 153.15, earlyUpper: 184.72, earlyLower: 121.58, upperThreshold: 180.72, lowerThreshold: 125.58 },
-  { beban: 6.04, nhSpeed: 10102, yInterpolated: 10.98, pt006: 14.67, pbSynthesis: 161.10, earlyUpper: 194.10, earlyLower: 128.10, upperThreshold: 190.10, lowerThreshold: 132.10 },
-  { beban: 7.06, nhSpeed: 10253, yInterpolated: 11.84, pt006: 14.67, pbSynthesis: 173.72, earlyUpper: 208.99, earlyLower: 138.45, upperThreshold: 204.99, lowerThreshold: 142.45 },
-  { beban: 8.01, nhSpeed: 10381, yInterpolated: 12.57, pt006: 14.66, pbSynthesis: 184.30, earlyUpper: 221.47, earlyLower: 147.13, upperThreshold: 217.47, lowerThreshold: 151.13 },
-  { beban: 9.00, nhSpeed: 10485, yInterpolated: 13.16, pt006: 14.66, pbSynthesis: 192.99, earlyUpper: 231.73, earlyLower: 154.25, upperThreshold: 227.73, lowerThreshold: 158.25 },
-  { beban: 10.00, nhSpeed: 10645, yInterpolated: 14.08, pt006: 14.65, pbSynthesis: 206.22, earlyUpper: 247.34, earlyLower: 165.10, upperThreshold: 243.34, lowerThreshold: 169.10 },
-  { beban: 11.03, nhSpeed: 10763, yInterpolated: 14.75, pt006: 14.65, pbSynthesis: 216.07, earlyUpper: 258.96, earlyLower: 173.18, upperThreshold: 254.96, lowerThreshold: 177.18 },
-  { beban: 12.13, nhSpeed: 10880, yInterpolated: 15.42, pt006: 14.65, pbSynthesis: 225.84, earlyUpper: 270.49, earlyLower: 181.19, upperThreshold: 266.49, lowerThreshold: 185.19 },
-  { beban: 13.09, nhSpeed: 10988, yInterpolated: 16.03, pt006: 14.65, pbSynthesis: 234.86, earlyUpper: 281.13, earlyLower: 188.59, upperThreshold: 277.13, lowerThreshold: 192.59 },
-  { beban: 14.01, nhSpeed: 10950, yInterpolated: 15.82, pt006: 14.65, pbSynthesis: 231.69, earlyUpper: 277.39, earlyLower: 185.99, upperThreshold: 273.39, lowerThreshold: 189.99 },
-  { beban: 15.00, nhSpeed: 11046, yInterpolated: 16.35, pt006: 14.65, pbSynthesis: 239.50, earlyUpper: 286.61, earlyLower: 192.39, upperThreshold: 282.61, lowerThreshold: 196.39 },
-  { beban: 16.00, nhSpeed: 11141, yInterpolated: 16.86, pt006: 14.65, pbSynthesis: 247.02, earlyUpper: 295.48, earlyLower: 198.56, upperThreshold: 291.48, lowerThreshold: 202.56 },
-  { beban: 17.22, nhSpeed: 11256, yInterpolated: 17.48, pt006: 14.64, pbSynthesis: 255.94, earlyUpper: 306.01, earlyLower: 205.87, upperThreshold: 302.01, lowerThreshold: 209.87 },
-  { beban: 18.00, nhSpeed: 11309, yInterpolated: 17.77, pt006: 14.64, pbSynthesis: 260.13, earlyUpper: 310.95, earlyLower: 209.31, upperThreshold: 306.95, lowerThreshold: 213.31 },
-  { beban: 19.03, nhSpeed: 11399, yInterpolated: 18.25, pt006: 14.64, pbSynthesis: 267.25, earlyUpper: 319.36, earlyLower: 215.15, upperThreshold: 315.36, lowerThreshold: 219.15 },
-  { beban: 20.11, nhSpeed: 11488, yInterpolated: 18.74, pt006: 14.64, pbSynthesis: 274.28, earlyUpper: 327.65, earlyLower: 220.91, upperThreshold: 323.65, lowerThreshold: 224.91 },
-  { beban: 21.02, nhSpeed: 11553, yInterpolated: 19.09, pt006: 14.63, pbSynthesis: 279.23, earlyUpper: 333.49, earlyLower: 224.97, upperThreshold: 329.49, lowerThreshold: 228.97 },
-  { beban: 22.00, nhSpeed: 11619, yInterpolated: 19.44, pt006: 14.63, pbSynthesis: 284.45, earlyUpper: 339.65, earlyLower: 229.25, upperThreshold: 335.65, lowerThreshold: 233.25 },
-  { beban: 23.01, nhSpeed: 11677, yInterpolated: 19.76, pt006: 14.64, pbSynthesis: 289.22, earlyUpper: 345.08, earlyLower: 233.16, upperThreshold: 341.08, lowerThreshold: 237.16 },
+  { beban: 1.43, nhSpeed: 9131, yInterpolated: 6.84, pt006: 14.68, pbSynthesis: 100.37, earlyUpper: 114.44, earlyLower: 86.30, upperThreshold: 118.44, lowerThreshold: 82.30 },
+  { beban: 2.03, nhSpeed: 9357, yInterpolated: 7.76, pt006: 14.68, pbSynthesis: 113.97, earlyUpper: 130.48, earlyLower: 97.46, upperThreshold: 134.48, lowerThreshold: 93.46 },
+  { beban: 3.08, nhSpeed: 9586, yInterpolated: 8.70, pt006: 14.68, pbSynthesis: 127.75, earlyUpper: 146.75, earlyLower: 108.76, upperThreshold: 150.75, lowerThreshold: 104.76 },
+  { beban: 4.01, nhSpeed: 9812, yInterpolated: 9.63, pt006: 14.67, pbSynthesis: 141.26, earlyUpper: 162.69, earlyLower: 119.83, upperThreshold: 166.69, lowerThreshold: 115.83 },
+  { beban: 5.04, nhSpeed: 10007, yInterpolated: 10.44, pt006: 14.67, pbSynthesis: 153.15, earlyUpper: 176.72, earlyLower: 129.58, upperThreshold: 180.72, lowerThreshold: 125.58 },
+  { beban: 6.04, nhSpeed: 10102, yInterpolated: 10.98, pt006: 14.67, pbSynthesis: 161.10, earlyUpper: 186.10, earlyLower: 136.10, upperThreshold: 190.10, lowerThreshold: 132.10 },
+  { beban: 7.06, nhSpeed: 10253, yInterpolated: 11.84, pt006: 14.67, pbSynthesis: 173.72, earlyUpper: 200.99, earlyLower: 146.45, upperThreshold: 204.99, lowerThreshold: 142.45 },
+  { beban: 8.01, nhSpeed: 10381, yInterpolated: 12.57, pt006: 14.66, pbSynthesis: 184.30, earlyUpper: 213.47, earlyLower: 155.13, upperThreshold: 217.47, lowerThreshold: 151.13 },
+  { beban: 9.00, nhSpeed: 10485, yInterpolated: 13.16, pt006: 14.66, pbSynthesis: 192.99, earlyUpper: 223.73, earlyLower: 162.25, upperThreshold: 227.73, lowerThreshold: 158.25 },
+  { beban: 10.00, nhSpeed: 10645, yInterpolated: 14.08, pt006: 14.65, pbSynthesis: 206.22, earlyUpper: 239.34, earlyLower: 173.10, upperThreshold: 243.34, lowerThreshold: 169.10 },
+  { beban: 11.03, nhSpeed: 10763, yInterpolated: 14.75, pt006: 14.65, pbSynthesis: 216.07, earlyUpper: 250.96, earlyLower: 181.18, upperThreshold: 254.96, lowerThreshold: 177.18 },
+  { beban: 12.13, nhSpeed: 10880, yInterpolated: 15.42, pt006: 14.65, pbSynthesis: 225.84, earlyUpper: 262.49, earlyLower: 189.19, upperThreshold: 266.49, lowerThreshold: 185.19 },
+  { beban: 13.09, nhSpeed: 10988, yInterpolated: 16.03, pt006: 14.65, pbSynthesis: 234.86, earlyUpper: 273.13, earlyLower: 196.59, upperThreshold: 277.13, lowerThreshold: 192.59 },
+  { beban: 14.01, nhSpeed: 10950, yInterpolated: 15.82, pt006: 14.65, pbSynthesis: 231.69, earlyUpper: 269.39, earlyLower: 193.99, upperThreshold: 273.39, lowerThreshold: 189.99 },
+  { beban: 15.00, nhSpeed: 11046, yInterpolated: 16.35, pt006: 14.65, pbSynthesis: 239.50, earlyUpper: 278.61, earlyLower: 200.39, upperThreshold: 282.61, lowerThreshold: 196.39 },
+  { beban: 16.00, nhSpeed: 11141, yInterpolated: 16.86, pt006: 14.65, pbSynthesis: 247.02, earlyUpper: 287.48, earlyLower: 206.56, upperThreshold: 291.48, lowerThreshold: 202.56 },
+  { beban: 17.22, nhSpeed: 11256, yInterpolated: 17.48, pt006: 14.64, pbSynthesis: 255.94, earlyUpper: 298.01, earlyLower: 213.87, upperThreshold: 302.01, lowerThreshold: 209.87 },
+  { beban: 18.00, nhSpeed: 11309, yInterpolated: 17.77, pt006: 14.64, pbSynthesis: 260.13, earlyUpper: 302.95, earlyLower: 217.31, upperThreshold: 306.95, lowerThreshold: 213.31 },
+  { beban: 19.03, nhSpeed: 11399, yInterpolated: 18.25, pt006: 14.64, pbSynthesis: 267.25, earlyUpper: 311.36, earlyLower: 223.15, upperThreshold: 315.36, lowerThreshold: 219.15 },
+  { beban: 20.11, nhSpeed: 11488, yInterpolated: 18.74, pt006: 14.64, pbSynthesis: 274.28, earlyUpper: 319.65, earlyLower: 228.91, upperThreshold: 323.65, lowerThreshold: 224.91 },
+  { beban: 21.02, nhSpeed: 11553, yInterpolated: 19.09, pt006: 14.63, pbSynthesis: 279.23, earlyUpper: 325.49, earlyLower: 232.97, upperThreshold: 329.49, lowerThreshold: 228.97 },
+  { beban: 22.00, nhSpeed: 11619, yInterpolated: 19.44, pt006: 14.63, pbSynthesis: 284.45, earlyUpper: 331.65, earlyLower: 237.25, upperThreshold: 335.65, lowerThreshold: 233.25 },
+  { beban: 23.01, nhSpeed: 11677, yInterpolated: 19.76, pt006: 14.64, pbSynthesis: 289.22, earlyUpper: 337.08, earlyLower: 241.16, upperThreshold: 341.08, lowerThreshold: 237.16 },
 ];
 
 /**
@@ -1662,8 +1662,8 @@ export function getExpectedCurveAtBeban(
     const p = pts[0];
     return {
       pbSynthesis: p.pbSynthesis,
-      earlyUpper: Number((p.upperThreshold + 4.0).toFixed(2)),
-      earlyLower: Number((p.lowerThreshold - 4.0).toFixed(2)),
+      earlyUpper: Number((p.upperThreshold - 4.0).toFixed(2)),
+      earlyLower: Number((p.lowerThreshold + 4.0).toFixed(2)),
       upperThreshold: p.upperThreshold,
       lowerThreshold: p.lowerThreshold,
     };
@@ -1673,8 +1673,8 @@ export function getExpectedCurveAtBeban(
     const p = pts[pts.length - 1];
     return {
       pbSynthesis: p.pbSynthesis,
-      earlyUpper: Number((p.upperThreshold + 4.0).toFixed(2)),
-      earlyLower: Number((p.lowerThreshold - 4.0).toFixed(2)),
+      earlyUpper: Number((p.upperThreshold - 4.0).toFixed(2)),
+      earlyLower: Number((p.lowerThreshold + 4.0).toFixed(2)),
       upperThreshold: p.upperThreshold,
       lowerThreshold: p.lowerThreshold,
     };
@@ -1689,8 +1689,8 @@ export function getExpectedCurveAtBeban(
       const lower = Number((pts[i].lowerThreshold + frac * (pts[i + 1].lowerThreshold - pts[i].lowerThreshold)).toFixed(2));
       return {
         pbSynthesis: syn,
-        earlyUpper: Number((upper + 4.0).toFixed(2)),
-        earlyLower: Number((lower - 4.0).toFixed(2)),
+        earlyUpper: Number((upper - 4.0).toFixed(2)),
+        earlyLower: Number((lower + 4.0).toFixed(2)),
         upperThreshold: upper,
         lowerThreshold: lower,
       };
@@ -1700,8 +1700,8 @@ export function getExpectedCurveAtBeban(
   const defaultP = pts[0];
   return {
     pbSynthesis: defaultP.pbSynthesis,
-    earlyUpper: Number((defaultP.upperThreshold + 4.0).toFixed(2)),
-    earlyLower: Number((defaultP.lowerThreshold - 4.0).toFixed(2)),
+    earlyUpper: Number((defaultP.upperThreshold - 4.0).toFixed(2)),
+    earlyLower: Number((defaultP.lowerThreshold + 4.0).toFixed(2)),
     upperThreshold: defaultP.upperThreshold,
     lowerThreshold: defaultP.lowerThreshold,
   };
@@ -1725,15 +1725,17 @@ export function getExpectedCurveAtBeban(
  * 3. PB Synthesis (NH) = Y * PT006
  * 4. Garis batas operasi:
  *    - Batas Bawah = PB_syn * 0.82 (-18%)
- *    - Mendekati Batas Bawah = Batas Bawah - 4.0 PSIA (ambang batas toleransi peringatan)
+ *    - Mendekati Batas Bawah (+4.0 PSIA) = Batas Bawah + 4.0 PSIA (PT007 mulai mendekati batas bawah dari rentang normal)
  *    - Batas Atas = PB_syn * 1.18 (+18%)
- *    - Mendekati Batas Atas = Batas Atas + 4.0 PSIA (ambang batas toleransi peringatan)
+ *    - Mendekati Batas Atas (-4.0 PSIA) = Batas Atas - 4.0 PSIA (PT007 mulai mendekati batas atas dari rentang normal)
+ *    - Ambang Alarm Batas Bawah = Batas Bawah - 4.0 PSIA (anjlok > 4.0 PSIA di bawah batas bawah -> Recommend Water Washing)
+ *    - Ambang Alarm Batas Atas = Batas Atas + 4.0 PSIA (melebihi > 4.0 PSIA di atas batas atas -> Recommend Water Washing)
  * 5. Evaluasi PT007:
- *    - PT007 > Batas Atas + 4.0: MELEWATI_BATAS_ATAS (Alarm / Rekomendasi Water Wash)
- *    - Batas Atas < PT007 <= Batas Atas + 4.0: EARLY_UPPER (Mendekati Batas Atas / Caution)
- *    - Batas Bawah - 4.0 <= PT007 < Batas Bawah: EARLY_LOWER (Mendekati Batas Bawah / Caution)
- *    - PT007 < Batas Bawah - 4.0: MELEWATI_BATAS_BAWAH (Alarm / Rekomendasi Water Wash)
- *    - Batas Bawah <= PT007 <= Batas Atas: NORMAL (Aman di zona normal)
+ *    - PT007 > Batas Atas + 4.0: MELEWATI_BATAS_ATAS (Alarm / Recommend Water Washing)
+ *    - PT007 >= Batas Atas - 4.0: EARLY_UPPER (Mendekati Batas Atas, belum water washing)
+ *    - PT007 < Batas Bawah - 4.0: MELEWATI_BATAS_BAWAH (Alarm / Recommend Water Washing)
+ *    - PT007 <= Batas Bawah + 4.0: EARLY_LOWER (Mendekati Batas Bawah, belum water washing)
+ *    - Lainnya (Batas Bawah + 4.0 < PT007 < Batas Atas - 4.0): NORMAL (Status Normal / Zona Hijau)
  */
 export function evaluatePBOperationPoint(
   beban: number,
@@ -1766,51 +1768,63 @@ export function evaluatePBOperationPoint(
   const upperThreshold = Number((pbSynthesis * 1.18).toFixed(2));
   const lowerThreshold = Number((pbSynthesis * 0.82).toFixed(2));
 
-  // Garis Mendekati Batas: toleransi ±4.0 PSIA di luar batas operasi
-  // - Mendekati Batas Atas: upperThreshold + 4.0 PSIA (+4.0 PSIA di atas batas atas)
-  // - Mendekati Batas Bawah: lowerThreshold - 4.0 PSIA (-4.0 PSIA di bawah batas bawah)
-  const earlyUpper = Number((upperThreshold + 4.0).toFixed(2));
-  const earlyLower = Number((lowerThreshold - 4.0).toFixed(2));
+  // Mendekati Batas (Ambang Peringatan dari dalam batas normal):
+  // - Mendekati Batas Bawah (+4.0 PSIA): lowerThreshold + 4.0 PSIA (misal 221.31 + 4 = 225.31 PSIA)
+  // - Mendekati Batas Atas (-4.0 PSIA): upperThreshold - 4.0 PSIA (misal 318.47 - 4 = 314.47 PSIA)
+  const earlyLower = Number((lowerThreshold + 4.0).toFixed(2));
+  const earlyUpper = Number((upperThreshold - 4.0).toFixed(2));
+
+  // Ambang Alarm Water Washing (Selisih melebihi batas > 4.0 PSIA):
+  const alarmLower = Number((lowerThreshold - 4.0).toFixed(2));
+  const alarmUpper = Number((upperThreshold + 4.0).toFixed(2));
 
   // Selisih fisik PT007 terhadap Batas Atas dan Batas Bawah
   const deltaAtas = Number((pt007 - upperThreshold).toFixed(2));
   const deltaBawah = Number((pt007 - lowerThreshold).toFixed(2));
 
-  // 5. Evaluasi PT007 terhadap ambang batas:
-  // - Rentang normal: Batas Bawah <= PT007 <= Batas Atas
-  // - Melebihi Batas Atas 0 s/d +4.0 PSIA: EARLY_UPPER (Mendekati Batas Atas / Caution)
-  // - Melebihi Batas Atas > 4.0 PSIA (> upperThreshold + 4.0): MELEWATI_BATAS_ATAS (Alarm / Rekomendasi Water Wash)
-  // - Berada di bawah Batas Bawah 0 s/d -4.0 PSIA: EARLY_LOWER (Mendekati Batas Bawah / Caution)
-  // - Berada di bawah Batas Bawah > 4.0 PSIA (< lowerThreshold - 4.0): MELEWATI_BATAS_BAWAH (Alarm / Rekomendasi Water Wash)
+  // 5. Evaluasi PT007:
+  // - pt007 > alarmUpper: MELEWATI_BATAS_ATAS (Alarm / Recommend Water Washing)
+  // - pt007 >= earlyUpper: EARLY_UPPER (Mendekati Batas Atas)
+  // - pt007 < alarmLower: MELEWATI_BATAS_BAWAH (Alarm / Recommend Water Washing)
+  // - pt007 <= earlyLower: EARLY_LOWER (Mendekati Batas Bawah)
+  // - Lainnya: NORMAL (Status Normal / Zona Hijau)
   let zone: PBOperationZone = 'NORMAL';
   let statusLabel = 'STATUS NORMAL';
   let statusDescription = 'PT007 di dalam rentang normal';
   let isRecommendWaterWash = false;
 
-  if (pt007 > earlyUpper) {
+  if (pt007 > alarmUpper) {
     zone = 'MELEWATI_BATAS_ATAS';
-    statusLabel = 'BATAS ATAS (ALARM) - REKOMENDASI WATER WASH';
-    statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) melampaui Batas Atas 1.18x (${upperThreshold.toFixed(2)} PSIA) lebih dari +4.0 PSIA (+${deltaAtas.toFixed(2)} PSIA). REKOMENDASI WATER WASH!`;
+    statusLabel = 'RECOMMEND WATER WASHING';
+    statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) melampaui Batas Atas 1.18x (${upperThreshold.toFixed(2)} PSIA) lebih dari 4.0 PSIA (+${deltaAtas.toFixed(2)} PSIA). RECOMMEND WATER WASHING!`;
     isRecommendWaterWash = true;
-  } else if (pt007 > upperThreshold) {
+  } else if (pt007 >= earlyUpper) {
     zone = 'EARLY_UPPER';
-    statusLabel = 'CAUTION';
-    statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) melewati Batas Atas 1.18x (${upperThreshold.toFixed(2)} PSIA) sebesar +${deltaAtas.toFixed(2)} PSIA (rentang 0 s/d +4.0 PSIA).`;
+    statusLabel = 'MENDEKATI BATAS ATAS';
+    if (pt007 > upperThreshold) {
+      statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) melampaui Batas Atas 1.18x (${upperThreshold.toFixed(2)} PSIA) dalam rentang toleransi 4.0 PSIA (+${deltaAtas.toFixed(2)} PSIA). Status: Mendekati Batas Atas.`;
+    } else {
+      statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) mendekati Batas Atas 1.18x (${upperThreshold.toFixed(2)} PSIA) dalam rentang 4.0 PSIA (Rentang: ${earlyUpper.toFixed(2)} – ${upperThreshold.toFixed(2)} PSIA). Status: Mendekati Batas Atas.`;
+    }
     isRecommendWaterWash = false;
-  } else if (pt007 < earlyLower) {
+  } else if (pt007 < alarmLower) {
     zone = 'MELEWATI_BATAS_BAWAH';
-    statusLabel = 'BATAS BAWAH (ALARM) - REKOMENDASI WATER WASH';
-    statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) anjlok di bawah Batas Bawah 0.82x (${lowerThreshold.toFixed(2)} PSIA) lebih dari 4.0 PSIA (${deltaBawah.toFixed(2)} PSIA). REKOMENDASI WATER WASH!`;
+    statusLabel = 'RECOMMEND WATER WASHING';
+    statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) anjlok di bawah Batas Bawah 0.82x (${lowerThreshold.toFixed(2)} PSIA) lebih dari 4.0 PSIA (${deltaBawah.toFixed(2)} PSIA). RECOMMEND WATER WASHING!`;
     isRecommendWaterWash = true;
-  } else if (pt007 < lowerThreshold) {
+  } else if (pt007 <= earlyLower) {
     zone = 'EARLY_LOWER';
-    statusLabel = 'CAUTION';
-    statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) berada di bawah Batas Bawah 0.82x (${lowerThreshold.toFixed(2)} PSIA) sebesar ${deltaBawah.toFixed(2)} PSIA (rentang 0 s/d -4.0 PSIA).`;
+    statusLabel = 'MENDEKATI BATAS BAWAH';
+    if (pt007 < lowerThreshold) {
+      statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) berada di bawah Batas Bawah 0.82x (${lowerThreshold.toFixed(2)} PSIA) dalam rentang toleransi 4.0 PSIA (${deltaBawah.toFixed(2)} PSIA). Status: Mendekati Batas Bawah.`;
+    } else {
+      statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) mendekati Batas Bawah 0.82x (${lowerThreshold.toFixed(2)} PSIA) dalam rentang 4.0 PSIA (Rentang: ${lowerThreshold.toFixed(2)} – ${earlyLower.toFixed(2)} PSIA). Status: Mendekati Batas Bawah.`;
+    }
     isRecommendWaterWash = false;
   } else {
     zone = 'NORMAL';
     statusLabel = 'STATUS NORMAL';
-    statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) aman di zona normal (${lowerThreshold.toFixed(2)} – ${upperThreshold.toFixed(2)} PSIA)`;
+    statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) aman di dalam rentang normal (${earlyLower.toFixed(2)} – ${earlyUpper.toFixed(2)} PSIA).`;
     isRecommendWaterWash = false;
   }
 
