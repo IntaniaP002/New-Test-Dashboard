@@ -1795,36 +1795,36 @@ export function evaluatePBOperationPoint(
 
   if (pt007 > alarmUpper) {
     zone = 'MELEWATI_BATAS_ATAS';
-    statusLabel = 'RECOMMEND WATER WASHING';
-    statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) melampaui Batas Atas 1.18x (${upperThreshold.toFixed(2)} PSIA) lebih dari 4.0 PSIA (+${deltaAtas.toFixed(2)} PSIA). RECOMMEND WATER WASHING!`;
+    statusLabel = 'WARNING';
+    statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) melampaui Batas Atas 1.18x (${upperThreshold.toFixed(2)}) lebih dari 4.0 (+${deltaAtas.toFixed(2)}). WARNING: Melampaui batas toleransi operasional!`;
     isRecommendWaterWash = true;
   } else if (pt007 >= earlyUpper) {
     zone = 'EARLY_UPPER';
-    statusLabel = 'MENDEKATI BATAS ATAS';
+    statusLabel = 'RECOMMEND WATER WASH';
     if (pt007 > upperThreshold) {
-      statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) melampaui Batas Atas 1.18x (${upperThreshold.toFixed(2)} PSIA) dalam rentang toleransi 4.0 PSIA (+${deltaAtas.toFixed(2)} PSIA). Status: Mendekati Batas Atas.`;
+      statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) melampaui Batas Atas 1.18x (${upperThreshold.toFixed(2)}) dalam rentang toleransi 4.0 (+${deltaAtas.toFixed(2)}). Status: Recommend Water Wash.`;
     } else {
-      statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) mendekati Batas Atas 1.18x (${upperThreshold.toFixed(2)} PSIA) dalam rentang 4.0 PSIA (Rentang: ${earlyUpper.toFixed(2)} – ${upperThreshold.toFixed(2)} PSIA). Status: Mendekati Batas Atas.`;
+      statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) mendekati Batas Atas 1.18x (${upperThreshold.toFixed(2)}) dalam rentang 4.0. Status: Recommend Water Wash.`;
     }
-    isRecommendWaterWash = false;
+    isRecommendWaterWash = true;
   } else if (pt007 < alarmLower) {
     zone = 'MELEWATI_BATAS_BAWAH';
-    statusLabel = 'RECOMMEND WATER WASHING';
-    statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) anjlok di bawah Batas Bawah 0.82x (${lowerThreshold.toFixed(2)} PSIA) lebih dari 4.0 PSIA (${deltaBawah.toFixed(2)} PSIA). RECOMMEND WATER WASHING!`;
+    statusLabel = 'WARNING';
+    statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) berada di bawah Batas Bawah 0.82x (${lowerThreshold.toFixed(2)}) lebih dari 4.0 (${deltaBawah.toFixed(2)}). WARNING: Melampaui batas toleransi operasional!`;
     isRecommendWaterWash = true;
   } else if (pt007 <= earlyLower) {
     zone = 'EARLY_LOWER';
-    statusLabel = 'MENDEKATI BATAS BAWAH';
+    statusLabel = 'RECOMMEND WATER WASH';
     if (pt007 < lowerThreshold) {
-      statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) berada di bawah Batas Bawah 0.82x (${lowerThreshold.toFixed(2)} PSIA) dalam rentang toleransi 4.0 PSIA (${deltaBawah.toFixed(2)} PSIA). Status: Mendekati Batas Bawah.`;
+      statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) berada di bawah Batas Bawah 0.82x (${lowerThreshold.toFixed(2)}) dalam rentang toleransi 4.0 (${deltaBawah.toFixed(2)}). Status: Recommend Water Wash.`;
     } else {
-      statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) mendekati Batas Bawah 0.82x (${lowerThreshold.toFixed(2)} PSIA) dalam rentang 4.0 PSIA (Rentang: ${lowerThreshold.toFixed(2)} – ${earlyLower.toFixed(2)} PSIA). Status: Mendekati Batas Bawah.`;
+      statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) mendekati Batas Bawah 0.82x (${lowerThreshold.toFixed(2)}) dalam rentang 4.0. Status: Recommend Water Wash.`;
     }
-    isRecommendWaterWash = false;
+    isRecommendWaterWash = true;
   } else {
     zone = 'NORMAL';
     statusLabel = 'STATUS NORMAL';
-    statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) aman di dalam rentang normal (${earlyLower.toFixed(2)} – ${earlyUpper.toFixed(2)} PSIA).`;
+    statusDescription = `PT007 (${pt007.toFixed(2)} PSIA) aman di dalam rentang normal (${lowerThreshold.toFixed(2)} – ${upperThreshold.toFixed(2)}).`;
     isRecommendWaterWash = false;
   }
 

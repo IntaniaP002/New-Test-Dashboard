@@ -572,7 +572,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-violet-600" />
               <h3 className="text-sm font-bold text-slate-900">
-                Hasil Evaluasi PT007 Aktual terhadap 4 Batas Operasi
+                Hasil Evaluasi PT007 Aktual terhadap Batas Operasi
               </h3>
             </div>
             {activeRecord && (
@@ -600,29 +600,6 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
               </div>
             </div>
           ) : activeEvaluation.zone === 'EARLY_UPPER' || activeEvaluation.zone === 'EARLY_LOWER' ? (
-            <div className="p-4 sm:p-5 bg-amber-500/10 border-2 border-amber-400 rounded-xl text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
-              <div className="flex items-center gap-3.5">
-                <div className="p-3 bg-amber-500 text-white rounded-xl shadow-xs shrink-0">
-                  <AlertTriangle className="w-7 h-7" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-lg sm:text-xl font-black text-amber-900 uppercase tracking-wide">
-                      {activeEvaluation.zone === 'EARLY_LOWER' ? 'MENDEKATI BATAS BAWAH' : 'MENDEKATI BATAS ATAS'}
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-amber-900 font-bold mt-1">
-                    {activeEvaluation.statusDescription}
-                  </p>
-                </div>
-              </div>
-              <div className="sm:text-right shrink-0">
-                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-amber-500 text-white font-black text-xs uppercase tracking-wider shadow-2xs">
-                  {activeEvaluation.zone === 'EARLY_LOWER' ? 'MENDEKATI BATAS BAWAH' : 'MENDEKATI BATAS ATAS'}
-                </span>
-              </div>
-            </div>
-          ) : (
             <div className="p-4 sm:p-5 bg-rose-500/10 border-2 border-rose-500 rounded-xl text-rose-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-pulse">
               <div className="flex items-center gap-3.5">
                 <div className="p-3 bg-rose-600 text-white rounded-xl shadow-xs shrink-0">
@@ -630,8 +607,8 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-lg sm:text-xl font-black text-rose-950 uppercase tracking-wide">
-                      RECOMMEND WATER WASHING
+                    <span className="text-lg sm:text-xl font-black text-rose-700 uppercase tracking-wide">
+                      RECOMMEND WATER WASH
                     </span>
                   </div>
                   <p className="text-xs sm:text-sm text-rose-900 font-bold mt-1">
@@ -641,13 +618,37 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
               </div>
               <div className="sm:text-right shrink-0">
                 <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-rose-600 text-white font-black text-xs uppercase tracking-wider shadow-2xs">
-                  RECOMMEND WATER WASHING
+                  <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                  RECOMMEND WATER WASH
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 sm:p-5 bg-rose-950/15 border-2 border-rose-900 rounded-xl text-rose-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-pulse">
+              <div className="flex items-center gap-3.5">
+                <div className="p-3 bg-rose-900 text-white rounded-xl shadow-xs shrink-0">
+                  <AlertTriangle className="w-7 h-7" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-lg sm:text-xl font-black text-rose-950 uppercase tracking-wide">
+                      WARNING (KONDISI KRITIS)
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-rose-950 font-extrabold mt-1">
+                    {activeEvaluation.statusDescription}
+                  </p>
+                </div>
+              </div>
+              <div className="sm:text-right shrink-0">
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-rose-900 text-white font-black text-xs uppercase tracking-wider shadow-2xs">
+                  WARNING
                 </span>
               </div>
             </div>
           )}
 
-          {/* PRIMARY HERO SPOTLIGHT: PT007 TESTING DATA (LARGER & HIGHLY STANDOUT) + 5 BENCHMARK CARDS */}
+          {/* PRIMARY HERO SPOTLIGHT: PT007 TESTING DATA (LARGER & HIGHLY STANDOUT) + 3 BENCHMARK CARDS */}
           {(() => {
             const isExceedAtas = activeEvaluation
               ? activeEvaluation.pt007 > activeEvaluation.upperThreshold
@@ -690,7 +691,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                         Selisih thd Batas Bawah
                       </span>
                       <span className="text-base sm:text-lg font-mono font-bold text-slate-900">
-                        {deltaBawahStr} <span className="text-[10px] text-slate-500 font-sans font-normal">PSIA</span>
+                        {deltaBawahStr}
                       </span>
                     </div>
                     <div className="w-px h-8 bg-purple-200 hidden sm:block" />
@@ -699,19 +700,19 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                         Selisih thd Batas Atas
                       </span>
                       <span className="text-base sm:text-lg font-mono font-bold text-slate-900">
-                        {deltaAtasStr} <span className="text-[10px] text-slate-500 font-sans font-normal">PSIA</span>
+                        {deltaAtasStr}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* 5 BENCHMARK COMPARISON THRESHOLD CARDS */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 items-stretch">
+                {/* 3 BENCHMARK COMPARISON THRESHOLD CARDS */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-stretch">
                   {/* Card 1: PB SYNTHESIS (NH) */}
                   <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-lg flex flex-col justify-between shadow-2xs">
                     <span className="text-[10px] uppercase font-bold text-blue-800 tracking-wider block">PB Synthesis (NH)</span>
                     <span className="text-lg font-mono font-black text-blue-950 my-1">
-                      {activeEvaluation.pbSynthesis.toFixed(2)} PSIA
+                      {activeEvaluation.pbSynthesis.toFixed(2)}
                     </span>
                     <p className="text-[10px] text-blue-700 font-sans truncate">
                       Y × PT006 ({activeEvaluation.fNH} × {activeEvaluation.pt006})
@@ -722,43 +723,21 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                   <div className="p-3 bg-rose-50/70 border border-rose-200 rounded-lg flex flex-col justify-between shadow-2xs">
                     <span className="text-[10px] uppercase font-bold text-rose-800 tracking-wider block">Batas Bawah (0.82x)</span>
                     <span className="text-lg font-mono font-black text-rose-950 my-1">
-                      {activeEvaluation.lowerThreshold.toFixed(2)} PSIA
+                      {activeEvaluation.lowerThreshold.toFixed(2)}
                     </span>
                     <p className="text-[10px] text-rose-700 font-sans font-semibold">
-                      Selisih: {deltaBawahStr} PSIA
+                      Selisih: {deltaBawahStr}
                     </p>
                   </div>
 
-                  {/* Card 3: Mendekati Batas Bawah (+4.0 PSIA) */}
-                  <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-lg flex flex-col justify-between shadow-2xs">
-                    <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">Mendekati Batas Bawah (+4.0 PSIA)</span>
-                    <span className="text-lg font-mono font-black text-amber-950 my-1">
-                      {activeEvaluation.earlyLower.toFixed(2)} PSIA
-                    </span>
-                    <p className="text-[10px] text-amber-700 font-sans">
-                      Rentang: {activeEvaluation.lowerThreshold.toFixed(2)} – {activeEvaluation.earlyLower.toFixed(2)} PSIA
-                    </p>
-                  </div>
-
-                  {/* Card 4: Mendekati Batas Atas (-4.0 PSIA) */}
-                  <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-lg flex flex-col justify-between shadow-2xs">
-                    <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">Mendekati Batas Atas (-4.0 PSIA)</span>
-                    <span className="text-lg font-mono font-black text-amber-950 my-1">
-                      {activeEvaluation.earlyUpper.toFixed(2)} PSIA
-                    </span>
-                    <p className="text-[10px] text-amber-700 font-sans">
-                      Rentang: {activeEvaluation.earlyUpper.toFixed(2)} – {activeEvaluation.upperThreshold.toFixed(2)} PSIA
-                    </p>
-                  </div>
-
-                  {/* Card 5: Batas Atas (1.18x) */}
+                  {/* Card 3: Batas Atas (1.18x) */}
                   <div className="p-3 bg-rose-50/70 border border-rose-200 rounded-lg flex flex-col justify-between shadow-2xs">
                     <span className="text-[10px] uppercase font-bold text-rose-800 tracking-wider block">Batas Atas (1.18x)</span>
                     <span className="text-lg font-mono font-black text-rose-950 my-1">
-                      {activeEvaluation.upperThreshold.toFixed(2)} PSIA
+                      {activeEvaluation.upperThreshold.toFixed(2)}
                     </span>
                     <p className="text-[10px] text-rose-700 font-sans font-semibold">
-                      Selisih: {deltaAtasStr} PSIA
+                      Selisih: {deltaAtasStr}
                     </p>
                   </div>
                 </div>
@@ -933,8 +912,8 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
               >
                 <option value="ALL">Semua Zona</option>
                 <option value="NORMAL">Normal ({allMonitoredRecords.filter((r) => r.zone === 'NORMAL').length})</option>
-                <option value="CAUTION">Caution ({allMonitoredRecords.filter((r) => r.zone === 'EARLY_UPPER' || r.zone === 'EARLY_LOWER').length})</option>
-                <option value="ALARM">Recommend Water Washing ({allMonitoredRecords.filter((r) => r.zone === 'MELEWATI_BATAS_ATAS' || r.zone === 'MELEWATI_BATAS_BAWAH').length})</option>
+                <option value="CAUTION">Recommend Water Wash ({allMonitoredRecords.filter((r) => r.zone === 'EARLY_UPPER' || r.zone === 'EARLY_LOWER').length})</option>
+                <option value="ALARM">Warning ({allMonitoredRecords.filter((r) => r.zone === 'MELEWATI_BATAS_ATAS' || r.zone === 'MELEWATI_BATAS_BAWAH').length})</option>
               </select>
             </div>
 
@@ -1263,10 +1242,10 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                     />
                     <text
                       x={padL - 6}
-                      y={toY(yVal) + 2.5}
+                      y={toY(yVal) + 3}
                       textAnchor="end"
                       fill="#64748b"
-                      fontSize="8"
+                      fontSize="10"
                       fontFamily="monospace"
                       fontWeight={yVal % 50 === 0 ? 'bold' : 'normal'}
                     >
@@ -1288,10 +1267,10 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                     />
                     <text
                       x={toX(xVal)}
-                      y={padT + plotH + 16}
+                      y={padT + plotH + 18}
                       textAnchor="middle"
                       fill="#64748b"
-                      fontSize="9"
+                      fontSize="11"
                       fontFamily="monospace"
                       fontWeight={xVal % 5 === 0 ? 'bold' : 'normal'}
                     >
@@ -1304,44 +1283,44 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                 <g transform={`translate(${padL + plotW + 12}, ${padT + plotH / 2 - 45})`}>
                   {/* Legend Batas Atas (Yellow Solid) */}
                   <line x1={0} y1={0} x2={20} y2={0} stroke="#eab308" strokeWidth="2.8" strokeLinecap="round" />
-                  <text x={26} y={3.5} fill="#1e293b" fontSize="10" fontWeight="bold">
+                  <text x={26} y={4} fill="#1e293b" fontSize="11.5" fontWeight="bold">
                     Batas Atas (1.18x)
                   </text>
 
                   {/* Legend Early Warning (Amber Dashed) */}
-                  <line x1={0} y1={22} x2={20} y2={22} stroke="#d97706" strokeWidth="2" strokeDasharray="4 3" strokeLinecap="round" />
-                  <text x={26} y={25.5} fill="#1e293b" fontSize="9.5" fontWeight="semibold">
+                  <line x1={0} y1={24} x2={20} y2={24} stroke="#d97706" strokeWidth="2" strokeDasharray="4 3" strokeLinecap="round" />
+                  <text x={26} y={28} fill="#1e293b" fontSize="11" fontWeight="semibold">
                     Early Warning (±4)
                   </text>
 
                   {/* Legend Batas Normal (Red Solid) */}
-                  <line x1={0} y1={44} x2={20} y2={44} stroke="#dc2626" strokeWidth="2.8" strokeLinecap="round" />
-                  <text x={26} y={47.5} fill="#1e293b" fontSize="10" fontWeight="bold">
+                  <line x1={0} y1={48} x2={20} y2={48} stroke="#dc2626" strokeWidth="2.8" strokeLinecap="round" />
+                  <text x={26} y={52} fill="#1e293b" fontSize="11.5" fontWeight="bold">
                     Batas Bawah (0.82x)
                   </text>
 
                   {/* Legend PT007 (Emerald Dot) */}
-                  <circle cx={10} cy={66} r={5} fill="#059669" stroke="#ffffff" strokeWidth="1.5" filter="url(#dot-shadow)" />
-                  <text x={26} y={69.5} fill="#1e293b" fontSize="10" fontWeight="bold">
+                  <circle cx={10} cy={72} r={5.5} fill="#059669" stroke="#ffffff" strokeWidth="1.5" filter="url(#dot-shadow)" />
+                  <text x={26} y={76} fill="#1e293b" fontSize="11.5" fontWeight="bold">
                     PT007
                   </text>
                 </g>
 
                 {/* SHADED RIBBON AREAS */}
-                {/* 1. Alarm Bawah Zone (below Batas Bawah) */}
-                <path d={ribbonBelowAlarmBawahPath} fill="rgba(239, 68, 68, 0.08)" />
+                {/* 1. Warning Zone (below Batas Bawah / darker red) */}
+                <path d={ribbonBelowAlarmBawahPath} fill="rgba(136, 19, 55, 0.16)" />
 
-                {/* 2. Mendekati Batas Bawah (between Batas Bawah and earlyBawah) */}
-                <path d={ribbonMendekatiBawahPath} fill="rgba(245, 158, 11, 0.16)" />
+                {/* 2. Recommend Water Wash Zone (between Batas Bawah and earlyBawah / red) */}
+                <path d={ribbonMendekatiBawahPath} fill="rgba(220, 38, 38, 0.18)" />
 
-                {/* 3. Normal Operating Zone (between earlyBawah and earlyAtas) */}
+                {/* 3. Normal Operating Zone (between earlyBawah and earlyAtas / green) */}
                 <path d={ribbonNormalPath} fill="rgba(16, 185, 129, 0.12)" />
 
-                {/* 4. Mendekati Batas Atas (between earlyAtas and Batas Atas) */}
-                <path d={ribbonMendekatiAtasPath} fill="rgba(245, 158, 11, 0.16)" />
+                {/* 4. Recommend Water Wash Zone (between earlyAtas and Batas Atas / red) */}
+                <path d={ribbonMendekatiAtasPath} fill="rgba(220, 38, 38, 0.18)" />
 
-                {/* 5. Alarm Atas Zone (above Batas Atas) */}
-                <path d={ribbonBeyondAlarmAtasPath} fill="rgba(239, 68, 68, 0.08)" />
+                {/* 5. Warning Zone (above Batas Atas / darker red) */}
+                <path d={ribbonBeyondAlarmAtasPath} fill="rgba(136, 19, 55, 0.16)" />
 
                 {/* Curve Lines (drawn from top to bottom in pressure order) */}
                 {/* Line 1 (Paling Atas): Ambang Alarm Atas (+4.0 PSIA di atas Batas Atas) - Amber Dashed */}
@@ -1411,10 +1390,10 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                   const isSelected = selectedRecordId === r.id;
                   const isHovered = hoveredRecordId === r.id;
 
-                  // Determine dot color based on operational zone
+                  // Determine dot color based on operational zone: darker red for Warning, red for Recommend Water Wash, green for Normal
                   const isAlarm = r.zone === 'MELEWATI_BATAS_BAWAH' || r.zone === 'MELEWATI_BATAS_ATAS';
                   const isEarly = r.zone === 'EARLY_LOWER' || r.zone === 'EARLY_UPPER';
-                  const dotColor = isAlarm ? '#dc2626' : isEarly ? '#f59e0b' : '#059669';
+                  const dotColor = isAlarm ? '#881337' : isEarly ? '#dc2626' : '#059669';
 
                   // Alternating callout label placement so numbers don't overlap
                   const labelOffsetY = i % 2 === 0 ? -18 : -28;
@@ -1609,10 +1588,10 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                 {/* Main Axis Title Labels */}
                 <text
                   x={padL + plotW / 2}
-                  y={svgH - 12}
+                  y={svgH - 10}
                   textAnchor="middle"
                   fill="#1e293b"
-                  fontSize="12"
+                  fontSize="13.5"
                   fontWeight="bold"
                 >
                   Beban Turbin (MW) &bull; Sumbu Horizontal (1 - 23 MW)
@@ -1622,7 +1601,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                   y={padT + plotH / 2}
                   textAnchor="middle"
                   fill="#1e293b"
-                  fontSize="12"
+                  fontSize="13.5"
                   fontWeight="bold"
                   transform={`rotate(-90 18 ${padT + plotH / 2})`}
                 >
@@ -1642,18 +1621,18 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
               <span className="text-[11px] text-emerald-800">Nilai PT007 berada aman di zona hijau di antara Batas Bawah dan Batas Atas.</span>
             </div>
           </div>
-          <div className="p-2.5 bg-amber-50/70 border border-amber-200 rounded-lg flex items-center gap-2">
-            <span className="w-3.5 h-3.5 rounded-full bg-amber-500 shrink-0" />
+          <div className="p-2.5 bg-rose-50/80 border border-rose-300 rounded-lg flex items-center gap-2">
+            <span className="w-3.5 h-3.5 rounded-full bg-rose-600 shrink-0" />
             <div>
-              <span className="font-bold text-amber-950 block">Mendekati Batas (Warning)</span>
-              <span className="text-[11px] text-amber-800">Selisih melebihi batas dalam toleransi 4.0 PSIA (Bawah s/d -4.0 PSIA; Atas s/d +4.0 PSIA). Belum recommend water washing.</span>
+              <span className="font-bold text-rose-900 block">Recommend Water Wash (Merah)</span>
+              <span className="text-[11px] text-rose-800">Nilai PT007 mendekati / menyentuh batas dalam toleransi 4.0 PSIA. Disarankan menjadwalkan Water Wash.</span>
             </div>
           </div>
-          <div className="p-2.5 bg-rose-50/70 border border-rose-200 rounded-lg flex items-center gap-2">
-            <span className="w-3.5 h-3.5 rounded-full bg-rose-500 shrink-0" />
+          <div className="p-2.5 bg-rose-950/10 border border-rose-900/80 rounded-lg flex items-center gap-2">
+            <span className="w-3.5 h-3.5 rounded-full bg-rose-950 shrink-0" />
             <div>
-              <span className="font-bold text-rose-950 block">Recommend Water Washing</span>
-              <span className="text-[11px] text-rose-800">Selisih melebihi batas lebih dari 4.0 PSIA (&gt; +4.0 PSIA di atas Batas Atas atau &lt; -4.0 PSIA di bawah Batas Bawah).</span>
+              <span className="font-bold text-rose-950 block">Warning (Merah Gelap)</span>
+              <span className="text-[11px] text-rose-900 font-semibold">Selisih melebihi batas toleransi 4.0 PSIA (&gt; +4.0 PSIA di atas Batas Atas atau &lt; -4.0 PSIA di bawah Batas Bawah). Kondisi kritis!</span>
             </div>
           </div>
         </div>
@@ -1682,10 +1661,10 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
               >
                 <option value="ALL">Semua Zona</option>
                 <option value="NORMAL">Normal</option>
-                <option value="EARLY_UPPER">Mendekati Batas Atas</option>
-                <option value="EARLY_LOWER">Mendekati Batas Bawah</option>
-                <option value="MELEWATI_BATAS_ATAS">Batas Atas (Recommend Water Washing)</option>
-                <option value="MELEWATI_BATAS_BAWAH">Batas Bawah (Recommend Water Washing)</option>
+                <option value="EARLY_UPPER">Recommend Water Wash (Mendekati Atas)</option>
+                <option value="EARLY_LOWER">Recommend Water Wash (Mendekati Bawah)</option>
+                <option value="MELEWATI_BATAS_ATAS">Warning (Melewati Batas Atas)</option>
+                <option value="MELEWATI_BATAS_BAWAH">Warning (Melewati Batas Bawah)</option>
               </select>
             </div>
 
@@ -1864,8 +1843,8 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                             r.zone === 'NORMAL'
                               ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                               : r.zone === 'EARLY_UPPER' || r.zone === 'EARLY_LOWER'
-                              ? 'bg-amber-50 text-amber-800 border-amber-300'
-                              : 'bg-rose-600 text-white border-rose-700 font-extrabold shadow-xs'
+                              ? 'bg-rose-50 text-rose-800 border-rose-300 font-bold'
+                              : 'bg-rose-950 text-white border-rose-950 font-black shadow-xs'
                           }`}
                         >
                           <span
@@ -1873,19 +1852,15 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                               r.zone === 'NORMAL'
                                 ? 'bg-emerald-600'
                                 : r.zone === 'EARLY_UPPER' || r.zone === 'EARLY_LOWER'
-                                ? 'bg-amber-600'
+                                ? 'bg-rose-600'
                                 : 'bg-white'
                             }`}
                           />
                           {r.zone === 'NORMAL'
                             ? 'NORMAL'
-                            : r.zone === 'EARLY_LOWER'
-                            ? 'Mendekati Bawah'
-                            : r.zone === 'EARLY_UPPER'
-                            ? 'Mendekati Atas'
-                            : r.zone === 'MELEWATI_BATAS_ATAS'
-                            ? 'Alarm Atas'
-                            : 'Alarm Bawah'}
+                            : r.zone === 'EARLY_LOWER' || r.zone === 'EARLY_UPPER'
+                            ? 'Recommend WW'
+                            : 'Warning'}
                         </span>
                       </td>
 

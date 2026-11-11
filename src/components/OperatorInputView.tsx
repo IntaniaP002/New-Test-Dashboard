@@ -167,6 +167,25 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
   const [pbCurrentPage, setPbCurrentPage] = useState<number>(1);
   const [recordToDelete, setRecordToDelete] = useState<DeleteTargetInfo | null>(null);
 
+  // Monitoring Overview Filter State (separate for each card + sync option)
+  const [syncMonitoringDates, setSyncMonitoringDates] = useState<boolean>(true);
+  const [efisiensiDateFilter, setEfisiensiDateFilter] = useState<string>('ALL');
+  const [pbDateOverviewFilter, setPbDateOverviewFilter] = useState<string>('ALL');
+
+  const handleSetEfisiensiDate = (newDate: string) => {
+    setEfisiensiDateFilter(newDate);
+    if (syncMonitoringDates) {
+      setPbDateOverviewFilter(newDate);
+    }
+  };
+
+  const handleSetPbDate = (newDate: string) => {
+    setPbDateOverviewFilter(newDate);
+    if (syncMonitoringDates) {
+      setEfisiensiDateFilter(newDate);
+    }
+  };
+
   // Use the Input History table dataset directly (or aggregate from records if not provided)
   const displayedRecords = useMemo(() => {
     if (inputHistoryRecords && inputHistoryRecords.length > 0) {
@@ -184,11 +203,22 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     });
   }, [records]);
 
-  // Unique dates for PB Synthesis filter
+  // Unique dates for PB Synthesis table filter
   const availablePbDates = useMemo(() => {
     const dates = Array.from(new Set(records.map((r) => r.date))).sort().reverse();
     return dates;
   }, [records]);
+
+  // Available unique dates for Efisiensi Kompresor overview card
+  const availableEfisiensiDates = useMemo(() => {
+    const pool = displayedRecords && displayedRecords.length > 0 ? displayedRecords : records;
+    return Array.from(new Set(pool.map((r) => r.date))).sort().reverse();
+  }, [displayedRecords, records]);
+
+  // Available unique dates for PB Synthesis overview card
+  const availablePbOverviewDates = useMemo(() => {
+    return Array.from(new Set(rawPbRecords.map((r) => r.date))).sort().reverse();
+  }, [rawPbRecords]);
 
   // Filtered PB Synthesis records based on selected date or date range
   const filteredPbRecords = useMemo(() => {
@@ -217,6 +247,62 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     if (pbPageSize === -1 || filteredPbRecords.length === 0) return 1;
     return Math.ceil(filteredPbRecords.length / pbPageSize);
   }, [filteredPbRecords, pbPageSize]);
+
+  // Latest record for Efisiensi Kompresor (Water Washing) monitoring overview (respects card date filter & newest first)
+  const latestEfisiensiRecord = useMemo(() => {
+    const pool = displayedRecords && displayedRecords.length > 0
+      ? displayedRecords
+      : records && records.length > 0
+      ? records
+      : [];
+
+    if (pool.length === 0) return null;
+
+    if (efisiensiDateFilter === 'ALL') {
+      return [...pool].sort((a, b) => {
+        const cmp = b.date.localeCompare(a.date);
+        if (cmp !== 0) return cmp;
+        return (b.time || '').localeCompare(a.time || '');
+      })[0];
+    }
+
+    const onDate = pool.filter((r) => r.date === efisiensiDateFilter);
+    if (onDate.length === 0) return null;
+
+    return [...onDate].sort((a, b) => {
+      const cmp = b.date.localeCompare(a.date);
+      if (cmp !== 0) return cmp;
+      return (b.time || '').localeCompare(a.time || '');
+    })[0];
+  }, [displayedRecords, records, efisiensiDateFilter]);
+
+  // Latest record & evaluation for PB Synthesis monitoring overview (respects card date filter & newest first)
+  const latestPbOverview = useMemo(() => {
+    if (!rawPbRecords || rawPbRecords.length === 0) return null;
+
+    let targetRecord: OperationalRecord | null = null;
+
+    if (pbDateOverviewFilter === 'ALL') {
+      targetRecord = rawPbRecords[0];
+    } else {
+      const onDate = rawPbRecords.filter((r) => r.date === pbDateOverviewFilter);
+      if (onDate.length > 0) {
+        targetRecord = onDate[0];
+      }
+    }
+
+    if (!targetRecord) return null;
+
+    const nh = targetRecord.nhSpeed || 11670;
+    const t = targetRecord.T1_7 !== undefined && targetRecord.T1_7 !== null ? targetRecord.T1_7 : 85.5;
+    const p1 = targetRecord.P1_7 || 14.65;
+    const p3 = targetRecord.P3_0 || 265.79;
+    const evalRes = evaluatePBOperationPoint(targetRecord.realPower, nh, t, p1, p3);
+    return {
+      record: targetRecord,
+      evalRes,
+    };
+  }, [rawPbRecords, pbDateOverviewFilter]);
 
 
   // Export PB Synthesis history dataset to Excel
@@ -901,7 +987,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               id="btn-submit-data"
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-semibold text-white bg-slate-900 rounded hover:bg-slate-800 disabled:opacity-50 transition-colors shadow-xs"
+              className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-semibold text-white bg-slate-900 rounded hover:bg-slate-800 disabled:opacity-50 transition-colors shadow-xs cursor-pointer"
             >
               <Save className="w-3.5 h-3.5" />
               <span>{isSubmitting ? 'Recording...' : 'Submit'}</span>
@@ -910,7 +996,424 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
         </form>
       </section>
 
-      {/* 2. DIRECTLY BELOW: INPUT HISTORY (DIVIDED INTO WATER WASHING & PB SYNTHESIS SECTIONS) */}
+      {/* 2. MONITORING STATUS OVERVIEW (EFISIENSI KOMPRESOR & PB SYNTHESIS) */}
+      <section className="bg-white rounded-md border border-slate-200 shadow-xs p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Activity className="w-5 h-5 text-sky-600" />
+              <h3 className="text-base font-bold text-slate-900">
+                Status Monitoring Operasional Terkini
+              </h3>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Ringkasan status evaluasi Efisiensi Kompresor dan PB Synthesis berdasarkan data operasional.
+            </p>
+          </div>
+
+          {/* Sync Checkbox & Global Reset */}
+          <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+            <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-300 text-xs font-semibold text-slate-700 cursor-pointer transition-colors shadow-2xs select-none">
+              <input
+                type="checkbox"
+                checked={syncMonitoringDates}
+                onChange={(e) => {
+                  const nextSync = e.target.checked;
+                  setSyncMonitoringDates(nextSync);
+                  if (nextSync) {
+                    setPbDateOverviewFilter(efisiensiDateFilter);
+                  }
+                }}
+                className="rounded text-sky-600 focus:ring-sky-500 h-4 w-4 cursor-pointer"
+              />
+              <span className="flex items-center gap-1.5">
+                <Sliders className="w-3.5 h-3.5 text-sky-600" />
+                <span>Samakan Tanggal Kedua Kartu (Sync)</span>
+              </span>
+            </label>
+
+            {(efisiensiDateFilter !== 'ALL' || pbDateOverviewFilter !== 'ALL') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEfisiensiDateFilter('ALL');
+                  setPbDateOverviewFilter('ALL');
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg shadow-2xs cursor-pointer transition-colors"
+                title="Reset kedua kartu ke data terbaru"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset Semua</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 2 Grid Cards: Efisiensi Kompresor & PB Synthesis */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Card 1: Status Efisiensi Kompresor (Water Washing) */}
+          {(() => {
+            const isWW = latestEfisiensiRecord?.overallStatus === 'RECOMMEND_WATER_WASH';
+            const isCaution = latestEfisiensiRecord?.overallStatus === 'CAUTION';
+            const isNormal = latestEfisiensiRecord && !isWW && !isCaution;
+
+            const cardBgClass = !latestEfisiensiRecord
+              ? 'border-slate-200 bg-slate-50/70'
+              : isWW
+              ? 'border-2 border-rose-500 bg-gradient-to-br from-rose-50 via-rose-50/80 to-rose-100/50 shadow-sm shadow-rose-500/10 animate-pulse'
+              : isCaution
+              ? 'border-2 border-amber-400 bg-gradient-to-br from-amber-50 via-amber-50/80 to-amber-100/50 shadow-sm shadow-amber-500/10'
+              : 'border-2 border-emerald-400 bg-gradient-to-br from-emerald-50 via-emerald-50/80 to-teal-50/50 shadow-sm shadow-emerald-500/10';
+
+            const iconClass = !latestEfisiensiRecord
+              ? 'bg-slate-100 text-slate-600'
+              : isWW
+              ? 'bg-rose-100 text-rose-800 border border-rose-300'
+              : isCaution
+              ? 'bg-amber-100 text-amber-800 border border-amber-300'
+              : 'bg-emerald-100 text-emerald-800 border border-emerald-300';
+
+            const badgeClass = isWW
+              ? 'bg-rose-600 text-white border-rose-700'
+              : isCaution
+              ? 'bg-amber-500 text-white border-amber-600'
+              : 'bg-emerald-600 text-white border-emerald-700';
+
+            const metricBorderClass = !latestEfisiensiRecord
+              ? 'border-slate-200'
+              : isWW
+              ? 'border-rose-200'
+              : isCaution
+              ? 'border-amber-200'
+              : 'border-emerald-200';
+
+            const buttonClass = !latestEfisiensiRecord
+              ? 'text-slate-700 bg-white border-slate-300 hover:bg-slate-50'
+              : isWW
+              ? 'text-rose-900 bg-white hover:bg-rose-600 hover:text-white border-2 border-rose-400 hover:border-rose-600'
+              : isCaution
+              ? 'text-amber-900 bg-white hover:bg-amber-500 hover:text-white border-2 border-amber-400 hover:border-amber-500'
+              : 'text-emerald-900 bg-white hover:bg-emerald-600 hover:text-white border-2 border-emerald-300 hover:border-emerald-600';
+
+            return (
+              <div className={`p-4 rounded-xl flex flex-col justify-between transition-all shadow-xs ${cardBgClass}`}>
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2.5 rounded-xl shrink-0 ${iconClass}`}>
+                        <Droplets className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm sm:text-base font-bold text-slate-900">
+                          Efisiensi Kompresor (Water Washing)
+                        </h4>
+                        <span className={`text-xs font-medium ${isWW ? 'text-rose-700' : isCaution ? 'text-amber-700' : isNormal ? 'text-emerald-800' : 'text-slate-500'}`}>
+                          {latestEfisiensiRecord
+                            ? `Data: ${latestEfisiensiRecord.date} ${latestEfisiensiRecord.time || ''}`
+                            : efisiensiDateFilter !== 'ALL'
+                            ? `Tidak ada data Efisiensi pada ${efisiensiDateFilter}`
+                            : 'Belum ada data tercatat'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Enlarged Prominent Status Badge */}
+                    {latestEfisiensiRecord && (
+                      <div className="self-start sm:self-auto shrink-0">
+                        <span
+                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm sm:text-base font-black tracking-wide uppercase border shadow-sm ${badgeClass}`}
+                        >
+                          <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+                          {isWW
+                            ? 'RECOMMEND WATER WASH'
+                            : isCaution
+                            ? 'CAUTION'
+                            : 'NORMAL'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Dedicated Date Filter for Efisiensi Kompresor */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap bg-white/70 backdrop-blur-xs p-2 rounded-lg border border-black/5 text-xs">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Calendar className="w-3.5 h-3.5 text-sky-700 shrink-0" />
+                      <span className="text-[11px] font-bold text-slate-700">Filter Tanggal:</span>
+                      <select
+                        value={efisiensiDateFilter}
+                        onChange={(e) => handleSetEfisiensiDate(e.target.value)}
+                        className="text-xs font-semibold text-slate-800 bg-white border border-slate-300 rounded px-2 py-1 shadow-2xs focus:outline-none cursor-pointer max-w-[190px]"
+                        title="Pilih tanggal data Efisiensi Kompresor"
+                      >
+                        <option value="ALL">Semua Tanggal (Data Terbaru)</option>
+                        {availableEfisiensiDates.map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="date"
+                        value={efisiensiDateFilter === 'ALL' ? '' : efisiensiDateFilter}
+                        onChange={(e) => handleSetEfisiensiDate(e.target.value || 'ALL')}
+                        className="text-xs font-mono bg-white border border-slate-300 rounded px-2 py-0.5 shadow-2xs focus:outline-none cursor-pointer"
+                        title="Pilih tanggal spesifik dari kalender"
+                      />
+                    </div>
+                    {efisiensiDateFilter !== 'ALL' && (
+                      <button
+                        type="button"
+                        onClick={() => handleSetEfisiensiDate('ALL')}
+                        className="text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded px-2 py-0.5 shadow-2xs cursor-pointer transition-colors"
+                        title="Kembali ke data terbaru"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Quick Metrics */}
+                  {latestEfisiensiRecord ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono text-xs">
+                      <div className={`p-2.5 bg-white/95 rounded-lg border ${metricBorderClass} shadow-2xs`}>
+                        <span className="text-[10px] text-slate-500 font-sans block">PR (P3/P1)</span>
+                        <strong className="text-slate-900 font-bold text-xs sm:text-sm">{latestEfisiensiRecord.pr.toFixed(4)}</strong>
+                        <span className={`text-[10px] block font-sans ${latestEfisiensiRecord.prDeterioration && latestEfisiensiRecord.prDeterioration >= thresholds.prWWThreshold ? 'text-rose-700 font-bold' : 'text-slate-500'}`}>
+                          {latestEfisiensiRecord.prDeterioration !== null ? `${latestEfisiensiRecord.prDeterioration}%` : '—'}
+                        </span>
+                      </div>
+                      <div className={`p-2.5 bg-white/95 rounded-lg border ${metricBorderClass} shadow-2xs`}>
+                        <span className="text-[10px] text-slate-500 font-sans block">P3.0 (PSIA)</span>
+                        <strong className="text-slate-900 font-bold text-xs sm:text-sm">{latestEfisiensiRecord.P3_0.toFixed(1)}</strong>
+                        <span className={`text-[10px] block font-sans ${latestEfisiensiRecord.p3Deterioration && latestEfisiensiRecord.p3Deterioration >= thresholds.p3WWThreshold ? 'text-rose-700 font-bold' : 'text-slate-500'}`}>
+                          {latestEfisiensiRecord.p3Deterioration !== null ? `${latestEfisiensiRecord.p3Deterioration}%` : '—'}
+                        </span>
+                      </div>
+                      <div className={`p-2.5 bg-white/95 rounded-lg border ${metricBorderClass} shadow-2xs`}>
+                        <span className="text-[10px] text-slate-500 font-sans block">NPHR (kcal)</span>
+                        <strong className="text-slate-900 font-bold text-xs sm:text-sm">{latestEfisiensiRecord.nphr.toLocaleString()}</strong>
+                        <span className={`text-[10px] block font-sans ${latestEfisiensiRecord.nphrDeterioration && latestEfisiensiRecord.nphrDeterioration >= thresholds.nphrWWThreshold ? 'text-rose-700 font-bold' : 'text-slate-500'}`}>
+                          {latestEfisiensiRecord.nphrDeterioration !== null ? `+${latestEfisiensiRecord.nphrDeterioration}%` : '—'}
+                        </span>
+                      </div>
+                      <div className={`p-2.5 bg-white/95 rounded-lg border ${metricBorderClass} shadow-2xs`}>
+                        <span className="text-[10px] text-slate-500 font-sans block">Beban (MW)</span>
+                        <strong className="text-slate-900 font-bold text-xs sm:text-sm">{latestEfisiensiRecord.realPower.toFixed(2)}</strong>
+                        <span className={`text-[10px] block font-sans ${latestEfisiensiRecord.powerDeterioration && latestEfisiensiRecord.powerDeterioration >= thresholds.powerWWThreshold ? 'text-rose-700 font-bold' : 'text-slate-500'}`}>
+                          {latestEfisiensiRecord.powerDeterioration !== null ? `${latestEfisiensiRecord.powerDeterioration}%` : '—'}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500 italic">
+                      {efisiensiDateFilter !== 'ALL'
+                        ? `Tidak ada data operasional Efisiensi Kompresor pada tanggal ${efisiensiDateFilter}.`
+                        : 'Belum ada data operasional.'}
+                    </p>
+                  )}
+                </div>
+
+                {/* Hyperlink Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (latestEfisiensiRecord && onSelectRecordForDashboard) {
+                      onSelectRecordForDashboard(latestEfisiensiRecord.id);
+                    }
+                    onNavigate('dashboard');
+                  }}
+                  className={`mt-4 inline-flex items-center justify-between px-4 py-2.5 rounded-lg text-xs sm:text-sm font-bold shadow-2xs transition-all cursor-pointer group ${buttonClass}`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span>Buka Halaman Efisiensi Kompresor (Dashboard)</span>
+                  </span>
+                  <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                </button>
+              </div>
+            );
+          })()}
+
+          {/* Card 2: Status PB Synthesis & PT007 */}
+          {(() => {
+            const isWarning =
+              latestPbOverview?.evalRes?.zone === 'MELEWATI_BATAS_ATAS' ||
+              latestPbOverview?.evalRes?.zone === 'MELEWATI_BATAS_BAWAH';
+            const isRecommendWW =
+              latestPbOverview?.evalRes?.zone === 'EARLY_UPPER' ||
+              latestPbOverview?.evalRes?.zone === 'EARLY_LOWER';
+            const isNormal = latestPbOverview?.evalRes && !isWarning && !isRecommendWW;
+
+            const cardBgClass = !latestPbOverview?.evalRes
+              ? 'border-slate-200 bg-slate-50/70'
+              : isWarning
+              ? 'border-2 border-rose-900 bg-gradient-to-br from-rose-100/70 via-rose-200/50 to-rose-300/40 shadow-md shadow-rose-950/20 animate-pulse'
+              : isRecommendWW
+              ? 'border-2 border-rose-500 bg-gradient-to-br from-rose-50 via-rose-50/80 to-rose-100/50 shadow-sm shadow-rose-500/10 animate-pulse'
+              : 'border-2 border-emerald-400 bg-gradient-to-br from-emerald-50 via-emerald-50/80 to-teal-50/50 shadow-sm shadow-emerald-500/10';
+
+            const iconClass = !latestPbOverview?.evalRes
+              ? 'bg-slate-100 text-slate-600'
+              : isWarning
+              ? 'bg-rose-950 text-white border border-rose-900'
+              : isRecommendWW
+              ? 'bg-rose-100 text-rose-800 border border-rose-300'
+              : 'bg-emerald-100 text-emerald-800 border border-emerald-300';
+
+            const badgeClass = isWarning
+              ? 'bg-rose-950 text-white border-2 border-black shadow-md'
+              : isRecommendWW
+              ? 'bg-rose-600 text-white border-rose-700'
+              : 'bg-emerald-600 text-white border-emerald-700';
+
+            const metricBorderClass = !latestPbOverview?.evalRes
+              ? 'border-slate-200'
+              : isWarning
+              ? 'border-rose-300'
+              : isRecommendWW
+              ? 'border-rose-200'
+              : 'border-emerald-200';
+
+            const buttonClass = !latestPbOverview?.evalRes
+              ? 'text-slate-700 bg-white border-slate-300 hover:bg-slate-50'
+              : isWarning
+              ? 'text-rose-950 bg-white hover:bg-rose-950 hover:text-white border-2 border-rose-900'
+              : isRecommendWW
+              ? 'text-rose-900 bg-white hover:bg-rose-600 hover:text-white border-2 border-rose-400 hover:border-rose-600'
+              : 'text-emerald-900 bg-white hover:bg-emerald-600 hover:text-white border-2 border-emerald-300 hover:border-emerald-600';
+
+            return (
+              <div className={`p-4 rounded-xl flex flex-col justify-between transition-all shadow-xs ${cardBgClass}`}>
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2.5 rounded-xl shrink-0 ${iconClass}`}>
+                        <Activity className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm sm:text-base font-bold text-slate-900">
+                          PB Synthesis &amp; PT007 Testing
+                        </h4>
+                        <span className={`text-xs font-medium ${isWarning ? 'text-rose-950' : isRecommendWW ? 'text-rose-700' : isNormal ? 'text-emerald-800' : 'text-slate-500'}`}>
+                          {latestPbOverview?.record
+                            ? `Data: ${latestPbOverview.record.date} ${latestPbOverview.record.time || ''}`
+                            : pbDateOverviewFilter !== 'ALL'
+                            ? `Tidak ada data PB Synthesis pada ${pbDateOverviewFilter}`
+                            : 'Belum ada data tercatat'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Enlarged Prominent Status Badge (NORMAL matches Card 1) */}
+                    {latestPbOverview?.evalRes && (
+                      <div className="self-start sm:self-auto shrink-0">
+                        <span
+                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm sm:text-base font-black tracking-wide uppercase border shadow-sm ${badgeClass}`}
+                        >
+                          <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+                          {isWarning
+                            ? 'WARNING'
+                            : isRecommendWW
+                            ? 'RECOMMEND WATER WASH'
+                            : 'NORMAL'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Dedicated Date Filter for PB Synthesis */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap bg-white/70 backdrop-blur-xs p-2 rounded-lg border border-black/5 text-xs">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Calendar className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+                      <span className="text-[11px] font-bold text-slate-700">Filter Tanggal:</span>
+                      <select
+                        value={pbDateOverviewFilter}
+                        onChange={(e) => handleSetPbDate(e.target.value)}
+                        className="text-xs font-semibold text-slate-800 bg-white border border-slate-300 rounded px-2 py-1 shadow-2xs focus:outline-none cursor-pointer max-w-[190px]"
+                        title="Pilih tanggal data PB Synthesis"
+                      >
+                        <option value="ALL">Semua Tanggal (Data Terbaru)</option>
+                        {availablePbOverviewDates.map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="date"
+                        value={pbDateOverviewFilter === 'ALL' ? '' : pbDateOverviewFilter}
+                        onChange={(e) => handleSetPbDate(e.target.value || 'ALL')}
+                        className="text-xs font-mono bg-white border border-slate-300 rounded px-2 py-0.5 shadow-2xs focus:outline-none cursor-pointer"
+                        title="Pilih tanggal spesifik dari kalender"
+                      />
+                    </div>
+                    {pbDateOverviewFilter !== 'ALL' && (
+                      <button
+                        type="button"
+                        onClick={() => handleSetPbDate('ALL')}
+                        className="text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded px-2 py-0.5 shadow-2xs cursor-pointer transition-colors"
+                        title="Kembali ke data terbaru"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Quick Metrics */}
+                  {latestPbOverview?.evalRes ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono text-xs">
+                      <div className={`p-2.5 bg-white/95 rounded-lg border ${metricBorderClass} shadow-2xs`}>
+                        <span className="text-[10px] text-slate-500 font-sans block">Beban (MW)</span>
+                        <strong className="text-slate-900 font-bold text-xs sm:text-sm">{latestPbOverview.evalRes.beban.toFixed(2)}</strong>
+                        <span className="text-[10px] text-slate-500 block font-sans">Turbin</span>
+                      </div>
+                      <div className="p-2.5 bg-purple-50/90 rounded-lg border border-purple-300 shadow-2xs">
+                        <span className="text-[10px] text-purple-900 font-sans block font-bold">★ PT007</span>
+                        <strong className="text-purple-950 font-black text-xs sm:text-sm">{latestPbOverview.evalRes.pt007.toFixed(2)}</strong>
+                        <span className="text-[10px] text-purple-700 block font-sans font-semibold">PSIA</span>
+                      </div>
+                      <div className={`p-2.5 bg-white/95 rounded-lg border ${metricBorderClass} shadow-2xs`}>
+                        <span className="text-[10px] text-slate-500 font-sans block">PB Synthesis</span>
+                        <strong className="text-blue-700 font-bold text-xs sm:text-sm">{latestPbOverview.evalRes.pbSynthesis.toFixed(2)}</strong>
+                        <span className="text-[10px] text-slate-500 block font-sans">f(NH)xP1.7</span>
+                      </div>
+                      <div className={`p-2.5 bg-white/95 rounded-lg border ${metricBorderClass} shadow-2xs`}>
+                        <span className="text-[10px] text-slate-500 font-sans block">Rentang Batas</span>
+                        <strong className="text-slate-800 font-bold text-xs sm:text-sm block">{latestPbOverview.evalRes.lowerThreshold.toFixed(1)}–{latestPbOverview.evalRes.upperThreshold.toFixed(1)}</strong>
+                        <span className="text-[10px] text-slate-500 block font-sans">0.82x – 1.18x</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500 italic">
+                      {pbDateOverviewFilter !== 'ALL'
+                        ? `Tidak ada data operasional PB Synthesis pada tanggal ${pbDateOverviewFilter}.`
+                        : 'Belum ada data PB Synthesis.'}
+                    </p>
+                  )}
+                </div>
+
+                {/* Hyperlink Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (latestPbOverview?.record && onSelectRecordForPbSynthesis) {
+                      onSelectRecordForPbSynthesis(latestPbOverview.record.id);
+                    }
+                    onNavigate('pbSynthesis');
+                  }}
+                  className={`mt-4 inline-flex items-center justify-between px-4 py-2.5 rounded-lg text-xs sm:text-sm font-bold shadow-2xs transition-all cursor-pointer group ${buttonClass}`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span>Buka Halaman PB Synthesis (Kurva Operasi)</span>
+                  </span>
+                  <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                </button>
+              </div>
+            );
+          })()}
+        </div>
+      </section>
+
+      {/* 3. INPUT HISTORY (DIVIDED INTO WATER WASHING & PB SYNTHESIS SECTIONS) */}
       <section className="bg-white rounded-md border border-slate-200 shadow-xs overflow-hidden space-y-0">
         {/* Top Header & Tab Switcher */}
         <div className="px-6 py-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white">
@@ -1531,18 +2034,16 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                                     evalRes.zone === 'NORMAL'
                                       ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                       : evalRes.zone === 'EARLY_UPPER' || evalRes.zone === 'EARLY_LOWER'
-                                      ? 'bg-amber-100 text-amber-800 border-amber-300'
-                                      : 'bg-rose-600 text-white border-rose-700 shadow-2xs font-extrabold'
+                                      ? 'bg-rose-100 text-rose-800 border-rose-300 font-bold'
+                                      : 'bg-rose-950 text-white border-rose-950 font-black shadow-2xs'
                                   }`}
                                   title={evalRes.statusDescription}
                                 >
                                   {evalRes.zone === 'NORMAL'
                                     ? 'NORMAL'
                                     : evalRes.zone === 'EARLY_UPPER' || evalRes.zone === 'EARLY_LOWER'
-                                    ? 'CAUTION'
-                                    : evalRes.zone === 'MELEWATI_BATAS_ATAS'
-                                    ? 'BATAS ATAS'
-                                    : 'BATAS BAWAH'}
+                                    ? 'RECOMMEND WW'
+                                    : 'WARNING'}
                                 </span>
                               ) : (
                                 <span className="text-slate-400">—</span>

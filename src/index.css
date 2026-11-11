@@ -1,1 +1,54 @@
 @import "tailwindcss";
+
+:root {
+  /* Elevate root font scale so all rem-based elements scale up proportionally */
+  font-size: 16.5px;
+}
+
+body {
+  font-size: 14.5px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Overall Typography Uplift: Boost ultra-small and small text for high readability */
+.text-\[9px\],
+[class*="text-[9px]"] {
+  font-size: 11px;
+}
+
+.text-\[10px\],
+[class*="text-[10px]"] {
+  font-size: 12px;
+}
+
+.text-\[11px\],
+[class*="text-[11px]"] {
+  font-size: 13px;
+}
+
+.text-xs,
+[class*="text-xs"] {
+  font-size: 13.5px;
+}
+
+.text-sm,
+[class*="text-sm"] {
+  font-size: 15px;
+}
+
+.text-base,
+[class*="text-base"] {
+  font-size: 16.5px;
+}
+
+.text-lg,
+[class*="text-lg"] {
+  font-size: 19px;
+}
+
+.text-xl,
+[class*="text-xl"] {
+  font-size: 22px;
+}

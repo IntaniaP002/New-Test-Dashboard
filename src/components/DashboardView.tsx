@@ -208,9 +208,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         categoryLabel: 'WATER WASHING RECOMMENDATION',
         categoryColor: 'text-rose-900/80',
         labelColor: 'text-rose-950',
-        boxStyle: 'bg-rose-50/75 border-rose-300',
-        badgeStyle: 'bg-rose-600 text-white',
-        icon: <AlertTriangle className="w-8 h-8 text-rose-600 shrink-0 stroke-[2.25]" />,
+        boxStyle: 'bg-rose-50/75 border-2 border-rose-400 shadow-sm animate-pulse',
+        badgeStyle: 'bg-rose-600 text-white shadow-sm',
+        icon: <AlertTriangle className="w-8 h-8 text-rose-600 shrink-0 stroke-[2.25] animate-bounce" />,
         explanation: activeRecord.statusExplanation,
       };
     }
