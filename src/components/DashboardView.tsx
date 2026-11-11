@@ -635,7 +635,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="mt-2 text-xs space-y-1 text-slate-600 border-t border-slate-100 pt-2">
               <div className="flex justify-between items-baseline">
-                <span className="shrink-0">Deterioration:</span>
+                <span
+                  className="shrink-0 cursor-help border-b border-dotted border-slate-400"
+                  title="Rumus Deteriorasi PR: ((Baseline - Nilai Saat Ini) / Baseline) × 100%. Untuk PR, penurunan nilai adalah degradasi (lower is worse). Jika bernilai negatif (-), artinya PR saat ini lebih tinggi/lebih baik dibanding baseline."
+                >
+                  Deterioration:
+                </span>
                 <span className={`font-semibold text-right ml-auto ${activeRecord?.prDeterioration && activeRecord.prDeterioration >= thresholds.prWWThreshold ? 'text-rose-700' : 'text-slate-800'}`}>
                   {activeRecord?.prDeterioration !== null && activeRecord?.prDeterioration !== undefined
                     ? `${activeRecord.prDeterioration > 0 ? '+' : ''}${activeRecord.prDeterioration}%`
@@ -643,7 +648,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </span>
               </div>
               <div className="flex justify-between items-baseline text-[11px] text-slate-500 gap-2">
-                <span className="shrink-0">Delta vs Baseline:</span>
+                <span
+                  className="shrink-0 cursor-help border-b border-dotted border-slate-300"
+                  title="Rumus Delta: Nilai Saat Ini - Nilai Baseline. Tanda (+) berarti nilai aktual saat ini berada di atas baseline."
+                >
+                  Delta vs Baseline:
+                </span>
                 <span className="font-mono font-medium text-slate-700 text-right ml-auto whitespace-nowrap">
                   {activeRecord?.prDelta !== null && activeRecord?.prDelta !== undefined
                     ? `${activeRecord.prDelta > 0 ? '+' : ''}${activeRecord.prDelta.toFixed(4)}`
@@ -685,7 +695,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="mt-2 text-xs space-y-1 text-slate-600 border-t border-slate-100 pt-2">
               <div className="flex justify-between items-baseline">
-                <span className="shrink-0">Deterioration:</span>
+                <span
+                  className="shrink-0 cursor-help border-b border-dotted border-slate-400"
+                  title="Rumus Deteriorasi P3.0: ((Baseline - Nilai Saat Ini) / Baseline) × 100%. Untuk P3.0 (Discharge Pressure), penurunan tekanan adalah degradasi kompresor (lower is worse). Jika bernilai negatif (-), artinya P3.0 saat ini lebih tinggi/lebih baik dibanding baseline."
+                >
+                  Deterioration:
+                </span>
                 <span className={`font-semibold text-right ml-auto ${activeRecord?.p3Deterioration && activeRecord.p3Deterioration >= thresholds.p3WWThreshold ? 'text-rose-700' : 'text-slate-800'}`}>
                   {activeRecord?.p3Deterioration !== null && activeRecord?.p3Deterioration !== undefined
                     ? `${activeRecord.p3Deterioration > 0 ? '+' : ''}${activeRecord.p3Deterioration}%`
@@ -693,7 +708,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </span>
               </div>
               <div className="flex justify-between items-baseline text-[11px] text-slate-500 gap-2">
-                <span className="shrink-0">Delta vs Baseline:</span>
+                <span
+                  className="shrink-0 cursor-help border-b border-dotted border-slate-300"
+                  title="Rumus Delta: Nilai Saat Ini - Nilai Baseline. Tanda (+) berarti nilai aktual saat ini berada di atas baseline."
+                >
+                  Delta vs Baseline:
+                </span>
                 <span className="font-mono font-medium text-slate-700 text-right ml-auto whitespace-nowrap">
                   {activeRecord?.p3Delta !== null && activeRecord?.p3Delta !== undefined
                     ? `${activeRecord.p3Delta > 0 ? '+' : ''}${activeRecord.p3Delta.toFixed(2)} PSIA`
@@ -747,7 +767,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="mt-2 text-xs space-y-1 text-slate-600 border-t border-slate-100 pt-2">
               <div className="flex justify-between items-baseline">
-                <span className="shrink-0">Deterioration:</span>
+                <span
+                  className="shrink-0 cursor-help border-b border-dotted border-slate-400"
+                  title="Rumus Deteriorasi NPHR: ((Nilai Saat Ini - Baseline) / Baseline) × 100%. Untuk NPHR (Heat Rate), kenaikan konsumsi energi adalah degradasi efisiensi (higher is worse). Jika bernilai positif (+), artinya turbin lebih boros bahan bakar dibanding baseline."
+                >
+                  Deterioration:
+                </span>
                 <span className={`font-semibold text-right ml-auto ${activeRecord?.nphrDeterioration && activeRecord.nphrDeterioration >= thresholds.nphrWWThreshold ? 'text-rose-700' : 'text-slate-800'}`}>
                   {activeRecord?.nphrDeterioration !== null && activeRecord?.nphrDeterioration !== undefined
                     ? `${activeRecord.nphrDeterioration > 0 ? '+' : ''}${activeRecord.nphrDeterioration}%`
@@ -755,7 +780,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </span>
               </div>
               <div className="flex justify-between items-baseline text-[11px] text-slate-500 gap-2">
-                <span className="shrink-0">Delta vs Baseline:</span>
+                <span
+                  className="shrink-0 cursor-help border-b border-dotted border-slate-300"
+                  title="Rumus Delta: Nilai Saat Ini - Nilai Baseline. Tanda (+) berarti nilai aktual saat ini berada di atas baseline."
+                >
+                  Delta vs Baseline:
+                </span>
                 <span className="font-mono font-medium text-slate-700 text-right ml-auto whitespace-nowrap">
                   {activeRecord?.nphrDelta !== null && activeRecord?.nphrDelta !== undefined
                     ? `${activeRecord.nphrDelta > 0 ? '+' : ''}${activeRecord.nphrDelta.toFixed(1)} kcal/kWh`
@@ -799,7 +829,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="mt-2 text-xs space-y-1 text-slate-600 border-t border-slate-100 pt-2">
               <div className="flex justify-between items-baseline">
-                <span className="shrink-0">Deterioration:</span>
+                <span
+                  className="shrink-0 cursor-help border-b border-dotted border-slate-400"
+                  title="Rumus Deteriorasi Real Power: ((Baseline - Nilai Saat Ini) / Baseline) × 100%. Untuk Daya Beban (MW), penurunan output daya adalah degradasi performa (lower is worse). Jika bernilai negatif (-), artinya daya saat ini lebih tinggi/lebih baik dibanding baseline."
+                >
+                  Deterioration:
+                </span>
                 <span className={`font-semibold text-right ml-auto ${activeRecord?.powerDeterioration && activeRecord.powerDeterioration >= thresholds.powerWWThreshold ? 'text-rose-700' : 'text-slate-800'}`}>
                   {activeRecord?.powerDeterioration !== null && activeRecord?.powerDeterioration !== undefined
                     ? `${activeRecord.powerDeterioration > 0 ? '+' : ''}${activeRecord.powerDeterioration}%`
@@ -807,7 +842,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </span>
               </div>
               <div className="flex justify-between items-baseline text-[11px] text-slate-500 gap-2">
-                <span className="shrink-0">Delta vs Baseline:</span>
+                <span
+                  className="shrink-0 cursor-help border-b border-dotted border-slate-300"
+                  title="Rumus Delta: Nilai Saat Ini - Nilai Baseline. Tanda (+) berarti nilai aktual saat ini berada di atas baseline."
+                >
+                  Delta vs Baseline:
+                </span>
                 <span className="font-mono font-medium text-slate-700 text-right ml-auto whitespace-nowrap">
                   {activeRecord?.powerDelta !== null && activeRecord?.powerDelta !== undefined
                     ? `${activeRecord.powerDelta > 0 ? '+' : ''}${activeRecord.powerDelta.toFixed(2)} MW`
