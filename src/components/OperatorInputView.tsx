@@ -1120,7 +1120,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                       </div>
                       <div>
                         <h4 className="text-sm sm:text-base font-bold text-slate-900">
-                          Efisiensi Kompresor (Water Washing)
+                          Efisiensi Kompresor
                         </h4>
                         <span className={`text-xs font-medium ${isWW ? 'text-rose-700' : isCaution ? 'text-amber-700' : isNormal ? 'text-emerald-800' : 'text-slate-500'}`}>
                           {latestEfisiensiRecord
@@ -1436,7 +1436,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
             <div className="flex items-center gap-2">
               <h3 className="text-base font-bold text-slate-900">
                 {historySection === 'water_washing'
-                  ? 'Input History — Water Washing'
+                  ? 'Input History — Efisiensi Kompresor'
                   : 'Input History — PB Synthesis'}
               </h3>
             </div>
@@ -1459,7 +1459,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               }`}
             >
               <Droplets className="w-3.5 h-3.5 text-sky-600" />
-              <span>Water Washing</span>
+              <span>Efisiensi Kompresor</span>
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
                 historySection === 'water_washing' ? 'bg-sky-100 text-sky-800' : 'bg-slate-200/70 text-slate-700'
               }`}>
@@ -1488,7 +1488,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
         </div>
 
         {/* ========================================================================= */}
-        {/* SECTION 1: WATER WASHING HISTORY (STRICTLY MATCHING USER SCREENSHOT 12.42.12) */}
+        {/* SECTION 1: EFISIENSI KOMPRESOR HISTORY */}
         {/* ========================================================================= */}
         {historySection === 'water_washing' && (
           <div className="border-b border-slate-200 last:border-b-0">
@@ -1496,7 +1496,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
             <div className="px-6 py-3.5 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200">
               <div>
                 <h4 className="text-xs font-bold text-slate-900 flex items-center gap-2">
-                  <span>Water Washing History</span>
+                  <span>Efisiensi Kompresor History</span>
                   <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-100 text-sky-800 border border-sky-200">
                     Daily Average Log (19:00 - 21:00 / Beban 20 - 24 MW)
                   </span>
