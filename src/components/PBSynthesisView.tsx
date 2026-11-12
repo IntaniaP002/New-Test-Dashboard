@@ -395,11 +395,40 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
         }
 
         if (parsedRecords.length > 0) {
-          setExtraUploadedRecords((prev) => [...parsedRecords, ...prev]);
+          let added = 0;
+          let updated = 0;
+          let skipped = 0;
+
+          setExtraUploadedRecords((prev) => {
+            const list = [...prev];
+            for (const incoming of parsedRecords) {
+              const existingIdx = list.findIndex(
+                (item) => item.date === incoming.date && item.time === incoming.time
+              );
+              if (existingIdx >= 0) {
+                const existing = list[existingIdx];
+                const isIdentical =
+                  Math.abs(existing.beban - incoming.beban) < 0.01 &&
+                  Math.abs(existing.pt007 - incoming.pt007) < 0.01 &&
+                  Math.abs(existing.pt006 - incoming.pt006) < 0.01;
+                if (isIdentical) {
+                  skipped++;
+                } else {
+                  list[existingIdx] = { ...incoming, id: existing.id };
+                  updated++;
+                }
+              } else {
+                list.push(incoming);
+                added++;
+              }
+            }
+            return list;
+          });
+
           setSelectedRecordId(parsedRecords[0].id);
           setUploadFeedback({
             type: 'success',
-            text: `Berhasil mengimpor ${successCount} baris data operasi dari ${file.name}!`,
+            text: `Sinkronisasi Excel selesai: ${added} data baru ditambahkan, ${updated} diperbarui, ${skipped} data identik dipertahankan tanpa duplikasi ganda!`,
           });
         } else {
           setUploadFeedback({

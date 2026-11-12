@@ -24,6 +24,7 @@ import {
   Filter,
   AlertTriangle,
   Copy,
+  Sparkles,
 } from 'lucide-react';
 import {
   BaselineConfig,
@@ -61,6 +62,7 @@ interface OperatorInputViewProps {
   onClearAllWaterWash?: () => void;
   onDeleteRecord?: (recordId: string) => void;
   onClearAllData?: () => void;
+  onDeduplicateRecords?: () => void;
   onSetBaselineRecord?: (record: OperationalRecord) => void;
   onOpenBaselineConfig?: () => void;
   onOpenImport?: () => void;
@@ -90,6 +92,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
   onClearAllWaterWash,
   onDeleteRecord,
   onClearAllData,
+  onDeduplicateRecords,
   onSetBaselineRecord,
   onOpenBaselineConfig,
   onOpenImport,
@@ -185,6 +188,18 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
       setEfisiensiDateFilter(newDate);
     }
   };
+
+  // Check if system currently holds duplicate records with same date & time
+  const hasSystemDuplicates = useMemo(() => {
+    if (!records || records.length < 2) return false;
+    const seen = new Set<string>();
+    for (const r of records) {
+      const key = `${r.date}__${r.time || '19:00'}`;
+      if (seen.has(key)) return true;
+      seen.add(key);
+    }
+    return false;
+  }, [records]);
 
   // Use the Input History table dataset directly (or aggregate from records if not provided)
   const displayedRecords = useMemo(() => {
@@ -1512,6 +1527,17 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                   >
                     <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
                     <span>Reset WW Tags</span>
+                  </button>
+                )}
+                {onDeduplicateRecords && hasSystemDuplicates && (
+                  <button
+                    type="button"
+                    onClick={onDeduplicateRecords}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded transition-colors shadow-2xs cursor-pointer"
+                    title="Hapus baris data duplikat/ganda yang memiliki tanggal & waktu yang sama"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Bersihkan Data Ganda</span>
                   </button>
                 )}
                 <button

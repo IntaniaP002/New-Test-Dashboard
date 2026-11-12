@@ -1,23 +1,104 @@
-import { OperationalRecord } from '../types';
+import {
+  OperationalInput,
+  OperationalRecord,
+  BaselineConfig,
+  ThresholdConfig,
+} from '../types';
+import { standardizeDate } from './dataNormalizer';
+import { evaluateOperationalRecord } from './calculations';
 
 export interface ExactDuplicateMatch {
   existingRecord: OperationalRecord;
   reason: string;
 }
 
+export interface ImportClassification {
+  newRows: { row: OperationalInput; index: number }[];
+  updatedRows: { row: OperationalInput; existingRecord: OperationalRecord; index: number }[];
+  identicalRows: { row: OperationalInput; existingRecord: OperationalRecord; index: number }[];
+}
+
 /**
- * Normalizes time string to HH:MM for reliable comparison (e.g. "19:00:00" -> "19:00", "19:00" -> "19:00")
+ * Normalizes time string to HH:MM or HH:MM:SS for reliable comparison
  */
 export function normalizeTimeString(t?: string | null): string {
-  if (!t) return '';
+  if (!t) return '19:00';
   const clean = t.trim();
   const parts = clean.split(':');
   if (parts.length >= 2) {
     const hh = parts[0].padStart(2, '0');
     const mm = parts[1].padStart(2, '0');
+    if (parts.length >= 3 && parts[2]) {
+      const ss = parts[2].padStart(2, '0');
+      // If seconds are ':00', normalize to HH:MM for easy matching with non-seconds data
+      if (ss === '00') {
+        return `${hh}:${mm}`;
+      }
+      return `${hh}:${mm}:${ss}`;
+    }
     return `${hh}:${mm}`;
   }
   return clean.slice(0, 5);
+}
+
+/**
+ * Checks whether two operational readings share the exact same timestamp (Date and Time).
+ * Handles flexible formats (e.g. 19:00 vs 19:00:00).
+ */
+export function isSameOperationalTimestamp(
+  date1?: string | null,
+  time1?: string | null,
+  date2?: string | null,
+  time2?: string | null
+): boolean {
+  if (!date1 || !date2) return false;
+  const d1 = standardizeDate(date1).trim();
+  const d2 = standardizeDate(date2).trim();
+  if (d1 !== d2) return false;
+
+  const t1 = (time1 || '19:00').trim();
+  const t2 = (time2 || '19:00').trim();
+  if (t1 === t2) return true;
+
+  const norm1 = normalizeTimeString(t1);
+  const norm2 = normalizeTimeString(t2);
+  if (norm1 === norm2) return true;
+
+  // Also check if one has seconds and the other doesn't, but HH:MM match
+  const hhmm1 = norm1.slice(0, 5);
+  const hhmm2 = norm2.slice(0, 5);
+  return hhmm1 === hhmm2;
+}
+
+/**
+ * Checks if two operational records/inputs have identical physical values:
+ * Real Power, P1.7, P3.0, NPHR, T1.7, and NH Speed.
+ */
+export function areOperationalParametersIdentical(
+  a: { realPower?: number; P1_7?: number; P3_0?: number; nphr?: number; T1_7?: number | null; nhSpeed?: number | null },
+  b: { realPower?: number; P1_7?: number; P3_0?: number; nphr?: number; T1_7?: number | null; nhSpeed?: number | null }
+): boolean {
+  const powerDiff = Math.abs((a.realPower ?? 0) - (b.realPower ?? 0));
+  const p1Diff = Math.abs((a.P1_7 ?? 0) - (b.P1_7 ?? 0));
+  const p3Diff = Math.abs((a.P3_0 ?? 0) - (b.P3_0 ?? 0));
+  const nphrDiff = Math.abs((a.nphr ?? 0) - (b.nphr ?? 0));
+
+  const t1A = a.T1_7 !== undefined && a.T1_7 !== null ? a.T1_7 : null;
+  const t1B = b.T1_7 !== undefined && b.T1_7 !== null ? b.T1_7 : null;
+  const t1Diff = t1A !== null && t1B !== null ? Math.abs(t1A - t1B) : 0;
+
+  const nhA = a.nhSpeed !== undefined && a.nhSpeed !== null ? a.nhSpeed : null;
+  const nhB = b.nhSpeed !== undefined && b.nhSpeed !== null ? b.nhSpeed : null;
+  const nhDiff = nhA !== null && nhB !== null ? Math.abs(nhA - nhB) : 0;
+
+  return (
+    powerDiff < 0.01 &&
+    p1Diff < 0.01 &&
+    p3Diff < 0.01 &&
+    nphrDiff < 0.1 &&
+    t1Diff < 0.1 &&
+    nhDiff < 5
+  );
 }
 
 /**
@@ -103,4 +184,168 @@ export function findExactDuplicate(
   }
 
   return null;
+}
+
+/**
+ * Classifies an incoming list of rows into:
+ * - New rows (not found in existing records)
+ * - Updated rows (found matching timestamp, but operational values differ)
+ * - Identical rows (found matching timestamp and identical values)
+ */
+export function classifyImportRows(
+  candidateRows: OperationalInput[],
+  existingRecords: OperationalRecord[]
+): ImportClassification {
+  const newRows: { row: OperationalInput; index: number }[] = [];
+  const updatedRows: { row: OperationalInput; existingRecord: OperationalRecord; index: number }[] = [];
+  const identicalRows: { row: OperationalInput; existingRecord: OperationalRecord; index: number }[] = [];
+
+  candidateRows.forEach((row, index) => {
+    const match = existingRecords.find((existing) =>
+      isSameOperationalTimestamp(existing.date, existing.time, row.date, row.time)
+    );
+
+    if (!match) {
+      newRows.push({ row, index });
+    } else {
+      if (areOperationalParametersIdentical(row, match)) {
+        identicalRows.push({ row, existingRecord: match, index });
+      } else {
+        updatedRows.push({ row, existingRecord: match, index });
+      }
+    }
+  });
+
+  return { newRows, updatedRows, identicalRows };
+}
+
+/**
+ * Merges incoming rows into existing records using Smart Upsert:
+ * 1. Deduplicates multiple copies inside the incoming batch itself.
+ * 2. If a record matches an existing Date & Time:
+ *    - If parameters are identical: Kept as-is, never duplicated! (identicalCount++)
+ *    - If parameters changed in the Excel: Updated in-place with new values and re-evaluated! (updatedCount++)
+ * 3. If a record has a new Date & Time: Appended as a new record! (addedCount++)
+ * 4. Chronologically sorted.
+ */
+export function smartMergeOperationalRecords(
+  incomingInputs: OperationalInput[],
+  existingRecords: OperationalRecord[],
+  baseline: BaselineConfig,
+  thresholds: ThresholdConfig
+): {
+  mergedRecords: OperationalRecord[];
+  addedCount: number;
+  updatedCount: number;
+  identicalCount: number;
+} {
+  // Step 1: Deduplicate within the incoming batch itself (keeping the latest occurrence in the file)
+  const dedupedIncoming: OperationalInput[] = [];
+  for (const input of incomingInputs) {
+    const existingBatchIndex = dedupedIncoming.findIndex((item) =>
+      isSameOperationalTimestamp(item.date, item.time, input.date, input.time)
+    );
+    if (existingBatchIndex >= 0) {
+      dedupedIncoming[existingBatchIndex] = input;
+    } else {
+      dedupedIncoming.push(input);
+    }
+  }
+
+  // Step 2: Merge with existing records
+  const result: OperationalRecord[] = [...existingRecords];
+  let addedCount = 0;
+  let updatedCount = 0;
+  let identicalCount = 0;
+  const timestampNow = Date.now();
+
+  for (let idx = 0; idx < dedupedIncoming.length; idx++) {
+    const input = dedupedIncoming[idx];
+    const existingIdx = result.findIndex((rec) =>
+      isSameOperationalTimestamp(rec.date, rec.time, input.date, input.time)
+    );
+
+    if (existingIdx >= 0) {
+      const existing = result[existingIdx];
+      if (areOperationalParametersIdentical(input, existing)) {
+        // Exactly identical: keep existing, do NOT double
+        identicalCount++;
+      } else {
+        // Values were updated in Excel: re-evaluate with new input, preserving existing ID and WW tag
+        const updatedRecord = evaluateOperationalRecord(
+          {
+            ...input,
+            isWaterWashEvent: existing.isWaterWashEvent,
+            notes: existing.notes || input.notes,
+          },
+          existing.id,
+          baseline,
+          thresholds
+        );
+        result[existingIdx] = updatedRecord;
+        updatedCount++;
+      }
+    } else {
+      // New record: evaluate and append
+      const newRecord = evaluateOperationalRecord(
+        input,
+        `imp-${timestampNow}-${idx}-${Math.random().toString(36).slice(2, 7)}`,
+        baseline,
+        thresholds
+      );
+      result.push(newRecord);
+      addedCount++;
+    }
+  }
+
+  // Step 3: Sort chronologically
+  result.sort((a, b) => {
+    const cmp = (a.date || '').localeCompare(b.date || '');
+    if (cmp !== 0) return cmp;
+    return (a.time || '').localeCompare(b.time || '');
+  });
+
+  return {
+    mergedRecords: result,
+    addedCount,
+    updatedCount,
+    identicalCount,
+  };
+}
+
+/**
+ * Removes any redundant duplicated records already residing in the database/history.
+ * Groups by date & time, keeping only 1 record per unique timestamp.
+ */
+export function deduplicateExistingRecords(records: OperationalRecord[]): {
+  cleanedRecords: OperationalRecord[];
+  removedCount: number;
+} {
+  const seen = new Map<string, OperationalRecord>();
+  let removedCount = 0;
+
+  for (const r of records) {
+    const key = `${standardizeDate(r.date)}__${normalizeTimeString(r.time)}`;
+    if (seen.has(key)) {
+      removedCount++;
+      // If the duplicate has WW marked, prioritize keeping the WW marked one
+      const existing = seen.get(key)!;
+      if (!existing.isWaterWashEvent && r.isWaterWashEvent) {
+        seen.set(key, r);
+      }
+    } else {
+      seen.set(key, r);
+    }
+  }
+
+  const cleanedRecords = Array.from(seen.values()).sort((a, b) => {
+    const cmp = (a.date || '').localeCompare(b.date || '');
+    if (cmp !== 0) return cmp;
+    return (a.time || '').localeCompare(b.time || '');
+  });
+
+  return {
+    cleanedRecords,
+    removedCount,
+  };
 }

@@ -11,13 +11,24 @@ import {
   CheckCheck,
   FileSpreadsheet,
   Copy,
+  PlusCircle,
+  RefreshCw,
+  Sparkles,
+  Loader2,
 } from 'lucide-react';
 import { OperationalInput, OperationalRecord } from '../types';
 import { scanRecordsForAnomalies } from '../utils/anomalyValidation';
 import { AnomalyWarningModal } from './AnomalyWarningModal';
-import { findExactDuplicate } from '../utils/duplicateValidation';
+import {
+  findExactDuplicate,
+  classifyImportRows,
+  ImportClassification,
+} from '../utils/duplicateValidation';
 import {
   autoNormalizeDiamondData,
+  cleanNumericValue,
+  standardizeDate,
+  standardizeTime,
 } from '../utils/dataNormalizer';
 import { isTimeInRange19to21 } from '../utils/calculations';
 
@@ -36,6 +47,8 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
 }) => {
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [isLoadingFile, setIsLoadingFile] = useState<boolean>(false);
+  const [isDragOver, setIsDragOver] = useState<boolean>(false);
   const [previewRows, setPreviewRows] = useState<OperationalInput[]>([]);
   const [filter19to21Only, setFilter19to21Only] = useState(false);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
@@ -53,6 +66,18 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
     return scanRecordsForAnomalies(displayedRows);
   }, [displayedRows]);
 
+  // Classify rows into New, Updated, and Identical relative to existing system records
+  const importClassification = useMemo<ImportClassification>(() => {
+    if (!existingRecords || existingRecords.length === 0 || displayedRows.length === 0) {
+      return {
+        newRows: displayedRows.map((row, index) => ({ row, index })),
+        updatedRows: [],
+        identicalRows: [],
+      };
+    }
+    return classifyImportRows(displayedRows, existingRecords);
+  }, [displayedRows, existingRecords]);
+
   // Summary counts of parameters detected in rows
   const parameterPresence = useMemo(() => {
     if (previewRows.length === 0) return { hasT17: false, hasNHSpeed: false };
@@ -61,32 +86,10 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
     return { hasT17, hasNHSpeed };
   }, [previewRows]);
 
-  // Detect exact duplicate rows against existing records in system
+  // Detect exact duplicate rows against existing records in system (kept for backward compatibility & indicators)
   const duplicateIndices = useMemo(() => {
-    if (!existingRecords || existingRecords.length === 0 || displayedRows.length === 0) {
-      return new Set<number>();
-    }
-    const dupes = new Set<number>();
-    displayedRows.forEach((row, idx) => {
-      const match = findExactDuplicate(
-        {
-          date: row.date,
-          time: row.time,
-          realPower: row.realPower,
-          P1_7: row.P1_7,
-          P3_0: row.P3_0,
-          nphr: row.nphr,
-          T1_7: row.T1_7,
-          nhSpeed: row.nhSpeed,
-        },
-        existingRecords
-      );
-      if (match) {
-        dupes.add(idx);
-      }
-    });
-    return dupes;
-  }, [displayedRows, existingRecords]);
+    return new Set<number>(importClassification.identicalRows.map((item) => item.index));
+  }, [importClassification]);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -95,6 +98,8 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
     if (isOpen) {
       setUploadedFileName(null);
       setParseError(null);
+      setIsLoadingFile(false);
+      setIsDragOver(false);
       setPreviewRows([]);
       setFilter19to21Only(false);
       setSkipDuplicates(true);
@@ -109,6 +114,7 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
 
   const parseCsvContent = (text: string, fileName?: string | null) => {
     setParseError(null);
+    setIsLoadingFile(false);
     if (!text.trim()) {
       setParseError('Silakan pilih file Excel (.xlsx) atau CSV terlebih dahulu.');
       return;
@@ -133,78 +139,229 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  // Direct worksheet parser as fallback if CSV string conversion loses cell formats
+  const parseWorksheetDirectly = (worksheet: XLSX.WorkSheet): OperationalInput[] => {
+    if (!worksheet || !worksheet['!ref']) return [];
+    try {
+      const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
+      if (rows.length < 2) return [];
+
+      let headerRowIdx = -1;
+      let maxScore = -1;
+
+      // Scan first 25 rows to identify the true header row
+      for (let r = 0; r < Math.min(25, rows.length); r++) {
+        const row = rows[r];
+        if (!Array.isArray(row)) continue;
+        let score = 0;
+        for (const cell of row) {
+          const s = String(cell || '').toLowerCase().trim();
+          if (s.includes('pt007') || s.includes('p3.0') || s.includes('discharge') || s.includes('pt-007') || s.includes('pb aktual')) score += 5;
+          if (s.includes('pt006') || s.includes('p1.7') || s.includes('inlet') || s.includes('pt-006')) score += 5;
+          if (s.includes('tanggal') || s.includes('date') || s.includes('tgl') || s.includes('waktu')) score += 3;
+          if (s.includes('beban') || s.includes('power') || s.includes('mw') || s.includes('load')) score += 3;
+          if (s.includes('nh') || s.includes('speed') || s.includes('rpm')) score += 2;
+          if (s.includes('t1.7') || s.includes('t17') || s.includes('temp') || s.includes('suhu')) score += 2;
+        }
+        if (score > maxScore) {
+          maxScore = score;
+          headerRowIdx = r;
+        }
+      }
+
+      if (headerRowIdx === -1 || maxScore < 3) headerRowIdx = 0;
+      const headers = (rows[headerRowIdx] || []).map((h: any) => String(h || '').toLowerCase().trim());
+
+      const findIdx = (patterns: string[]) => {
+        return headers.findIndex((h) => patterns.some((p) => h.includes(p)));
+      };
+
+      const dateIdx = findIdx(['tanggal', 'date', 'tgl', 'waktu & tanggal', 'tanggal & waktu']);
+      const timeIdx = findIdx(['waktu', 'time', 'jam', 'pukul']);
+      const p3Idx = findIdx(['pt007', 'p3.0', 'p30', 'discharge', 'pt-007', 'pb aktual', 'pb testing', '★ pt007']);
+      const p1Idx = findIdx(['pt006', 'p1.7', 'p17', 'inlet', 'pt-006']);
+      const powerIdx = findIdx(['beban', 'power', 'mw', 'load', 'turbin']);
+      const nhIdx = findIdx(['nh speed', 'nh', 'speed', 'rpm']);
+      const t17Idx = findIdx(['t1.7', 't17', 'temp', 'suhu']);
+      const nphrIdx = findIdx(['nphr', 'heat rate', 'hr']);
+
+      const records: OperationalInput[] = [];
+      for (let r = headerRowIdx + 1; r < rows.length; r++) {
+        const row = rows[r];
+        if (!Array.isArray(row) || row.length === 0) continue;
+
+        const p3Raw = p3Idx >= 0 ? cleanNumericValue(String(row[p3Idx] ?? '')) : null;
+        if (p3Raw === null) continue; // Row must contain discharge pressure
+
+        const p1Raw = p1Idx >= 0 ? cleanNumericValue(String(row[p1Idx] ?? '')) : null;
+        const powerRaw = powerIdx >= 0 ? cleanNumericValue(String(row[powerIdx] ?? '')) : null;
+        const nhRaw = nhIdx >= 0 ? cleanNumericValue(String(row[nhIdx] ?? '')) : undefined;
+        const t17Raw = t17Idx >= 0 ? cleanNumericValue(String(row[t17Idx] ?? '')) : undefined;
+        const nphrRaw = nphrIdx >= 0 ? cleanNumericValue(String(row[nphrIdx] ?? '')) : null;
+
+        let dateStr = dateIdx >= 0 && row[dateIdx] !== undefined ? standardizeDate(String(row[dateIdx])) : new Date().toISOString().slice(0, 10);
+        let timeStr = timeIdx >= 0 && row[timeIdx] !== undefined ? standardizeTime(String(row[timeIdx])) : '20:00';
+
+        if (dateIdx >= 0 && (timeIdx === -1 || !row[timeIdx])) {
+          const dtStr = String(row[dateIdx] || '');
+          if (dtStr.includes(' ') || dtStr.includes('T')) {
+            const parts = dtStr.replace('T', ' ').trim().split(/\s+/);
+            dateStr = standardizeDate(parts[0]);
+            if (parts[1]) timeStr = standardizeTime(parts[1]);
+          }
+        }
+
+        records.push({
+          date: dateStr,
+          time: timeStr,
+          P1_7: p1Raw !== null ? p1Raw : 14.65,
+          P3_0: p3Raw,
+          realPower: powerRaw !== null ? powerRaw : 20.0,
+          nphr: nphrRaw !== null ? nphrRaw : 2450,
+          nhSpeed: nhRaw ?? undefined,
+          T1_7: t17Raw ?? undefined,
+          isWaterWashEvent: false,
+        });
+      }
+
+      return records;
+    } catch {
+      return [];
+    }
+  };
+
+  const processSelectedFile = async (file: File) => {
     if (!file) return;
     setUploadedFileName(file.name);
     setParseError(null);
-
-    // Reset input value so operator can re-select the same file or choose another file anytime
-    e.target.value = '';
+    setIsLoadingFile(true);
 
     const isExcel = /\.(xlsx|xls|xlsm|xlsb)$/i.test(file.name);
 
-    if (isExcel) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        try {
-          const buffer = event.target?.result as ArrayBuffer;
-          const workbook = XLSX.read(new Uint8Array(buffer), {
-            type: 'array',
+    try {
+      if (isExcel) {
+        let buffer: ArrayBuffer;
+        if (typeof file.arrayBuffer === 'function') {
+          buffer = await file.arrayBuffer();
+        } else {
+          buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as ArrayBuffer);
+            reader.onerror = () => reject(new Error('Gagal membaca berkas Excel.'));
+            reader.readAsArrayBuffer(file);
           });
+        }
 
-          if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
-            setParseError('Berkas Excel tidak memiliki sheet yang valid.');
-            return;
+        if (!buffer || buffer.byteLength === 0) {
+          setIsLoadingFile(false);
+          setParseError('Berkas Excel kosong atau tidak dapat diakses.');
+          return;
+        }
+
+        const workbook = XLSX.read(new Uint8Array(buffer), {
+          type: 'array',
+          cellDates: true,
+        });
+
+        if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+          setIsLoadingFile(false);
+          setParseError('Berkas Excel tidak memiliki sheet yang valid.');
+          return;
+        }
+
+        // Try extracting records across sheets
+        let bestRecords: OperationalInput[] = [];
+
+        for (const sName of workbook.SheetNames) {
+          const ws = workbook.Sheets[sName];
+          if (!ws || !ws['!ref']) continue;
+
+          // Attempt 1: via sheet_to_csv and autoNormalizeDiamondData
+          try {
+            const csv = XLSX.utils.sheet_to_csv(ws);
+            const res = autoNormalizeDiamondData(csv, file.name);
+            if (res.extractedRecords.length > bestRecords.length) {
+              bestRecords = res.extractedRecords;
+            }
+          } catch {
+            // fallback to direct parsing
           }
 
-          // Smart Sheet Selection: Find the sheet that contains turbine operational data
-          let chosenSheetName = workbook.SheetNames[0];
-          let bestScore = -1;
-
-          for (const sName of workbook.SheetNames) {
-            const ws = workbook.Sheets[sName];
-            if (!ws || !ws['!ref']) continue;
-            try {
-              const sampleCsv = XLSX.utils.sheet_to_csv(ws).slice(0, 4000).toLowerCase();
-              let score = 0;
-              if (sampleCsv.includes('p1.7') || sampleCsv.includes('p17') || sampleCsv.includes('pt006') || sampleCsv.includes('pt-006') || sampleCsv.includes('inlet')) score += 500;
-              if (sampleCsv.includes('p3.0') || sampleCsv.includes('p30') || sampleCsv.includes('pt007') || sampleCsv.includes('pt-007') || sampleCsv.includes('discharge')) score += 500;
-              if (sampleCsv.includes('date') || sampleCsv.includes('tanggal') || sampleCsv.includes('tgl')) score += 300;
-              if (sampleCsv.includes('beban') || sampleCsv.includes('power') || sampleCsv.includes('mw') || sampleCsv.includes('realpower')) score += 300;
-              if (sampleCsv.includes('nh') || sampleCsv.includes('speed') || sampleCsv.includes('rpm')) score += 200;
-
-              if (score > bestScore) {
-                bestScore = score;
-                chosenSheetName = sName;
-              }
-            } catch {
-              // skip unreadable sheet
+          // Attempt 2: direct worksheet extraction
+          if (bestRecords.length === 0) {
+            const direct = parseWorksheetDirectly(ws);
+            if (direct.length > bestRecords.length) {
+              bestRecords = direct;
             }
           }
 
-          const worksheet = workbook.Sheets[chosenSheetName];
-          if (!worksheet) {
-            setParseError('Sheet data tidak ditemukan pada berkas Excel.');
-            return;
-          }
-
-          // Convert sheet into CSV text for uniform parsing
-          const csv = XLSX.utils.sheet_to_csv(worksheet);
-          parseCsvContent(csv, file.name);
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : 'Error reading Excel file';
-          setParseError(`Gagal membaca berkas Excel: ${msg}`);
+          if (bestRecords.length > 0) break;
         }
-      };
-      reader.readAsArrayBuffer(file);
-    } else {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const text = event.target?.result as string;
+
+        setIsLoadingFile(false);
+
+        if (bestRecords.length === 0) {
+          setParseError(
+            'Tidak ada baris data valid yang dapat diekstrak dari berkas Excel. Pastikan terdapat kolom PT007/P3.0, Beban, Tanggal, dan Waktu.'
+          );
+          return;
+        }
+
+        setPreviewRows(bestRecords);
+      } else {
+        // Plain CSV / Text file
+        let text: string;
+        if (typeof file.text === 'function') {
+          text = await file.text();
+        } else {
+          text = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => reject(new Error('Gagal membaca berkas CSV.'));
+            reader.readAsText(file);
+          });
+        }
         parseCsvContent(text, file.name);
-      };
-      reader.readAsText(file);
+      }
+    } catch (err: unknown) {
+      setIsLoadingFile(false);
+      const msg = err instanceof Error ? err.message : 'Kesalahan saat memproses berkas.';
+      setParseError(`Gagal membaca berkas: ${msg}`);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processSelectedFile(file);
+      // Safely reset input value in a timeout so subsequent uploads of the same file still trigger onChange
+      setTimeout(() => {
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }, 800);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processSelectedFile(file);
     }
   };
 
@@ -320,33 +477,81 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
 
         {/* Input Area */}
         <div className="space-y-3 flex-1 overflow-y-auto pr-1">
-          {/* File Selector & Template Link */}
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-md">
-            <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                <span>Pilih File Excel (.xlsx) / CSV</span>
+          {/* File Selector & Drag/Drop Zone */}
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`p-5 rounded-lg transition-all duration-150 border-2 ${
+              isDragOver
+                ? 'border-dashed border-sky-500 bg-sky-50/90 shadow-md ring-2 ring-sky-300'
+                : 'border-dashed border-slate-300 bg-slate-50/70 hover:bg-slate-100/80 hover:border-sky-400'
+            }`}
+          >
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                <span className="text-xs font-bold text-slate-800">
+                  Unggah Berkas Operasional (.xlsx / .csv)
+                </span>
                 {uploadedFileName && (
-                  <span className="text-sky-700 font-bold">({uploadedFileName})</span>
+                  <span className="text-xs font-semibold text-sky-800 bg-sky-100 px-2.5 py-0.5 rounded-full border border-sky-200">
+                    {uploadedFileName}
+                  </span>
                 )}
-              </label>
+              </div>
               <button
                 type="button"
-                onClick={handleDownloadExcelTemplate}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 underline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDownloadExcelTemplate();
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded border border-emerald-300 transition-colors"
                 title="Download template Excel dengan format kolom standar"
               >
-                <Download className="w-3 h-3" />
+                <Download className="w-3.5 h-3.5" />
                 <span>Download Template Excel</span>
               </button>
             </div>
+
+            {/* Clickable Area with Big Button */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-md border border-slate-200">
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <button
+                  type="button"
+                  disabled={isLoadingFile}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white text-xs font-bold rounded shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>{uploadedFileName ? 'Ganti File Excel / CSV' : 'Pilih File dari Komputer'}</span>
+                </button>
+                <span className="text-xs text-slate-500 hidden sm:inline">
+                  atau tarik &amp; lepas file ke kotak ini
+                </span>
+              </div>
+
+              <span className="text-[11px] text-slate-400 font-mono">
+                Format didukung: .xlsx, .xls, .csv
+              </span>
+            </div>
+
+            {/* Hidden native input for clean, standard file selection without browser interference */}
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv,.xlsx,.xls,.xlsm,.xlsb,.txt,.tsv"
+              accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.txt,.tsv"
               onChange={handleFileUpload}
-              className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100 cursor-pointer"
+              disabled={isLoadingFile}
+              className="hidden"
             />
+
+            {isLoadingFile && (
+              <div className="mt-3 flex items-center gap-2.5 text-xs font-medium text-sky-800 bg-sky-50 py-2.5 px-3 rounded-md border border-sky-200 animate-pulse">
+                <Loader2 className="w-4 h-4 text-sky-600 animate-spin shrink-0" />
+                <span>Sedang membaca dan memetakan data Excel... Mohon tunggu sebentar.</span>
+              </div>
+            )}
           </div>
 
 
@@ -398,26 +603,74 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
                 </div>
               </div>
 
-              {/* Duplicate Notification Banner */}
-              {duplicateIndices.size > 0 && (
-                <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-                  <div className="flex items-center gap-2">
-                    <Copy className="w-4 h-4 text-amber-600 shrink-0" />
-                    <div>
-                      <span>
-                        Terdeteksi <strong>{duplicateIndices.size}</strong> data yang <strong>sudah ada di riwayat sistem</strong> (tanggal, jam, dan nilai parameter persis sama).
-                      </span>
+              {/* Smart Sync & Deduplication Breakdown Cards */}
+              {existingRecords && existingRecords.length > 0 && (
+                <div className="p-3.5 bg-gradient-to-r from-sky-50/60 via-slate-50 to-emerald-50/60 border border-slate-200 rounded-lg space-y-2.5">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                      <span>Analisis Sinkronisasi Excel Otomatis (Anti-Duplikasi &amp; Update)</span>
+                    </span>
+                    <label className="flex items-center gap-1.5 font-semibold text-slate-700 cursor-pointer select-none text-[11px] bg-white px-2 py-0.5 rounded border border-slate-300 shadow-2xs">
+                      <input
+                        type="checkbox"
+                        checked={skipDuplicates}
+                        onChange={(e) => setSkipDuplicates(e.target.checked)}
+                        className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
+                      />
+                      <span>Cegah Data Ganda (Lewati Data Identik)</span>
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                    {/* New Data */}
+                    <div className="p-2.5 bg-white rounded-md border border-emerald-300 flex items-center gap-2.5 shadow-2xs">
+                      <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-md shrink-0">
+                        <PlusCircle className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider block">
+                          Data Baru
+                        </span>
+                        <strong className="text-xs sm:text-sm text-emerald-950 font-black">
+                          {importClassification.newRows.length} Baris
+                        </strong>
+                        <span className="text-[10px] text-slate-500 block">Akan ditambahkan ke sistem</span>
+                      </div>
+                    </div>
+
+                    {/* Updated Data */}
+                    <div className="p-2.5 bg-white rounded-md border border-sky-300 flex items-center gap-2.5 shadow-2xs">
+                      <div className="p-1.5 bg-sky-100 text-sky-700 rounded-md shrink-0">
+                        <RefreshCw className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-sky-800 font-bold uppercase tracking-wider block">
+                          Data Diperbarui (Revisi)
+                        </span>
+                        <strong className="text-xs sm:text-sm text-sky-950 font-black">
+                          {importClassification.updatedRows.length} Baris
+                        </strong>
+                        <span className="text-[10px] text-slate-500 block">Nilai diedit, akan diperbarui</span>
+                      </div>
+                    </div>
+
+                    {/* Identical Data */}
+                    <div className="p-2.5 bg-white rounded-md border border-slate-200 flex items-center gap-2.5 shadow-2xs">
+                      <div className="p-1.5 bg-slate-100 text-slate-600 rounded-md shrink-0">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider block">
+                          Data Identik (Anti-Ganda)
+                        </span>
+                        <strong className="text-xs sm:text-sm text-slate-800 font-black">
+                          {importClassification.identicalRows.length} Baris
+                        </strong>
+                        <span className="text-[10px] text-slate-500 block">Dilewati tanpa membuat ganda</span>
+                      </div>
                     </div>
                   </div>
-                  <label className="flex items-center gap-2 font-semibold text-amber-900 cursor-pointer select-none text-[11px] shrink-0 bg-amber-100/80 hover:bg-amber-100 px-2.5 py-1 rounded border border-amber-300">
-                    <input
-                      type="checkbox"
-                      checked={skipDuplicates}
-                      onChange={(e) => setSkipDuplicates(e.target.checked)}
-                      className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 h-3.5 w-3.5"
-                    />
-                    <span>Lewati Duplikat (Cegah Data Ganda)</span>
-                  </label>
                 </div>
               )}
 
@@ -478,25 +731,46 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
                       const pr = r.P1_7 > 0 ? (r.P3_0 / r.P1_7).toFixed(4) : '—';
                       const hasT = r.T1_7 !== undefined && r.T1_7 !== null && !isNaN(r.T1_7);
                       const hasNH = r.nhSpeed !== undefined && r.nhSpeed !== null && !isNaN(r.nhSpeed);
-                      const isDupe = duplicateIndices.has(idx);
+                      const isIdentical = duplicateIndices.has(idx);
+                      const isUpdate = importClassification.updatedRows.some((u) => u.index === idx);
 
                       return (
                         <tr
                           key={idx}
                           className={`hover:bg-slate-50 transition-colors ${
-                            isDupe ? (skipDuplicates ? 'bg-amber-50/40 text-slate-500' : 'bg-amber-50/70') : ''
+                            isIdentical
+                              ? (skipDuplicates ? 'bg-slate-50/80 text-slate-400' : 'bg-slate-100/50')
+                              : isUpdate
+                              ? 'bg-sky-50/50'
+                              : 'bg-emerald-50/20'
                           }`}
                         >
                           <td className="py-1.5 px-3 font-medium text-slate-900 whitespace-nowrap">
                             <div className="flex items-center gap-1.5">
                               <span>{r.date}</span>
-                              {isDupe && (
+                              {isIdentical ? (
                                 <span
-                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shrink-0"
-                                  title="Data ini sudah tersimpan persis sama di sistem (tanggal, jam, dan seluruh parameter)"
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold bg-slate-200 text-slate-700 border border-slate-300 shrink-0"
+                                  title="Data sudah ada persis di sistem (tidak akan digandakan)"
                                 >
-                                  <Copy className="w-2.5 h-2.5" />
+                                  <CheckCircle2 className="w-2.5 h-2.5 text-slate-600" />
                                   Sudah Ada
+                                </span>
+                              ) : isUpdate ? (
+                                <span
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-300 shrink-0"
+                                  title="Data memiliki nilai baru/revisi di Excel (akan diperbarui)"
+                                >
+                                  <RefreshCw className="w-2.5 h-2.5 text-sky-700" />
+                                  Update
+                                </span>
+                              ) : (
+                                <span
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0"
+                                  title="Data baru yang belum ada di sistem (akan ditambahkan)"
+                                >
+                                  <PlusCircle className="w-2.5 h-2.5 text-emerald-600" />
+                                  Baru
                                 </span>
                               )}
                             </div>
@@ -537,21 +811,19 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
 
         {/* Modal Actions */}
         {(() => {
-          const effectiveCount = skipDuplicates
-            ? displayedRows.length - duplicateIndices.size
-            : displayedRows.length;
+          const newCount = importClassification.newRows.length;
+          const updateCount = importClassification.updatedRows.length;
+          const actionableCount = newCount + updateCount;
 
           return (
             <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <span className="text-xs text-slate-500">
                 {displayedRows.length > 0 ? (
                   <>
-                    <span><strong>{displayedRows.length}</strong> baris data dibaca</span>
-                    {duplicateIndices.size > 0 && (
-                      <span className="ml-1.5 text-amber-700 font-medium">
-                        ({skipDuplicates ? `${duplicateIndices.size} duplikat dilewati` : `${duplicateIndices.size} duplikat diikutsertakan`})
-                      </span>
-                    )}
+                    <span><strong>{displayedRows.length}</strong> baris dibaca dari file</span>
+                    <span className="ml-1.5 text-slate-700 font-medium">
+                      (<strong>{newCount}</strong> baru, <strong>{updateCount}</strong> update, <strong>{importClassification.identicalRows.length}</strong> identik)
+                    </span>
                   </>
                 ) : (
                   'Pilih file Excel atau CSV untuk memulai'
@@ -561,17 +833,22 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors"
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="button"
-                  disabled={effectiveCount === 0}
+                  disabled={displayedRows.length === 0}
                   onClick={handleConfirmImport}
-                  className="px-4 py-2 text-xs font-bold text-white bg-sky-700 rounded hover:bg-sky-800 disabled:opacity-50 shadow-xs transition-colors cursor-pointer"
+                  className="px-4 py-2 text-xs font-bold text-white bg-sky-700 rounded hover:bg-sky-800 disabled:opacity-50 shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
                 >
-                  Impor {effectiveCount} Data Operasional
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>
+                    {actionableCount === 0 && importClassification.identicalRows.length > 0
+                      ? 'Sinkronkan Data (Semua Sudah Ada)'
+                      : `Sinkronkan & Impor Data (${actionableCount} Data Aktif)`}
+                  </span>
                 </button>
               </div>
             </div>

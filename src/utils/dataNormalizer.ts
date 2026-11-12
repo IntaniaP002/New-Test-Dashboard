@@ -23,11 +23,12 @@ export interface ColumnMappingResult {
 export const FIELD_PATTERNS: Record<string, string[]> = {
   date: [
     'date', 'tanggal', 'tgl', 'timestamp', 'time_stamp', 'reading_date', 'datetime', 'tgl_log',
-    'log_date', 'entry_date', 'waktu_catat', 'created_at', 'tanggal (yyyy-mm-dd)', 'tgl/date', 'day'
+    'log_date', 'entry_date', 'waktu_catat', 'created_at', 'tanggal (yyyy-mm-dd)', 'tgl/date', 'day',
+    'waktu & tanggal', 'tanggal & waktu', 'waktu dan tanggal', 'tgl & jam', 'datetime (utc)', 'record date', 'date/time'
   ],
   time: [
     'time', 'jam', 'waktu', 'hour', 'pukul', 'log_time', 'time_log', 'hh:mm', 'hh:mm:ss', 'waktu (hh:mm)',
-    'jam log', 'waktu pengambilan'
+    'jam log', 'waktu pengambilan', 'time (hh:mm)'
   ],
   T1_7: [
     't1.7', 't17', 't1_7', 'tinlet', 't_inlet', 'inlet_temp', 'inlet temp', 'compressor inlet temp',
@@ -37,13 +38,15 @@ export const FIELD_PATTERNS: Record<string, string[]> = {
   P1_7: [
     'p1.7', 'p17', 'p1_7', 'pinlet', 'p_inlet', 'inlet_press', 'inlet press', 'inlet pressure',
     'cip', 'tekanan_inlet', 'tekanan inlet', 'tekanan masuk', 'p_in', 'press_inlet', 'p1',
-    'pt006', 'pt 006', 'p1.7 / pt006', 'p1.7 (psia)', 'p1.7 / pt006 (psia)', 'pt-006', 'pt_006', 'p 1.7', 'pt6'
+    'pt006', 'pt 006', 'p1.7 / pt006', 'p1.7 (psia)', 'p1.7 / pt006 (psia)', 'pt-006', 'pt_006', 'p 1.7', 'pt6',
+    'pt006 (psia)', 'pt006(psia)', 'pt006 psia', 'tekanan pt006', 'tekanan pt-006', 'inlet pt006', 'pt 006 (psia)'
   ],
   P3_0: [
     'p3.0', 'p30', 'p3_0', 'pdisch', 'p_disch', 'discharge_press', 'discharge pressure', 'cdp',
     'compressor discharge pressure', 'p3', 'tekanan_discharge', 'tekanan buang', 'p_out', 'tekanan_kompresor',
     'pt007', 'pt 007', 'p3.0 / pt007', 'p3.0 (psia)', 'p3.0 / pt007 (psia)', 'pt-007', 'pt_007', 'p 3.0', 'pt7',
-    'pb aktual', 'pb testing', 'pb target', 'testing pt007'
+    'pb aktual', 'pb testing', 'pb target', 'testing pt007', 'pt007 (psia)', 'pt007(psia)', 'pt007 psia',
+    '★ pt007', 'pt007 testing', 'tekanan pt007', 'tekanan pt-007', 'discharge pt007', 'pt 007 (psia)', 'pb testing (pt007)'
   ],
   PR: [
     'pr', 'pressure ratio', 'pressure_ratio', 'rasio tekanan', 'rasio_tekanan', 'rc', 'pr (calc)'
@@ -52,7 +55,7 @@ export const FIELD_PATTERNS: Record<string, string[]> = {
     'realpower', 'real_power', 'real power', 'power', 'mw', 'megawatt', 'generator output',
     'gross mw', 'gross_mw', 'net mw', 'load', 'beban', 'beban (mw)', 'beban(mw)', 'daya', 'daya aktif',
     'active power', 'gen_mw', 'power_output', 'gross_power', 'real power (mw)', 'beban turbin', 'beban turbin (mw)',
-    'turbin mw', 'load (mw)'
+    'turbin mw', 'load (mw)', 'beban mw', 'mw turbin', 'turbin (mw)', 'generator (mw)'
   ],
   nphr: [
     'nphr', 'heat_rate', 'heat rate', 'heatrate', 'hr', 'spesific fuel consumption',
@@ -60,11 +63,11 @@ export const FIELD_PATTERNS: Record<string, string[]> = {
   ],
   nhSpeed: [
     'nhspeed', 'nh_speed', 'nh speed', 'nh', 'speed', 'rpm', 'kecepatan_nh', 'kecepatan nh', 'speedronic',
-    'nh speed (rpm)', 'nh speed(rpm)', 'nh (rpm)', 'n-high', 'nh raw'
+    'nh speed (rpm)', 'nh speed(rpm)', 'nh (rpm)', 'n-high', 'nh raw', 'speed (rpm)'
   ],
   pbSynthesis: [
     'pbsynthesis', 'pb_synthesis', 'pbsyn', 'pb_syn', 'pb synthesis', 'pb syn',
-    'pb synthesis (nh)', 'pb_syn_nh', 'synthesis pb', 'tekanan pb synthesis'
+    'pb synthesis (nh)', 'pb_syn_nh', 'synthesis pb', 'tekanan pb synthesis', 'pb synthesis (psia)'
   ],
   isWaterWashEvent: [
     'ww', 'wash', 'water_wash', 'waterwash', 'event', 'is_ww', 'isww', 'cuci', 'washing',
@@ -505,10 +508,14 @@ export function autoNormalizeDiamondData(
     const hrVal = colNphr.index >= 0 ? cleanNumericValue(cells[colNphr.index]) : null;
     const nhVal = colNHSpeed.index >= 0 ? cleanNumericValue(cells[colNHSpeed.index]) : undefined;
 
-    // Check if row has the essential turbine operational readings (T1.7, NH, and NPHR have sensible fallbacks)
-    if (p1Val === null || p3Val === null || pwVal === null) {
+    // Check if row has valid pressure reading (P3.0/PT007 is the core operational indicator)
+    if (p3Val === null) {
       continue;
     }
+
+    // Fallbacks: P1.7 defaults to nominal 14.65 PSIA if omitted; Power defaults to nominal 20.0 MW
+    const finalP1 = p1Val !== null ? p1Val : 14.65;
+    const finalPw = pwVal !== null ? pwVal : (nhVal ? 20.0 : 20.0);
 
     // Default NPHR to nominal 2450 if not present in uploaded dataset
     const finalNphr = hrVal !== null ? hrVal : 2450;
@@ -539,9 +546,9 @@ export function autoNormalizeDiamondData(
       date: dateStr,
       time: timeStr,
       T1_7: tVal,
-      P1_7: p1Val,
+      P1_7: finalP1,
       P3_0: p3Val,
-      realPower: pwVal,
+      realPower: finalPw,
       nphr: finalNphr,
       nhSpeed: nhVal,
       pbSynthesis: pbVal,

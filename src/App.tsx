@@ -5,7 +5,7 @@ import { OperatorInputView } from './components/OperatorInputView';
 import { PBSynthesisView } from './components/PBSynthesisView';
 import { DatasetImportModal } from './components/DatasetImportModal';
 import { BaselineConfigModal } from './components/BaselineConfigModal';
-import { Trash2, AlertTriangle } from 'lucide-react';
+import { Trash2, AlertTriangle, CheckCircle2, Sparkles, RefreshCw, X } from 'lucide-react';
 import {
   ActiveNavTab,
   BaselineConfig,
@@ -29,6 +29,10 @@ import {
   calculateOverallForecast,
 } from './utils/forecastEngine';
 import { standardizeDate } from './utils/dataNormalizer';
+import {
+  smartMergeOperationalRecords,
+  deduplicateExistingRecords,
+} from './utils/duplicateValidation';
 
 const STORAGE_KEYS = {
   RECORDS: 'gt_ww_records_v5',
@@ -136,6 +140,22 @@ export default function App() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isBaselineModalOpen, setIsBaselineModalOpen] = useState(false);
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+
+  // Floating Notification for Smart Import & Deduplication
+  const [importNotification, setImportNotification] = useState<{
+    type: 'success' | 'info';
+    text: string;
+    details?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (importNotification) {
+      const timer = setTimeout(() => {
+        setImportNotification(null);
+      }, 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [importNotification]);
 
   // Selected Historical Record for Dashboard Inspection
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
@@ -520,27 +540,56 @@ export default function App() {
       setBaseline(activeBaseline);
     }
 
-    const timestampNow = Date.now();
-    const evaluated = newInputs.map((input, idx) =>
-      evaluateOperationalRecord(
-        input,
-        `imp-${timestampNow}-${idx}-${Math.random().toString(36).slice(2, 7)}`,
-        activeBaseline,
-        thresholds
-      )
-    );
-
     setSelectedRecordId(null);
 
-    // Append newly imported records to existing records (increasing input history total)
+    // Smart Upsert: Merges new inputs with existing records
+    // - Brand new timestamps are added as new records
+    // - Existing records with updated values are revised in-place (re-evaluated)
+    // - Identical records are preserved without doubling!
+    let importCounts = { added: 0, updated: 0, identical: 0 };
     setRecords((prev) => {
-      const combined = [...prev, ...evaluated];
-      combined.sort((a, b) => {
-        const cmp = a.date.localeCompare(b.date);
-        if (cmp !== 0) return cmp;
-        return (a.time || '').localeCompare(b.time || '');
+      const { mergedRecords, addedCount, updatedCount, identicalCount } = smartMergeOperationalRecords(
+        sanitizedInputs,
+        prev,
+        activeBaseline,
+        thresholds
+      );
+      importCounts = { added: addedCount, updated: updatedCount, identical: identicalCount };
+      return mergedRecords;
+    });
+
+    if (importCounts.added > 0 || importCounts.updated > 0) {
+      setImportNotification({
+        type: 'success',
+        text: `Sinkronisasi Excel Berhasil: ${importCounts.added} data baru ditambahkan, ${importCounts.updated} data diperbarui.`,
+        details: importCounts.identical > 0 ? `${importCounts.identical} data identik dipertahankan tanpa membuat duplikasi ganda.` : undefined,
       });
-      return combined;
+    } else if (importCounts.identical > 0) {
+      setImportNotification({
+        type: 'info',
+        text: `Semua ${importCounts.identical} baris data dari berkas Excel sudah ada di sistem.`,
+        details: 'Tidak ada data ganda yang dibuat.',
+      });
+    }
+  };
+
+  // One-click deduplication of any doubled records in system
+  const handleDeduplicateRecords = () => {
+    setRecords((prev) => {
+      const { cleanedRecords, removedCount } = deduplicateExistingRecords(prev);
+      if (removedCount > 0) {
+        setImportNotification({
+          type: 'success',
+          text: `Berhasil membersihkan ${removedCount} data ganda dari riwayat sistem!`,
+          details: `Sekarang tersisa ${cleanedRecords.length} rekaman operasional unik.`,
+        });
+      } else {
+        setImportNotification({
+          type: 'info',
+          text: 'Riwayat data sudah bersih dan tidak memiliki rekaman ganda.',
+        });
+      }
+      return cleanedRecords;
     });
   };
 
@@ -648,6 +697,49 @@ export default function App() {
         onOpenBaselineConfig={() => setIsBaselineModalOpen(true)}
       />
 
+      {/* Notification Toast for Smart Import & Deduplication */}
+      {importNotification && (
+        <aside
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-5 right-5 z-50 max-w-md w-full p-4 bg-white rounded-xl shadow-2xl border border-slate-200 animate-in slide-in-from-bottom-3 duration-200"
+        >
+          <div className="flex items-start gap-3">
+            <div
+              className={`p-2 rounded-lg shrink-0 ${
+                importNotification.type === 'success'
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : 'bg-sky-100 text-sky-700'
+              }`}
+            >
+              {importNotification.type === 'success' ? (
+                <Sparkles className="w-5 h-5" />
+              ) : (
+                <CheckCircle2 className="w-5 h-5" />
+              )}
+            </div>
+            <div className="flex-1 text-xs">
+              <strong className="font-bold text-slate-900 block text-xs sm:text-sm">
+                {importNotification.text}
+              </strong>
+              {importNotification.details && (
+                <p className="text-slate-600 mt-1 leading-relaxed">
+                  {importNotification.details}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setImportNotification(null)}
+              className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              title="Tutup pemberitahuan"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </aside>
+      )}
+
       {/* Main Content Workspace */}
       <main className="flex-1 max-w-[1800px] w-full mx-auto p-3 sm:p-5 lg:p-6">
         {activeTab === 'dashboard' && (
@@ -683,6 +775,7 @@ export default function App() {
             onClearAllWaterWash={handleClearAllWaterWash}
             onDeleteRecord={handleDeleteRecord}
             onClearAllData={handleClearData}
+            onDeduplicateRecords={handleDeduplicateRecords}
             onSetBaselineRecord={handleSetBaselineRecord}
             onOpenBaselineConfig={() => setIsBaselineModalOpen(true)}
             onOpenImport={() => setIsImportModalOpen(true)}
