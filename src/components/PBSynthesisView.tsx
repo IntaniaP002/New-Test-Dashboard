@@ -105,6 +105,9 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
 
   // Table filters & UI toggles
   const [filterZone, setFilterZone] = useState<string>('ALL');
+  const [tableDateFilter, setTableDateFilter] = useState<string>('ALL');
+  const [tableStartDateFilter, setTableStartDateFilter] = useState<string>('');
+  const [tableEndDateFilter, setTableEndDateFilter] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc');
   const [zoomMode, setZoomMode] = useState<'AUTO_DATA' | 'FOCUS_PT007' | 'FULL'>('AUTO_DATA');
   const [zoomLevel, setZoomLevel] = useState<number>(1.0);
@@ -459,20 +462,37 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
   // Filtered & sorted records for table
   const filteredRecords = useMemo(() => {
     let list = [...allMonitoredRecords];
+
+    // Filter by specific single date
+    if (tableDateFilter !== 'ALL') {
+      list = list.filter((r) => r.date === tableDateFilter);
+    }
+
+    // Filter by date range
+    if (tableStartDateFilter) {
+      list = list.filter((r) => r.date >= tableStartDateFilter);
+    }
+    if (tableEndDateFilter) {
+      list = list.filter((r) => r.date <= tableEndDateFilter);
+    }
+
+    // Filter by zone
     if (filterZone !== 'ALL') {
       list = list.filter((r) => r.zone === filterZone);
     }
+
     list.sort((a, b) => {
       const cmp = a.date.localeCompare(b.date) || a.time.localeCompare(b.time);
       return sortDirection === 'desc' ? -cmp : cmp;
     });
     return list;
-  }, [allMonitoredRecords, filterZone, sortDirection]);
+  }, [allMonitoredRecords, tableDateFilter, tableStartDateFilter, tableEndDateFilter, filterZone, sortDirection]);
 
-  // Export to Excel
+  // Export to Excel (exports currently filtered dataset, or all if none filtered)
   const handleExportExcel = () => {
-    if (allMonitoredRecords.length === 0) return;
-    const rows = allMonitoredRecords.map((r) => ({
+    const dataToExport = filteredRecords.length > 0 ? filteredRecords : allMonitoredRecords;
+    if (dataToExport.length === 0) return;
+    const rows = dataToExport.map((r) => ({
       Tanggal: r.date,
       Waktu: r.time,
       'Beban (MW)': r.beban,
@@ -1640,7 +1660,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
 
       {/* 4. HISTORICAL MONITORING TABLE */}
       <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
+        <div className="p-4 sm:p-5 border-b border-slate-200 flex flex-col xl:flex-row xl:items-center justify-between gap-3 bg-slate-50/50">
           <div>
             <h3 className="text-sm font-bold text-slate-900">
               Riwayat Titik Input &amp; Evaluasi PT007 ({filteredRecords.length} Data)
@@ -1651,13 +1671,64 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Date Filter Dropdown */}
+            <div className="flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <select
+                value={tableDateFilter}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setTableDateFilter(val);
+                  if (val !== 'ALL') {
+                    setTableStartDateFilter('');
+                    setTableEndDateFilter('');
+                  }
+                }}
+                className="px-2 py-1 text-xs border border-slate-300 rounded bg-white font-medium max-w-[170px] shadow-2xs focus:outline-none cursor-pointer"
+                title="Pilih tanggal spesifik dari data operasi"
+              >
+                <option value="ALL">Semua Tanggal</option>
+                {uniqueDates.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Date Range Inputs */}
+            <div className="flex items-center gap-1 text-xs text-slate-600 bg-white border border-slate-300 rounded px-2 py-0.5 shadow-2xs">
+              <span className="text-[11px] font-semibold text-slate-500">Rentang:</span>
+              <input
+                type="date"
+                value={tableStartDateFilter}
+                onChange={(e) => {
+                  setTableStartDateFilter(e.target.value);
+                  if (e.target.value) setTableDateFilter('ALL');
+                }}
+                className="px-1 py-0.5 text-xs border border-slate-200 rounded bg-slate-50 font-mono focus:bg-white focus:outline-none cursor-pointer"
+                title="Tanggal Mulai"
+              />
+              <span className="text-[11px] text-slate-400">s/d</span>
+              <input
+                type="date"
+                value={tableEndDateFilter}
+                onChange={(e) => {
+                  setTableEndDateFilter(e.target.value);
+                  if (e.target.value) setTableDateFilter('ALL');
+                }}
+                className="px-1 py-0.5 text-xs border border-slate-200 rounded bg-slate-50 font-mono focus:bg-white focus:outline-none cursor-pointer"
+                title="Tanggal Akhir"
+              />
+            </div>
+
             {/* Zone Filter */}
             <div className="flex items-center gap-1.5">
-              <Filter className="w-3.5 h-3.5 text-slate-400" />
+              <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <select
                 value={filterZone}
                 onChange={(e) => setFilterZone(e.target.value)}
-                className="px-2 py-1 text-xs border border-slate-300 rounded bg-white font-medium"
+                className="px-2 py-1 text-xs border border-slate-300 rounded bg-white font-medium shadow-2xs focus:outline-none cursor-pointer"
               >
                 <option value="ALL">Semua Zona</option>
                 <option value="NORMAL">Normal</option>
@@ -1667,6 +1738,24 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                 <option value="MELEWATI_BATAS_BAWAH">Warning (Melewati Batas Bawah)</option>
               </select>
             </div>
+
+            {/* Reset Filters Button */}
+            {(tableDateFilter !== 'ALL' || tableStartDateFilter || tableEndDateFilter || filterZone !== 'ALL') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTableDateFilter('ALL');
+                  setTableStartDateFilter('');
+                  setTableEndDateFilter('');
+                  setFilterZone('ALL');
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded cursor-pointer shadow-2xs transition-colors"
+                title="Reset semua filter tanggal dan zona"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
+            )}
 
             {/* Sort Toggle */}
             <button
