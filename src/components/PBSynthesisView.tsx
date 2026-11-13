@@ -561,7 +561,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
               </h2>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Evaluasi langsung titik data operasional (PT007 testing terhadap 4 garis batas: 0.82x, 0.829x, 1.171x, 1.18x). Semua input data dimasukkan di halaman <strong>Input Data</strong>.
+              Evaluasi langsung titik data operasional (PT007 testing terhadap 4 garis batas: 0.82x, 0.829x, 1.171x, 1.18x). Semua input data dimasukkan di halaman <strong>Dashboard</strong>.
             </p>
           </div>
 
@@ -799,7 +799,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
           <Target className="w-10 h-10 text-slate-300 mx-auto" />
           <h3 className="text-base font-bold text-slate-800">Belum Ada Data Operasi untuk Dievaluasi</h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
-            Masukkan data operasional di halaman <strong>Input Data</strong> (atau upload berkas Excel/CSV) untuk memonitor titik operasi aktual terhadap batas PB Synthesis.
+            Masukkan data operasional di halaman <strong>Dashboard</strong> (atau upload berkas Excel/CSV) untuk memonitor titik operasi aktual terhadap batas PB Synthesis.
           </p>
           <div className="pt-2">
             <button
@@ -808,7 +808,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
               className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors shadow-xs"
             >
               <PlusCircle className="w-4 h-4" />
-              <span>Buka Halaman Input Data</span>
+              <span>Buka Halaman Dashboard</span>
             </button>
           </div>
         </section>
@@ -1294,7 +1294,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                       y={toY(yVal) + 3}
                       textAnchor="end"
                       fill="#64748b"
-                      fontSize="10"
+                      fontSize="12"
                       fontFamily="monospace"
                       fontWeight={yVal % 50 === 0 ? 'bold' : 'normal'}
                     >
@@ -1319,7 +1319,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                       y={padT + plotH + 18}
                       textAnchor="middle"
                       fill="#64748b"
-                      fontSize="11"
+                      fontSize="12.5"
                       fontFamily="monospace"
                       fontWeight={xVal % 5 === 0 ? 'bold' : 'normal'}
                     >
@@ -1332,25 +1332,25 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                 <g transform={`translate(${padL + plotW + 12}, ${padT + plotH / 2 - 45})`}>
                   {/* Legend Batas Atas (Yellow Solid) */}
                   <line x1={0} y1={0} x2={20} y2={0} stroke="#eab308" strokeWidth="2.8" strokeLinecap="round" />
-                  <text x={26} y={4} fill="#1e293b" fontSize="11.5" fontWeight="bold">
+                  <text x={26} y={4} fill="#1e293b" fontSize="13" fontWeight="bold">
                     Batas Atas (1.18x)
                   </text>
 
                   {/* Legend Early Warning (Amber Dashed) */}
                   <line x1={0} y1={24} x2={20} y2={24} stroke="#d97706" strokeWidth="2" strokeDasharray="4 3" strokeLinecap="round" />
-                  <text x={26} y={28} fill="#1e293b" fontSize="11" fontWeight="semibold">
+                  <text x={26} y={28} fill="#1e293b" fontSize="12.5" fontWeight="semibold">
                     Early Warning (±4)
                   </text>
 
                   {/* Legend Batas Normal (Red Solid) */}
                   <line x1={0} y1={48} x2={20} y2={48} stroke="#dc2626" strokeWidth="2.8" strokeLinecap="round" />
-                  <text x={26} y={52} fill="#1e293b" fontSize="11.5" fontWeight="bold">
+                  <text x={26} y={52} fill="#1e293b" fontSize="13" fontWeight="bold">
                     Batas Bawah (0.82x)
                   </text>
 
                   {/* Legend PT007 (Emerald Dot) */}
                   <circle cx={10} cy={72} r={5.5} fill="#059669" stroke="#ffffff" strokeWidth="1.5" filter="url(#dot-shadow)" />
-                  <text x={26} y={76} fill="#1e293b" fontSize="11.5" fontWeight="bold">
+                  <text x={26} y={76} fill="#1e293b" fontSize="13" fontWeight="bold">
                     PT007
                   </text>
                 </g>
@@ -1415,7 +1415,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                   x={toX(22.2)}
                   y={toY(Math.min(maxP - 5, samples[samples.length - 1].batasAtas + 8))}
                   fill="#ca8a04"
-                  fontSize="11"
+                  fontSize="13"
                   fontWeight="bold"
                   textAnchor="end"
                 >
@@ -1425,7 +1425,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                   x={toX(22.2)}
                   y={toY(Math.max(minP + 10, samples[samples.length - 1].batasBawah - 5))}
                   fill="#dc2626"
-                  fontSize="11"
+                  fontSize="13"
                   fontWeight="bold"
                   textAnchor="end"
                 >
@@ -1637,10 +1637,10 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                 {/* Main Axis Title Labels */}
                 <text
                   x={padL + plotW / 2}
-                  y={svgH - 10}
+                  y={svgH - 8}
                   textAnchor="middle"
                   fill="#1e293b"
-                  fontSize="13.5"
+                  fontSize="15"
                   fontWeight="bold"
                 >
                   Beban Turbin (MW) &bull; Sumbu Horizontal (1 - 23 MW)
@@ -1650,7 +1650,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                   y={padT + plotH / 2}
                   textAnchor="middle"
                   fill="#1e293b"
-                  fontSize="13.5"
+                  fontSize="15"
                   fontWeight="bold"
                   transform={`rotate(-90 18 ${padT + plotH / 2})`}
                 >
@@ -1713,7 +1713,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                     setTableEndDateFilter('');
                   }
                 }}
-                className="px-2 py-1 text-xs border border-slate-300 rounded bg-white font-medium max-w-[170px] shadow-2xs focus:outline-none cursor-pointer"
+                className="px-2 py-1 text-xs border border-slate-300 rounded bg-white font-medium max-w-[240px] shadow-2xs focus:outline-none cursor-pointer"
                 title="Pilih tanggal spesifik dari data operasi"
               >
                 <option value="ALL">Semua Tanggal</option>
@@ -1825,7 +1825,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
         {filteredRecords.length === 0 ? (
           <div className="p-8 text-center text-xs text-slate-500">
             {allMonitoredRecords.length === 0
-              ? 'Belum ada data input tercatat. Masukkan data di halaman Input Data atau unggah berkas Excel/CSV di atas.'
+              ? 'Belum ada data input tercatat. Masukkan data di halaman Dashboard atau unggah berkas Excel/CSV di atas.'
               : 'Tidak ada rekaman data operasi yang cocok dengan filter.'}
           </div>
         ) : (

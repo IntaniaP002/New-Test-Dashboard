@@ -1,5 +1,5 @@
 export interface AnomalyIssue {
-  field: 'P1_7' | 'P3_0' | 'realPower' | 'nphr';
+  field: 'P1_7' | 'P3_0' | 'realPower';
   fieldLabel: string;
   value: number;
   rawStr?: string;
@@ -19,7 +19,6 @@ export interface RecordAnomalyReport {
     P3_0: number | string;
     pr?: number | string;
     realPower: number | string;
-    nphr: number | string;
     pbSynthesis?: number | string | null;
   };
 }
@@ -29,14 +28,12 @@ export interface RecordAnomalyReport {
  * 1. P1.7: Range 12.0 - 15.0 PSIA.
  * 2. P3.0: 3 main digits (100 - 999), typical range 200 - 385 PSIA.
  * 3. Real Power: Not more than 50 MW (<= 50 MW).
- * 4. NPHR: 4 main digits (1000 - 9999), not more than 5000 kcal/kWh (<= 5000).
  */
 export function validateRecordAnomalies(
   data: {
     P1_7: number | string;
     P3_0: number | string;
     realPower: number | string;
-    nphr: number | string;
     pbSynthesis?: number | string | null;
     date?: string;
     time?: string;
@@ -122,30 +119,6 @@ export function validateRecordAnomalies(
     });
   }
 
-  // 4. NPHR: 4 main digits & <= 5000 kcal/kWh
-  const hr = parseVal(data.nphr);
-  const hrIntDigits = getIntPartLength(hr.rawStr, hr.num);
-  if (hrIntDigits !== 4) {
-    issues.push({
-      field: 'nphr',
-      fieldLabel: 'NPHR (Heat Rate)',
-      value: hr.num,
-      rawStr: hr.rawStr,
-      expectedRule: 'Harus 4 digit utama (contoh: 3220,9089) & maksimal 5000 kcal/kWh',
-      message: `NPHR (${hr.rawStr || hr.num}) harus terdiri dari 4 digit utama (contoh: 3220,9089).`,
-    });
-  } else if (hr.num > 5000.0) {
-    const diff = (hr.num - 5000.0).toFixed(1);
-    issues.push({
-      field: 'nphr',
-      fieldLabel: 'NPHR (Heat Rate)',
-      value: hr.num,
-      rawStr: hr.rawStr,
-      expectedRule: 'Batas maksimal: 5000 kcal/kWh',
-      message: `NPHR (${hr.rawStr || hr.num} kcal/kWh) melebihi batas maksimal 5000 kcal/kWh (+${diff} kcal/kWh).`,
-    });
-  }
-
   const prVal = (p1.num > 0 && p3.num > 0) ? (p3.num / p1.num).toFixed(4) : undefined;
 
   return {
@@ -159,7 +132,6 @@ export function validateRecordAnomalies(
       P3_0: p3.rawStr || p3.num,
       pr: prVal,
       realPower: pw.rawStr || pw.num,
-      nphr: hr.rawStr || hr.num,
       pbSynthesis: data.pbSynthesis,
     },
   };
@@ -174,7 +146,6 @@ export function scanRecordsForAnomalies<
     P1_7: number | string;
     P3_0: number | string;
     realPower: number | string;
-    nphr: number | string;
     pbSynthesis?: number | string | null;
     date?: string;
     time?: string;

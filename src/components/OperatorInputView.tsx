@@ -107,7 +107,6 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
   const [P1_7, setP1_7] = useState<string>('');
   const [P3_0, setP3_0] = useState<string>('');
   const [realPower, setRealPower] = useState<string>('');
-  const [nphr, setNphr] = useState<string>('');
   const [isWaterWashEvent, setIsWaterWashEvent] = useState<boolean>(false);
   const [setAsBaseline, setSetAsBaseline] = useState<boolean>(!baseline.isConfigured);
   const [notes, setNotes] = useState<string>('');
@@ -131,7 +130,6 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
         'P1.7 / PT006 (PSIA)': 14.60,
         'P3.0 / PT007 (PSIA)': 265.79,
         'Real Power (MW)': 21.60,
-        'NPHR (kcal/kWh)': 2435,
       },
       {
         'Tanggal (YYYY-MM-DD)': '2026-10-22',
@@ -141,7 +139,6 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
         'P1.7 / PT006 (PSIA)': 14.64,
         'P3.0 / PT007 (PSIA)': 265.00,
         'Real Power (MW)': 18.90,
-        'NPHR (kcal/kWh)': 2450,
       },
       {
         'Tanggal (YYYY-MM-DD)': '2026-10-21',
@@ -151,7 +148,6 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
         'P1.7 / PT006 (PSIA)': 14.65,
         'P3.0 / PT007 (PSIA)': 210.00,
         'Real Power (MW)': 10.50,
-        'NPHR (kcal/kWh)': 2510,
       },
     ];
 
@@ -291,31 +287,83 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     })[0];
   }, [displayedRecords, records, efisiensiDateFilter]);
 
-  // Latest record & evaluation for PB Synthesis monitoring overview (respects card date filter & newest first)
+  // Worst-case record & daily status breakdown for PB Synthesis monitoring overview
+  // Picks the highest-severity reading (WARNING > RECOMMEND WATER WASH > NORMAL) on the selected/latest date,
+  // and computes how many inputs on that date fall into Warning vs Recommend Water Wash vs Normal.
   const latestPbOverview = useMemo(() => {
     if (!rawPbRecords || rawPbRecords.length === 0) return null;
 
-    let targetRecord: OperationalRecord | null = null;
+    const targetDate = pbDateOverviewFilter === 'ALL' ? rawPbRecords[0].date : pbDateOverviewFilter;
+    const onDate = rawPbRecords.filter((r) => r.date === targetDate);
+    if (onDate.length === 0) return null;
 
-    if (pbDateOverviewFilter === 'ALL') {
-      targetRecord = rawPbRecords[0];
-    } else {
-      const onDate = rawPbRecords.filter((r) => r.date === pbDateOverviewFilter);
-      if (onDate.length > 0) {
-        targetRecord = onDate[0];
+    type EvaluatedCandidate = {
+      record: OperationalRecord;
+      evalRes: NonNullable<ReturnType<typeof evaluatePBOperationPoint>>;
+      severity: number; // 3 = WARNING, 2 = RECOMMEND WATER WASH, 1 = NORMAL
+      exceedance: number; // positive = further outside tolerance band
+    };
+
+    const evaluatedList: EvaluatedCandidate[] = [];
+    let warningCount = 0;
+    let recommendWWCount = 0;
+    let normalCount = 0;
+
+    for (const r of onDate) {
+      const nh = r.nhSpeed || 11670;
+      const t = r.T1_7 !== undefined && r.T1_7 !== null ? r.T1_7 : 85.5;
+      const p1 = r.P1_7 || 14.65;
+      const p3 = r.P3_0 || 265.79;
+      const evalRes = evaluatePBOperationPoint(r.realPower, nh, t, p1, p3);
+      if (!evalRes) continue;
+
+      let severity = 1;
+      if (evalRes.zone === 'MELEWATI_BATAS_ATAS' || evalRes.zone === 'MELEWATI_BATAS_BAWAH') {
+        severity = 3;
+        warningCount++;
+      } else if (evalRes.zone === 'EARLY_UPPER' || evalRes.zone === 'EARLY_LOWER') {
+        severity = 2;
+        recommendWWCount++;
+      } else {
+        severity = 1;
+        normalCount++;
       }
+
+      const exceedance = Math.max(
+        evalRes.pt007 - evalRes.upperThreshold,
+        evalRes.lowerThreshold - evalRes.pt007
+      );
+
+      evaluatedList.push({
+        record: r,
+        evalRes,
+        severity,
+        exceedance,
+      });
     }
 
-    if (!targetRecord) return null;
+    if (evaluatedList.length === 0) return null;
 
-    const nh = targetRecord.nhSpeed || 11670;
-    const t = targetRecord.T1_7 !== undefined && targetRecord.T1_7 !== null ? targetRecord.T1_7 : 85.5;
-    const p1 = targetRecord.P1_7 || 14.65;
-    const p3 = targetRecord.P3_0 || 265.79;
-    const evalRes = evaluatePBOperationPoint(targetRecord.realPower, nh, t, p1, p3);
+    // Sort by severity descending; for Warning/Recommend WW tie-break by largest exceedance, then newest time.
+    // For Normal, preserve newest timestamp on that day.
+    evaluatedList.sort((a, b) => {
+      if (b.severity !== a.severity) return b.severity - a.severity;
+      if (b.severity >= 2 && b.exceedance !== a.exceedance) {
+        return b.exceedance - a.exceedance;
+      }
+      return (b.record.time || '').localeCompare(a.record.time || '');
+    });
+
+    const worst = evaluatedList[0];
+
     return {
-      record: targetRecord,
-      evalRes,
+      record: worst.record,
+      evalRes: worst.evalRes,
+      targetDate,
+      totalCount: evaluatedList.length,
+      warningCount,
+      recommendWWCount,
+      normalCount,
     };
   }, [rawPbRecords, pbDateOverviewFilter]);
 
@@ -383,7 +431,6 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     const pw = parseFloat(realPower.trim().replace(',', '.'));
     const p1 = parseFloat(P1_7.trim().replace(',', '.'));
     const p3 = parseFloat(P3_0.trim().replace(',', '.'));
-    const hr = parseFloat(nphr.trim().replace(',', '.'));
     const t = parseFloat(T1_7.trim().replace(',', '.'));
     const nh = parseNHSpeed(nhSpeed);
 
@@ -392,8 +439,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
       !time ||
       isNaN(pw) || pw <= 0 ||
       isNaN(p1) || p1 <= 0 ||
-      isNaN(p3) || p3 <= 0 ||
-      isNaN(hr) || hr <= 0
+      isNaN(p3) || p3 <= 0
     ) {
       return null;
     }
@@ -405,11 +451,10 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
       P1_7: p1,
       P3_0: p3,
       pr: calculatedPR,
-      nphr: hr,
       T1_7: !isNaN(t) ? t : null,
       nhSpeed: !isNaN(nh) ? nh : null,
     };
-  }, [date, time, realPower, P1_7, P3_0, nphr, T1_7, nhSpeed, calculatedPR]);
+  }, [date, time, realPower, P1_7, P3_0, T1_7, nhSpeed, calculatedPR]);
 
   // Live duplicate detection: checks if an exact identical record already exists in records
   const liveDuplicateMatch = useMemo<ExactDuplicateMatch | null>(() => {
@@ -447,11 +492,6 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
       errs.realPower = 'Real Power (Beban) harus berupa angka positif';
     }
 
-    const hr = parseFloat(nphr.trim().replace(',', '.'));
-    if (isNaN(hr) || hr <= 0) {
-      errs.nphr = 'NPHR harus berupa angka positif';
-    }
-
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -474,8 +514,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
       baseline.realPower !== null &&
       baseline.realPower !== undefined &&
       Math.abs(baseline.P3_0 - r.P3_0) < 0.01 &&
-      Math.abs(baseline.realPower - r.realPower) < 0.01 &&
-      Math.abs((baseline.nphr ?? 0) - r.nphr) < 0.1
+      Math.abs(baseline.realPower - r.realPower) < 0.01
     ) {
       return true;
     }
@@ -497,7 +536,6 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
       P1_7,
       P3_0,
       realPower,
-      nphr,
       date,
       time,
     });
@@ -519,7 +557,6 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
       P1_7,
       P3_0,
       realPower,
-      nphr,
       date,
       time,
     });
@@ -543,7 +580,6 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     const parsedP17 = parseNum(P1_7);
     const parsedP30 = parseNum(P3_0);
     const parsedPower = parseNum(realPower);
-    const parsedNphr = parseNum(nphr);
 
     const inputData: OperationalInput = {
       date,
@@ -554,7 +590,6 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
       P3_0: parsedP30,
       pt006: parsedP17,
       realPower: parsedPower,
-      nphr: parsedNphr,
       pbSynthesis: livePBOpEval?.pbSynthesis ?? null,
       fNH: livePBOpEval?.fNH ?? null,
       isWaterWashEvent,
@@ -574,7 +609,6 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
         setP1_7('');
         setP3_0('');
         setRealPower('');
-        setNphr('');
         setNotes('');
         setIsWaterWashEvent(false);
         setSetAsBaseline(false);
@@ -599,7 +633,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
           <div>
             <h2 className="text-base font-bold text-slate-900 tracking-tight">Input Data Operasional Turbin &amp; Kompresor</h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Masukkan 8 parameter operasi terintegrasi (Tanggal, Waktu, NH Speed, T1.7, P1.7, P3.0, Real Power, NPHR) atau unggah berkas CSV / Excel.
+              Masukkan 7 parameter operasi terintegrasi (Tanggal, Waktu, NH Speed, T1.7, P1.7, P3.0, Real Power) atau unggah berkas CSV / Excel.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
@@ -648,7 +682,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                 onClick={() => onNavigate('dashboard')}
                 className="text-xs font-semibold text-emerald-800 underline hover:text-emerald-950"
               >
-                Lihat Efisiensi Kompresor
+                Lihat Performa Kompresor
               </button>
             )}
           </div>
@@ -782,8 +816,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
             </div>
           </div>
 
-          {/* Group 3: Output & Performance (Real Power, NPHR) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+          {/* Group 3: Output & Performance (Real Power) */}
+          <div className="pt-1">
             <div>
               <label htmlFor="input-power" className="block text-xs font-semibold text-slate-700 mb-1">
                 Real Power / Beban (MW)
@@ -799,23 +833,6 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                 className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-sky-500 focus:border-sky-500 bg-white font-mono"
               />
               {errors.realPower && <p className="text-[11px] text-rose-600 mt-1">{errors.realPower}</p>}
-            </div>
-
-            <div>
-              <label htmlFor="input-nphr" className="block text-xs font-semibold text-slate-700 mb-1">
-                NPHR (kcal/kWh)
-              </label>
-              <input
-                id="input-nphr"
-                type="number"
-                step="1"
-                value={nphr}
-                onChange={(e) => setNphr(e.target.value)}
-                placeholder="e.g. 2435"
-                required
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-sky-500 focus:border-sky-500 bg-white font-mono"
-              />
-              {errors.nphr && <p className="text-[11px] text-rose-600 mt-1">{errors.nphr}</p>}
             </div>
           </div>
 
@@ -978,7 +995,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                   </span>
                 </div>
                 <p className="text-amber-900 leading-relaxed text-xs">
-                  Data dengan tanggal <strong>{liveDuplicateMatch.existingRecord.date} {liveDuplicateMatch.existingRecord.time || ''}</strong> dan parameter teknis yang sama persis (Beban: <strong>{liveDuplicateMatch.existingRecord.realPower.toFixed(2)} MW</strong>, P1.7: <strong>{liveDuplicateMatch.existingRecord.P1_7.toFixed(2)}</strong>, P3.0: <strong>{liveDuplicateMatch.existingRecord.P3_0.toFixed(2)}</strong>, NPHR: <strong>{liveDuplicateMatch.existingRecord.nphr.toFixed(1)}</strong>) sudah tersimpan di riwayat.
+                  Data dengan tanggal <strong>{liveDuplicateMatch.existingRecord.date} {liveDuplicateMatch.existingRecord.time || ''}</strong> dan parameter teknis yang sama persis (Beban: <strong>{liveDuplicateMatch.existingRecord.realPower.toFixed(2)} MW</strong>, P1.7: <strong>{liveDuplicateMatch.existingRecord.P1_7.toFixed(2)}</strong>, P3.0: <strong>{liveDuplicateMatch.existingRecord.P3_0.toFixed(2)}</strong>) sudah tersimpan di riwayat.
                 </p>
                 <div className="p-2 bg-amber-100/70 border border-amber-300/80 rounded text-[11px] text-amber-950 font-medium flex items-center justify-between gap-2">
                   <span>
@@ -1011,7 +1028,194 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
         </form>
       </section>
 
-      {/* 2. MONITORING STATUS OVERVIEW (EFISIENSI KOMPRESOR & PB SYNTHESIS) */}
+      {/* 1.5 OVERALL MONITORING STATUS (PERFORMA KOMPRESOR + PB SYNTHESIS) */}
+      {(() => {
+        const performaHasData = Boolean(latestEfisiensiRecord);
+        const performaIsWW = latestEfisiensiRecord?.overallStatus === 'RECOMMEND WATER WASH';
+        const performaIsCaution =
+          latestEfisiensiRecord?.overallStatus === 'CAUTION' ||
+          latestEfisiensiRecord?.overallStatus === 'MONITORING' ||
+          latestEfisiensiRecord?.overallStatus === 'EARLY MONITORING';
+        const performaIsNormal = performaHasData && !performaIsWW && !performaIsCaution;
+
+        const pbHasData = Boolean(latestPbOverview?.evalRes);
+        const pbIsWarning =
+          latestPbOverview?.evalRes?.zone === 'MELEWATI_BATAS_ATAS' ||
+          latestPbOverview?.evalRes?.zone === 'MELEWATI_BATAS_BAWAH';
+        const pbIsWW =
+          latestPbOverview?.evalRes?.zone === 'EARLY_UPPER' ||
+          latestPbOverview?.evalRes?.zone === 'EARLY_LOWER';
+        const pbIsNormal = pbHasData && !pbIsWarning && !pbIsWW;
+
+        const overallHasData = performaHasData || pbHasData;
+        const overallIsWW = performaIsWW || pbIsWW;
+        const overallIsWarning = !overallIsWW && pbIsWarning;
+        const overallIsCaution = !overallIsWW && !overallIsWarning && performaIsCaution;
+        const overallIsNormal = overallHasData && !overallIsWW && !overallIsWarning && !overallIsCaution;
+
+        const sectionStyle = !overallHasData
+          ? 'bg-white border border-slate-200'
+          : overallIsWW
+          ? 'border-2 border-rose-500 bg-gradient-to-r from-rose-50 via-rose-50/90 to-rose-100/70 shadow-sm shadow-rose-500/15 animate-pulse'
+          : overallIsWarning
+          ? 'border-2 border-rose-900 bg-gradient-to-r from-rose-100/80 via-rose-200/60 to-rose-300/40 shadow-md shadow-rose-950/20 animate-pulse'
+          : overallIsCaution
+          ? 'border-2 border-amber-400 bg-gradient-to-r from-amber-50 via-amber-50/85 to-amber-100/50 shadow-sm shadow-amber-500/10'
+          : 'border-2 border-emerald-400 bg-gradient-to-r from-emerald-50 via-emerald-50/85 to-teal-50/60 shadow-sm shadow-emerald-500/10';
+
+        const iconBoxStyle = !overallHasData
+          ? 'bg-slate-100 text-slate-500 border border-slate-200'
+          : overallIsWW
+          ? 'bg-rose-600 text-white border border-rose-700 shadow-xs'
+          : overallIsWarning
+          ? 'bg-rose-950 text-white border border-rose-900 shadow-xs'
+          : overallIsCaution
+          ? 'bg-amber-500 text-white border border-amber-600 shadow-xs'
+          : 'bg-emerald-600 text-white border border-emerald-700 shadow-xs';
+
+        const badgeStyle = !overallHasData
+          ? 'bg-slate-200 text-slate-700 border-slate-300'
+          : overallIsWW
+          ? 'bg-rose-600 text-white border-rose-700'
+          : overallIsWarning
+          ? 'bg-rose-950 text-white border-2 border-black shadow-md'
+          : overallIsCaution
+          ? 'bg-amber-500 text-white border-amber-600'
+          : 'bg-emerald-600 text-white border-emerald-700';
+
+        const overallLabel = !overallHasData
+          ? 'BELUM ADA DATA'
+          : overallIsWW
+          ? 'RECOMMEND WATER WASH'
+          : overallIsWarning
+          ? 'WARNING'
+          : overallIsCaution
+          ? 'CAUTION'
+          : 'NORMAL';
+
+        const performaStatusLabel = !performaHasData
+          ? 'Belum Ada Data'
+          : performaIsWW
+          ? 'Recommend Water Wash'
+          : performaIsCaution
+          ? 'Caution'
+          : 'Normal';
+
+        const pbStatusLabel = !pbHasData
+          ? 'Belum Ada Data'
+          : pbIsWarning
+          ? 'Warning'
+          : pbIsWW
+          ? 'Recommend Water Wash'
+          : 'Normal';
+
+        const wwSources: string[] = [];
+        if (performaIsWW) wwSources.push('Performa Kompresor');
+        if (pbIsWW) wwSources.push('PB Synthesis & PT007');
+
+        const summaryText = !overallHasData
+          ? 'Belum ada data operasional untuk evaluasi status keseluruhan Performa Kompresor dan PB Synthesis.'
+          : overallIsWW
+          ? `Rekomendasi Water Washing aktif karena ${wwSources.join(' dan ')} berstatus Recommend Water Wash.`
+          : overallIsWarning
+          ? 'Peringatan batas operasi aktif dari evaluasi PB Synthesis & PT007 Testing.'
+          : overallIsCaution
+          ? 'Perhatian diperlukan: Performa Kompresor berada pada status Caution.'
+          : 'Seluruh evaluasi monitoring (Performa Kompresor dan PB Synthesis) berada dalam kondisi Normal.';
+
+        return (
+          <section
+            id="overall-monitoring-status-section"
+            className={`rounded-md p-5 shadow-xs transition-all ${sectionStyle}`}
+          >
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className={`p-3 rounded-xl shrink-0 ${iconBoxStyle}`}>
+                  {overallIsWW || overallIsWarning ? (
+                    <AlertTriangle className="w-6 h-6" />
+                  ) : overallIsCaution ? (
+                    <Clock className="w-6 h-6" />
+                  ) : overallIsNormal ? (
+                    <CheckCircle2 className="w-6 h-6" />
+                  ) : (
+                    <Compass className="w-6 h-6" />
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base font-bold text-slate-900 tracking-tight">
+                      Status Overall Monitoring Operasional
+                    </h3>
+                  </div>
+                  <p
+                    className={`text-xs font-medium ${
+                      overallIsWW
+                        ? 'text-rose-900'
+                        : overallIsWarning
+                        ? 'text-rose-950'
+                        : overallIsCaution
+                        ? 'text-amber-900'
+                        : overallIsNormal
+                        ? 'text-emerald-900'
+                        : 'text-slate-500'
+                    }`}
+                  >
+                    {summaryText}
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap pt-1 text-[11px]">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border font-semibold ${
+                        !performaHasData
+                          ? 'bg-slate-50 text-slate-600 border-slate-200'
+                          : performaIsWW
+                          ? 'bg-rose-100 text-rose-900 border-rose-300'
+                          : performaIsCaution
+                          ? 'bg-amber-100 text-amber-900 border-amber-300'
+                          : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                      }`}
+                    >
+                      <span>Performa Kompresor:</span>
+                      <strong className="font-bold">{performaStatusLabel}</strong>
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border font-semibold ${
+                        !pbHasData
+                          ? 'bg-slate-50 text-slate-600 border-slate-200'
+                          : pbIsWarning
+                          ? 'bg-rose-950 text-white border-rose-900'
+                          : pbIsWW
+                          ? 'bg-rose-100 text-rose-900 border-rose-300'
+                          : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                      }`}
+                    >
+                      <span>PB Synthesis:</span>
+                      <strong className="font-bold">
+                        {pbStatusLabel}
+                        {latestPbOverview && latestPbOverview.totalCount > 1 && (pbIsWarning || pbIsWW)
+                          ? ` (${pbIsWarning ? latestPbOverview.warningCount : latestPbOverview.recommendWWCount}/${latestPbOverview.totalCount} data)`
+                          : ''}
+                      </strong>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="self-start lg:self-center shrink-0">
+                <span
+                  className={`inline-flex items-center gap-2.5 px-5 py-2.5 rounded-xl text-sm sm:text-base font-black tracking-wide uppercase border shadow-sm ${badgeStyle}`}
+                >
+                  {overallHasData && (
+                    <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+                  )}
+                  <span>{overallLabel}</span>
+                </span>
+              </div>
+            </div>
+          </section>
+        );
+      })()}
+
+      {/* 2. MONITORING STATUS OVERVIEW (PERFORMA KOMPRESOR & PB SYNTHESIS) */}
       <section className="bg-white rounded-md border border-slate-200 shadow-xs p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div>
@@ -1022,7 +1226,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               </h3>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Ringkasan status evaluasi Efisiensi Kompresor dan PB Synthesis berdasarkan data operasional.
+              Ringkasan status evaluasi Performa Kompresor dan PB Synthesis berdasarkan data operasional.
             </p>
           </div>
 
@@ -1064,11 +1268,11 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
           </div>
         </div>
 
-        {/* 2 Grid Cards: Efisiensi Kompresor & PB Synthesis */}
+        {/* 2 Grid Cards: Performa Kompresor & PB Synthesis */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Card 1: Status Efisiensi Kompresor (Water Washing) */}
+          {/* Card 1: Status Performa Kompresor (Water Washing) */}
           {(() => {
-            const isWW = latestEfisiensiRecord?.overallStatus === 'RECOMMEND_WATER_WASH';
+            const isWW = latestEfisiensiRecord?.overallStatus === 'RECOMMEND WATER WASH';
             const isCaution = latestEfisiensiRecord?.overallStatus === 'CAUTION';
             const isNormal = latestEfisiensiRecord && !isWW && !isCaution;
 
@@ -1120,13 +1324,13 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                       </div>
                       <div>
                         <h4 className="text-sm sm:text-base font-bold text-slate-900">
-                          Efisiensi Kompresor
+                          Performa Kompresor
                         </h4>
                         <span className={`text-xs font-medium ${isWW ? 'text-rose-700' : isCaution ? 'text-amber-700' : isNormal ? 'text-emerald-800' : 'text-slate-500'}`}>
                           {latestEfisiensiRecord
                             ? `Data: ${latestEfisiensiRecord.date} ${latestEfisiensiRecord.time || ''}`
                             : efisiensiDateFilter !== 'ALL'
-                            ? `Tidak ada data Efisiensi pada ${efisiensiDateFilter}`
+                            ? `Tidak ada data Performa Kompresor pada ${efisiensiDateFilter}`
                             : 'Belum ada data tercatat'}
                         </span>
                       </div>
@@ -1149,7 +1353,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                     )}
                   </div>
 
-                  {/* Dedicated Date Filter for Efisiensi Kompresor */}
+                  {/* Dedicated Date Filter for Performa Kompresor */}
                   <div className="flex items-center justify-between gap-2 flex-wrap bg-white/70 backdrop-blur-xs p-2 rounded-lg border border-black/5 text-xs">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <Calendar className="w-3.5 h-3.5 text-sky-700 shrink-0" />
@@ -1157,8 +1361,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                       <select
                         value={efisiensiDateFilter}
                         onChange={(e) => handleSetEfisiensiDate(e.target.value)}
-                        className="text-xs font-semibold text-slate-800 bg-white border border-slate-300 rounded px-2 py-1 shadow-2xs focus:outline-none cursor-pointer max-w-[190px]"
-                        title="Pilih tanggal data Efisiensi Kompresor"
+                        className="text-xs font-semibold text-slate-800 bg-white border border-slate-300 rounded px-2 py-1 shadow-2xs focus:outline-none cursor-pointer max-w-[260px]"
+                        title="Pilih tanggal data Performa Kompresor"
                       >
                         <option value="ALL">Semua Tanggal (Data Terbaru)</option>
                         {availableEfisiensiDates.map((d) => (
@@ -1189,7 +1393,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
 
                   {/* Quick Metrics */}
                   {latestEfisiensiRecord ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 font-mono text-xs">
                       <div className={`p-2.5 bg-white/95 rounded-lg border ${metricBorderClass} shadow-2xs`}>
                         <span className="text-[10px] text-slate-500 font-sans block">PR (P3/P1)</span>
                         <strong className="text-slate-900 font-bold text-xs sm:text-sm">{latestEfisiensiRecord.pr.toFixed(4)}</strong>
@@ -1205,13 +1409,6 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                         </span>
                       </div>
                       <div className={`p-2.5 bg-white/95 rounded-lg border ${metricBorderClass} shadow-2xs`}>
-                        <span className="text-[10px] text-slate-500 font-sans block">NPHR (kcal)</span>
-                        <strong className="text-slate-900 font-bold text-xs sm:text-sm">{latestEfisiensiRecord.nphr.toLocaleString()}</strong>
-                        <span className={`text-[10px] block font-sans ${latestEfisiensiRecord.nphrDeterioration && latestEfisiensiRecord.nphrDeterioration >= thresholds.nphrWWThreshold ? 'text-rose-700 font-bold' : 'text-slate-500'}`}>
-                          {latestEfisiensiRecord.nphrDeterioration !== null ? `+${latestEfisiensiRecord.nphrDeterioration}%` : '—'}
-                        </span>
-                      </div>
-                      <div className={`p-2.5 bg-white/95 rounded-lg border ${metricBorderClass} shadow-2xs`}>
                         <span className="text-[10px] text-slate-500 font-sans block">Beban (MW)</span>
                         <strong className="text-slate-900 font-bold text-xs sm:text-sm">{latestEfisiensiRecord.realPower.toFixed(2)}</strong>
                         <span className={`text-[10px] block font-sans ${latestEfisiensiRecord.powerDeterioration && latestEfisiensiRecord.powerDeterioration >= thresholds.powerWWThreshold ? 'text-rose-700 font-bold' : 'text-slate-500'}`}>
@@ -1222,7 +1419,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                   ) : (
                     <p className="text-xs text-slate-500 italic">
                       {efisiensiDateFilter !== 'ALL'
-                        ? `Tidak ada data operasional Efisiensi Kompresor pada tanggal ${efisiensiDateFilter}.`
+                        ? `Tidak ada data operasional Performa Kompresor pada tanggal ${efisiensiDateFilter}.`
                         : 'Belum ada data operasional.'}
                     </p>
                   )}
@@ -1240,7 +1437,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                   className={`mt-4 inline-flex items-center justify-between px-4 py-2.5 rounded-lg text-xs sm:text-sm font-bold shadow-2xs transition-all cursor-pointer group ${buttonClass}`}
                 >
                   <span className="flex items-center gap-1.5">
-                    <span>Buka Halaman Efisiensi Kompresor (Dashboard)</span>
+                    <span>Buka Halaman Performa Kompresor (Dashboard)</span>
                   </span>
                   <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                 </button>
@@ -1308,9 +1505,9 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                         <h4 className="text-sm sm:text-base font-bold text-slate-900">
                           PB Synthesis &amp; PT007 Testing
                         </h4>
-                        <span className={`text-xs font-medium ${isWarning ? 'text-rose-950' : isRecommendWW ? 'text-rose-700' : isNormal ? 'text-emerald-800' : 'text-slate-500'}`}>
+                        <span className={`text-xs font-medium block ${isWarning ? 'text-rose-950' : isRecommendWW ? 'text-rose-700' : isNormal ? 'text-emerald-800' : 'text-slate-500'}`}>
                           {latestPbOverview?.record
-                            ? `Data: ${latestPbOverview.record.date} ${latestPbOverview.record.time || ''}`
+                            ? `${isWarning || isRecommendWW ? 'Data Terburuk' : 'Data Terbaru'}: ${latestPbOverview.record.date} ${latestPbOverview.record.time || ''} (dari ${latestPbOverview.totalCount} data)`
                             : pbDateOverviewFilter !== 'ALL'
                             ? `Tidak ada data PB Synthesis pada ${pbDateOverviewFilter}`
                             : 'Belum ada data tercatat'}
@@ -1343,7 +1540,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                       <select
                         value={pbDateOverviewFilter}
                         onChange={(e) => handleSetPbDate(e.target.value)}
-                        className="text-xs font-semibold text-slate-800 bg-white border border-slate-300 rounded px-2 py-1 shadow-2xs focus:outline-none cursor-pointer max-w-[190px]"
+                        className="text-xs font-semibold text-slate-800 bg-white border border-slate-300 rounded px-2 py-1 shadow-2xs focus:outline-none cursor-pointer max-w-[260px]"
                         title="Pilih tanggal data PB Synthesis"
                       >
                         <option value="ALL">Semua Tanggal (Data Terbaru)</option>
@@ -1373,28 +1570,63 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                     )}
                   </div>
 
-                  {/* Quick Metrics */}
+                  {/* Quick Metrics & Daily Status Breakdown */}
                   {latestPbOverview?.evalRes ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono text-xs">
-                      <div className={`p-2.5 bg-white/95 rounded-lg border ${metricBorderClass} shadow-2xs`}>
-                        <span className="text-[10px] text-slate-500 font-sans block">Beban (MW)</span>
-                        <strong className="text-slate-900 font-bold text-xs sm:text-sm">{latestPbOverview.evalRes.beban.toFixed(2)}</strong>
-                        <span className="text-[10px] text-slate-500 block font-sans">Turbin</span>
+                    <div className="space-y-2 pt-1">
+                      {/* Daily Warning / Recommend Water Wash Count Summary */}
+                      <div className="flex items-center justify-between gap-2 flex-wrap bg-white/80 px-2.5 py-1.5 rounded-lg border border-black/5 text-[11px]">
+                        <span className="font-semibold text-slate-600">
+                          Rekap {latestPbOverview.targetDate} ({latestPbOverview.totalCount} input):
+                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold border ${
+                              latestPbOverview.warningCount > 0
+                                ? 'bg-rose-950 text-white border-rose-900'
+                                : 'bg-slate-100 text-slate-500 border-slate-200'
+                            }`}
+                          >
+                            <span>Warning:</span>
+                            <span>{latestPbOverview.warningCount} data</span>
+                          </span>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold border ${
+                              latestPbOverview.recommendWWCount > 0
+                                ? 'bg-rose-600 text-white border-rose-700'
+                                : 'bg-slate-100 text-slate-500 border-slate-200'
+                            }`}
+                          >
+                            <span>Recommend WW:</span>
+                            <span>{latestPbOverview.recommendWWCount} data</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            <span>Normal:</span>
+                            <span>{latestPbOverview.normalCount} data</span>
+                          </span>
+                        </div>
                       </div>
-                      <div className="p-2.5 bg-purple-50/90 rounded-lg border border-purple-300 shadow-2xs">
-                        <span className="text-[10px] text-purple-900 font-sans block font-bold">★ PT007</span>
-                        <strong className="text-purple-950 font-black text-xs sm:text-sm">{latestPbOverview.evalRes.pt007.toFixed(2)}</strong>
-                        <span className="text-[10px] text-purple-700 block font-sans font-semibold">PSIA</span>
-                      </div>
-                      <div className={`p-2.5 bg-white/95 rounded-lg border ${metricBorderClass} shadow-2xs`}>
-                        <span className="text-[10px] text-slate-500 font-sans block">PB Synthesis</span>
-                        <strong className="text-blue-700 font-bold text-xs sm:text-sm">{latestPbOverview.evalRes.pbSynthesis.toFixed(2)}</strong>
-                        <span className="text-[10px] text-slate-500 block font-sans">f(NH)xP1.7</span>
-                      </div>
-                      <div className={`p-2.5 bg-white/95 rounded-lg border ${metricBorderClass} shadow-2xs`}>
-                        <span className="text-[10px] text-slate-500 font-sans block">Rentang Batas</span>
-                        <strong className="text-slate-800 font-bold text-xs sm:text-sm block">{latestPbOverview.evalRes.lowerThreshold.toFixed(1)}–{latestPbOverview.evalRes.upperThreshold.toFixed(1)}</strong>
-                        <span className="text-[10px] text-slate-500 block font-sans">0.82x – 1.18x</span>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-xs">
+                        <div className={`p-2.5 bg-white/95 rounded-lg border ${metricBorderClass} shadow-2xs`}>
+                          <span className="text-[10px] text-slate-500 font-sans block">Beban (MW)</span>
+                          <strong className="text-slate-900 font-bold text-xs sm:text-sm">{latestPbOverview.evalRes.beban.toFixed(2)}</strong>
+                          <span className="text-[10px] text-slate-500 block font-sans">Turbin</span>
+                        </div>
+                        <div className="p-2.5 bg-purple-50/90 rounded-lg border border-purple-300 shadow-2xs">
+                          <span className="text-[10px] text-purple-900 font-sans block font-bold">★ PT007</span>
+                          <strong className="text-purple-950 font-black text-xs sm:text-sm">{latestPbOverview.evalRes.pt007.toFixed(2)}</strong>
+                          <span className="text-[10px] text-purple-700 block font-sans font-semibold">PSIA</span>
+                        </div>
+                        <div className={`p-2.5 bg-white/95 rounded-lg border ${metricBorderClass} shadow-2xs`}>
+                          <span className="text-[10px] text-slate-500 font-sans block">PB Synthesis</span>
+                          <strong className="text-blue-700 font-bold text-xs sm:text-sm">{latestPbOverview.evalRes.pbSynthesis.toFixed(2)}</strong>
+                          <span className="text-[10px] text-slate-500 block font-sans">f(NH)xP1.7</span>
+                        </div>
+                        <div className={`p-2.5 bg-white/95 rounded-lg border ${metricBorderClass} shadow-2xs`}>
+                          <span className="text-[10px] text-slate-500 font-sans block">Rentang Batas</span>
+                          <strong className="text-slate-800 font-bold text-xs sm:text-sm block">{latestPbOverview.evalRes.lowerThreshold.toFixed(1)}–{latestPbOverview.evalRes.upperThreshold.toFixed(1)}</strong>
+                          <span className="text-[10px] text-slate-500 block font-sans">0.82x – 1.18x</span>
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -1436,7 +1668,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
             <div className="flex items-center gap-2">
               <h3 className="text-base font-bold text-slate-900">
                 {historySection === 'water_washing'
-                  ? 'Input History — Efisiensi Kompresor'
+                  ? 'Input History — Performa Kompresor'
                   : 'Input History — PB Synthesis'}
               </h3>
             </div>
@@ -1459,7 +1691,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               }`}
             >
               <Droplets className="w-3.5 h-3.5 text-sky-600" />
-              <span>Efisiensi Kompresor</span>
+              <span>Performa Kompresor</span>
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
                 historySection === 'water_washing' ? 'bg-sky-100 text-sky-800' : 'bg-slate-200/70 text-slate-700'
               }`}>
@@ -1488,7 +1720,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
         </div>
 
         {/* ========================================================================= */}
-        {/* SECTION 1: EFISIENSI KOMPRESOR HISTORY */}
+        {/* SECTION 1: PERFORMA KOMPRESOR HISTORY */}
         {/* ========================================================================= */}
         {historySection === 'water_washing' && (
           <div className="border-b border-slate-200 last:border-b-0">
@@ -1496,7 +1728,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
             <div className="px-6 py-3.5 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200">
               <div>
                 <h4 className="text-xs font-bold text-slate-900 flex items-center gap-2">
-                  <span>Efisiensi Kompresor History</span>
+                  <span>Performa Kompresor History</span>
                   <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-100 text-sky-800 border border-sky-200">
                     Daily Average Log (19:00 - 21:00 / Beban 20 - 24 MW)
                   </span>
@@ -1582,14 +1814,14 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                   </div>
                   {selectedRecordId && (
                     <span className="text-[11px] font-semibold text-sky-800 bg-white px-2.5 py-0.5 rounded border border-sky-200 shadow-2xs self-start sm:self-auto shrink-0">
-                      Active in Efisiensi Kompresor: {displayedRecords.find(d => d.id === selectedRecordId)?.date || selectedRecordId}
+                      Active in Performa Kompresor: {displayedRecords.find(d => d.id === selectedRecordId)?.date || selectedRecordId}
                     </span>
                   )}
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs table-auto">
-                    {/* Exact 11 Headers optimized to fit without horizontal cut-off */}
+                    {/* Exact 10 Headers optimized to fit without horizontal cut-off */}
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-[11px]">
                       <tr>
                         <th className="py-2 px-2.5 whitespace-nowrap">Date</th>
@@ -1598,7 +1830,6 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                         <th className="py-2 px-2 text-right whitespace-nowrap">P3.0 (PSIA)</th>
                         <th className="py-2 px-2 text-right whitespace-nowrap">PR</th>
                         <th className="py-2 px-2 text-right whitespace-nowrap">Power (MW)</th>
-                        <th className="py-2 px-2 text-right whitespace-nowrap">NPHR</th>
                         <th className="py-2 px-1.5 text-center whitespace-nowrap">Perf. Index</th>
                         <th className="py-2 px-1.5 text-center whitespace-nowrap">Baseline</th>
                         <th className="py-2 px-1.5 text-center whitespace-nowrap">WW Status</th>
@@ -1623,14 +1854,14 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                                 ? 'bg-sky-50/30'
                                 : ''
                             }`}
-                            title="Klik untuk evaluasi record ini di Efisiensi Kompresor"
+                            title="Klik untuk evaluasi record ini di Performa Kompresor"
                           >
                             {/* Date: e.g. 2026-11-02 */}
                             <td className="py-2 px-2.5 font-medium text-slate-900 whitespace-nowrap">
                               <span className={isSelected ? 'text-sky-900 font-bold' : ''}>{r.date}</span>
                             </td>
 
-                            {/* Efisiensi Kompresor Movement: Inspect / Active */}
+                            {/* Performa Kompresor Movement: Inspect / Active */}
                             <td className="py-2 px-1.5 text-center whitespace-nowrap">
                               <button
                                 type="button"
@@ -1647,7 +1878,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                                     ? 'bg-sky-600 text-white shadow-xs font-bold'
                                     : 'bg-white hover:bg-sky-50 text-sky-700 hover:text-sky-900 border border-slate-300 hover:border-sky-300'
                                 }`}
-                                title={`Inspect ${r.date} di Efisiensi Kompresor`}
+                                title={`Inspect ${r.date} di Performa Kompresor`}
                               >
                                 <Eye className={`w-3 h-3 ${isSelected ? 'text-white' : 'text-sky-500'}`} />
                                 <span>{isSelected ? 'Active' : 'Inspect'}</span>
@@ -1672,11 +1903,6 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                             {/* Real Power (MW) */}
                             <td className="py-2 px-2 text-right text-slate-800 whitespace-nowrap font-mono text-[11px]">
                               {r.realPower.toFixed(2)}
-                            </td>
-
-                            {/* NPHR (kcal/kWh) */}
-                            <td className="py-2 px-2 text-right text-slate-800 whitespace-nowrap font-mono text-[11px]">
-                              {r.nphr.toLocaleString()}
                             </td>
 
                             {/* Perf. Index */}

@@ -29,8 +29,8 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
 
   // Status designation (Aturan Final 1 - 3):
   // 1 RECOMMEND WATER WASH: Indikator Lolos >= 3 DAN Bobot Lolos >= 80%
-  // 1.2 CAUTION: Bobot Lolos 50% - 79% ATAU NPHR >= nphrEarlyMonitoring (1.7%)
-  // 1.3 NORMAL: Bobot Lolos < 50% DAN NPHR < 1.7%
+  // 2 CAUTION: Bobot Lolos 50% - 79%
+  // 3 NORMAL: Bobot Lolos < 50%
   let badgeColor = 'bg-slate-100 text-slate-700 border-slate-300';
   let badgeText = 'AWAITING DATA';
   let gaugeBarColor = 'bg-slate-300';
@@ -47,10 +47,7 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
       latestRecord?.overallStatus === 'CAUTION' ||
       latestRecord?.overallStatus === 'MONITORING' ||
       (index >= WATER_WASH_DECISION_RULES.minPantauWeight &&
-        index < WATER_WASH_DECISION_RULES.minRecommendWeight) ||
-      (latestRecord?.nphrDeterioration !== null &&
-        latestRecord?.nphrDeterioration !== undefined &&
-        latestRecord.nphrDeterioration >= thresholds.nphrEarlyMonitoring)
+        index < WATER_WASH_DECISION_RULES.minRecommendWeight)
     ) {
       badgeColor = 'bg-amber-100 text-amber-800 border-amber-300 font-bold';
       badgeText = 'CAUTION';
@@ -62,20 +59,18 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
     }
   }
 
-  // Status flags for all 4 parameters
+  // Status flags for all 3 parameters
   const isPrInvalid = Boolean(latestRecord && (latestRecord.P1_7 <= 0 || latestRecord.P3_0 <= 0 || latestRecord.pr <= 0));
   const isP3Invalid = Boolean(latestRecord && latestRecord.P3_0 <= 0);
-  const isNphrInvalid = Boolean(latestRecord && latestRecord.nphr <= 0);
   const isPowerInvalid = Boolean(latestRecord && latestRecord.realPower <= 0);
 
   const prMet = Boolean(!isPrInvalid && (latestRecord?.prThresholdReached || (contrib && contrib.pr >= INDICATOR_WEIGHTS.pr)));
   const p3Met = Boolean(!isP3Invalid && (latestRecord?.p3ThresholdReached || (contrib && contrib.p3 >= INDICATOR_WEIGHTS.p3)));
-  const nphrMet = Boolean(!isNphrInvalid && (latestRecord?.nphrThresholdReached || (contrib && contrib.nphr >= INDICATOR_WEIGHTS.nphr)));
   const powerMet = Boolean(!isPowerInvalid && (latestRecord?.powerThresholdReached || (contrib && contrib.power >= INDICATOR_WEIGHTS.power)));
 
   const thresholdsMetCount =
     latestRecord?.thresholdsMetCount ??
-    [prMet, p3Met, nphrMet, powerMet].filter(Boolean).length;
+    [prMet, p3Met, powerMet].filter(Boolean).length;
   const bobotLolos = index ?? 0;
   const isRecommendWW =
     latestRecord?.overallStatus === 'RECOMMEND WATER WASH' ||
@@ -98,13 +93,13 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
               </span>
               <div
                 className="group relative cursor-help inline-flex items-center"
-                title="Rule Logic (1 - 3):&#10;• 1 RECOMMEND WW: Indikator Lolos ≥3 (dari 4) DAN Bobot Lolos ≥80%&#10;• 2 CAUTION: Bobot Lolos 50%-79% ATAU NPHR ≥1.7%&#10;• 3 NORMAL: Bobot Lolos <50% DAN NPHR <1.7%"
+                title="Rule Logic (1 - 3):&#10;• 1 RECOMMEND WW: Indikator Lolos ≥3 (dari 3) DAN Bobot Lolos ≥80%&#10;• 2 CAUTION: Bobot Lolos 50%-79%&#10;• 3 NORMAL: Bobot Lolos <50%"
               >
                 <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-sky-600 transition-colors" />
               </div>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Skor diskrit (tanpa partial credit): PR ({INDICATOR_WEIGHTS.pr}%) + P3.0 ({INDICATOR_WEIGHTS.p3}%) + NPHR ({INDICATOR_WEIGHTS.nphr}%) + Real Power ({INDICATOR_WEIGHTS.power}%)
+              Skor diskrit (tanpa partial credit): PR ({INDICATOR_WEIGHTS.pr}%) + P3.0 ({INDICATOR_WEIGHTS.p3}%) + Real Power ({INDICATOR_WEIGHTS.power}%)
             </p>
           </div>
         </div>
@@ -154,8 +149,8 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
       )}
 
 
-      {/* 4 Weights Breakdown Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+      {/* 3 Weights Breakdown Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
         {/* PR Component */}
         <div className={`p-2.5 rounded border text-xs space-y-1 ${isPrInvalid ? 'bg-rose-50/60 border-rose-300' : 'bg-slate-50 border-slate-200'}`}>
           <div className="flex justify-between items-center">
@@ -200,44 +195,6 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
           </div>
         </div>
 
-        {/* NPHR Component */}
-        <div className={`p-2.5 rounded border text-xs space-y-1 ${isNphrInvalid ? 'bg-rose-50/60 border-rose-300' : 'bg-slate-50 border-slate-200'}`}>
-          <div className="flex justify-between items-center">
-            <span className="font-bold text-slate-800">NPHR</span>
-            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
-              Weight: {INDICATOR_WEIGHTS.nphr}%
-            </span>
-          </div>
-          <div className="flex justify-between items-baseline pt-1">
-            <span className="text-slate-500 text-[11px]">Score:</span>
-            <strong className="text-slate-900">
-              {contrib ? `${contrib.nphr}%` : '—'}
-            </strong>
-          </div>
-          <div className="flex justify-between items-baseline text-[11px]">
-            <span className="text-slate-500">Threshold:</span>
-            <span
-              className={
-                isNphrInvalid
-                  ? 'text-rose-700 font-bold'
-                  : nphrMet
-                  ? 'text-rose-600 font-bold'
-                  : latestRecord?.nphrEarlyMonitoringReached
-                  ? 'text-amber-600 font-semibold'
-                  : 'text-slate-600'
-              }
-            >
-              {isNphrInvalid
-                ? 'Data Error (≤ 0)'
-                : nphrMet
-                ? `Met (≥${thresholds.nphrWWThreshold}%)`
-                : latestRecord?.nphrEarlyMonitoringReached
-                ? `Caution (≥${thresholds.nphrEarlyMonitoring}%)`
-                : `< ${thresholds.nphrWWThreshold}%`}
-            </span>
-          </div>
-        </div>
-
         {/* Real Power Component */}
         <div className={`p-2.5 rounded border text-xs space-y-1 ${isPowerInvalid ? 'bg-rose-50/60 border-rose-300' : 'bg-slate-50 border-slate-200'}`}>
           <div className="flex justify-between items-center">
@@ -273,7 +230,7 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
             <span className="text-slate-500 font-medium">Status Gerbang Rekomendasi WW:</span>
             {isRecommendWW ? (
               <span className="font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                Terpenuhi ({thresholdsMetCount}/4 Lolos, Bobot {bobotLolos}%)
+                Terpenuhi ({thresholdsMetCount}/3 Lolos, Bobot {bobotLolos}%)
               </span>
             ) : (
               <span className="font-medium text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
@@ -290,7 +247,7 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
               <span>1 RECOMMEND WATER WASH</span>
             </div>
             <p className="text-slate-600 text-[11px]">
-              Kriteria terpenuhi: <strong>Indikator Lolos ≥ {WATER_WASH_DECISION_RULES.minIndicatorsMet}</strong> (dari 4) <strong>DAN</strong> total <strong>Bobot Lolos ≥ {WATER_WASH_DECISION_RULES.minRecommendWeight}%</strong>.
+              Kriteria terpenuhi: <strong>Indikator Lolos ≥ {WATER_WASH_DECISION_RULES.minIndicatorsMet}</strong> (dari 3) <strong>DAN</strong> total <strong>Bobot Lolos ≥ {WATER_WASH_DECISION_RULES.minRecommendWeight}%</strong>.
             </p>
           </div>
 
@@ -300,7 +257,7 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
               <span>2 CAUTION</span>
             </div>
             <p className="text-slate-600 text-[11px]">
-              Kriteria WW belum terpenuhi, dan: <strong>Bobot Lolos {WATER_WASH_DECISION_RULES.minPantauWeight}% – {WATER_WASH_DECISION_RULES.maxPantauWeight}%</strong> <strong>ATAU</strong> Deteriorasi <strong>NPHR ≥ {thresholds.nphrEarlyMonitoring}%</strong> (Early Monitoring).
+              Kriteria WW belum terpenuhi, dan: <strong>Bobot Lolos {WATER_WASH_DECISION_RULES.minPantauWeight}% – {WATER_WASH_DECISION_RULES.maxPantauWeight}%</strong>.
             </p>
           </div>
 
@@ -310,7 +267,7 @@ export const PerformanceIndexCard: React.FC<PerformanceIndexCardProps> = ({
               <span>3 NORMAL</span>
             </div>
             <p className="text-slate-600 text-[11px]">
-              Operasi turbin gas berada dalam batas normal: <strong>Bobot Lolos &lt; {WATER_WASH_DECISION_RULES.minPantauWeight}%</strong> <strong>DAN</strong> Deteriorasi <strong>NPHR &lt; {thresholds.nphrEarlyMonitoring}%</strong>.
+              Operasi turbin gas berada dalam batas normal: <strong>Bobot Lolos &lt; {WATER_WASH_DECISION_RULES.minPantauWeight}%</strong>.
             </p>
           </div>
         </div>

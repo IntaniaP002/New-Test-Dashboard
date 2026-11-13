@@ -72,16 +72,15 @@ export function isSameOperationalTimestamp(
 
 /**
  * Checks if two operational records/inputs have identical physical values:
- * Real Power, P1.7, P3.0, NPHR, T1.7, and NH Speed.
+ * Real Power, P1.7, P3.0, T1.7, and NH Speed.
  */
 export function areOperationalParametersIdentical(
-  a: { realPower?: number; P1_7?: number; P3_0?: number; nphr?: number; T1_7?: number | null; nhSpeed?: number | null },
-  b: { realPower?: number; P1_7?: number; P3_0?: number; nphr?: number; T1_7?: number | null; nhSpeed?: number | null }
+  a: { realPower?: number; P1_7?: number; P3_0?: number; T1_7?: number | null; nhSpeed?: number | null },
+  b: { realPower?: number; P1_7?: number; P3_0?: number; T1_7?: number | null; nhSpeed?: number | null }
 ): boolean {
   const powerDiff = Math.abs((a.realPower ?? 0) - (b.realPower ?? 0));
   const p1Diff = Math.abs((a.P1_7 ?? 0) - (b.P1_7 ?? 0));
   const p3Diff = Math.abs((a.P3_0 ?? 0) - (b.P3_0 ?? 0));
-  const nphrDiff = Math.abs((a.nphr ?? 0) - (b.nphr ?? 0));
 
   const t1A = a.T1_7 !== undefined && a.T1_7 !== null ? a.T1_7 : null;
   const t1B = b.T1_7 !== undefined && b.T1_7 !== null ? b.T1_7 : null;
@@ -95,7 +94,6 @@ export function areOperationalParametersIdentical(
     powerDiff < 0.01 &&
     p1Diff < 0.01 &&
     p3Diff < 0.01 &&
-    nphrDiff < 0.1 &&
     t1Diff < 0.1 &&
     nhDiff < 5
   );
@@ -108,7 +106,6 @@ export function areOperationalParametersIdentical(
  * 3. Real Power (Beban) matches
  * 4. P1.7 (PT006) matches
  * 5. P3.0 (PT007) matches
- * 6. NPHR matches
  */
 export function findExactDuplicate(
   candidate: {
@@ -117,7 +114,6 @@ export function findExactDuplicate(
     realPower: number;
     P1_7: number;
     P3_0: number;
-    nphr: number;
     T1_7?: number | null;
     nhSpeed?: number | null;
   },
@@ -146,13 +142,11 @@ export function findExactDuplicate(
     const powerDiff = Math.abs(existing.realPower - candidate.realPower);
     const p1Diff = Math.abs(existing.P1_7 - candidate.P1_7);
     const p3Diff = Math.abs(existing.P3_0 - candidate.P3_0);
-    const nphrDiff = Math.abs(existing.nphr - candidate.nphr);
 
     const isExactValues =
       powerDiff < 0.01 &&
       p1Diff < 0.01 &&
-      p3Diff < 0.01 &&
-      nphrDiff < 0.1;
+      p3Diff < 0.01;
 
     if (isExactValues) {
       // If T1.7 or nhSpeed are provided and differ, not exact duplicate
@@ -178,7 +172,7 @@ export function findExactDuplicate(
 
       return {
         existingRecord: existing,
-        reason: `Ditemukan data tercatat pada ${existing.date} ${existing.time || ''} dengan Beban ${existing.realPower.toFixed(2)} MW, P1.7 ${existing.P1_7.toFixed(2)} PSIA, P3.0 ${existing.P3_0.toFixed(2)} PSIA, NPHR ${existing.nphr.toFixed(1)} kcal/kWh yang sama persis.`,
+        reason: `Ditemukan data tercatat pada ${existing.date} ${existing.time || ''} dengan Beban ${existing.realPower.toFixed(2)} MW, P1.7 ${existing.P1_7.toFixed(2)} PSIA, P3.0 ${existing.P3_0.toFixed(2)} PSIA yang sama persis.`,
       };
     }
   }

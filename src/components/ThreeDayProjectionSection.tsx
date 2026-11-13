@@ -7,7 +7,6 @@ import {
   Gauge,
   Zap,
   Activity,
-  Flame,
   ChevronDown,
   ChevronUp,
   BarChart2,
@@ -81,7 +80,6 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
         date: startDate,
         PR: forecastSummary.parameters.PR.currentDeterioration ?? 0,
         P3_0: forecastSummary.parameters.P3_0.currentDeterioration ?? 0,
-        NPHR: forecastSummary.parameters.NPHR.currentDeterioration ?? 0,
         realPower: forecastSummary.parameters.realPower.currentDeterioration ?? 0,
       },
       ...days.map((d) => {
@@ -93,7 +91,6 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
           runningHours: rh,
           PR: d.PR.deterioration,
           P3_0: d.P3_0.deterioration,
-          NPHR: d.NPHR.deterioration,
           realPower: d.realPower.deterioration,
         };
       }),
@@ -235,25 +232,6 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
             </div>
           </div>
 
-          {/* NPHR */}
-          <div className="flex items-center justify-between p-2 rounded bg-slate-50/90 border border-slate-100 text-xs">
-            <div className="flex items-center gap-1.5">
-              <Flame className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-              <span className="font-bold text-slate-800">NPHR:</span>
-              <span className="font-mono text-slate-600">{day.NPHR.projectedValue}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span
-                className={`font-mono font-bold ${
-                  day.NPHR.isThresholdExceeded ? 'text-rose-700' : 'text-emerald-700'
-                }`}
-              >
-                +{day.NPHR.deterioration}%
-              </span>
-              <span className="text-[10px] text-slate-400 font-mono">&le;3.0%</span>
-            </div>
-          </div>
-
           {/* Real Power */}
           <div className="flex items-center justify-between p-2 rounded bg-slate-50/90 border border-slate-100 text-xs">
             <div className="flex items-center gap-1.5">
@@ -291,7 +269,7 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
             ) : (
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
             )}
-            {day.thresholdsMetCount}/4 Parameter
+            {day.thresholdsMetCount}/3 Parameter
           </span>
         </div>
       </div>
@@ -501,7 +479,7 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
                   Grafik Proyeksi Laju Deteriorasi Parameter (%) — {totalRunningHours} Jam Operasi ({totalDays} Hari ke Depan • Asumsi 4 Jam/Hari)
                 </span>
                 <span className="text-[11px] text-slate-500">
-                  Garis putus-putus menunjukkan ambang batas (PR 2.5%, P3.0 2.5%, NPHR 3.0%, Power 4.0%)
+                  Garis putus-putus menunjukkan ambang batas (PR 2.5%, P3.0 2.5%, Power 4.0%)
                 </span>
               </div>
               <div className="h-72 w-full">
@@ -511,13 +489,13 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
                     <XAxis
                       dataKey="label"
                       stroke="#64748b"
-                      tick={{ fontSize: 11 }}
+                      tick={{ fontSize: 12.5 }}
                       interval={totalDays > 14 ? Math.ceil(totalDays / 7) : 'preserveStartEnd'}
                     />
                     <YAxis
                       stroke="#64748b"
                       unit="%"
-                      tick={{ fontSize: 11 }}
+                      tick={{ fontSize: 12.5 }}
                       domain={[0, 'dataMax + 1']}
                     />
                     <Tooltip
@@ -525,7 +503,7 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
                         backgroundColor: '#ffffff',
                         borderColor: '#e2e8f0',
                         borderRadius: '0.375rem',
-                        fontSize: '12px',
+                        fontSize: '13.5px',
                         boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
                       }}
                       labelFormatter={(label, payload) => {
@@ -534,24 +512,18 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
                       }}
                       formatter={(val: any) => [`+${val}%`, '']}
                     />
-                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                    <Legend wrapperStyle={{ fontSize: '13px', paddingTop: '8px' }} />
                     <ReferenceLine
                       y={2.5}
                       stroke="#ef4444"
                       strokeDasharray="4 4"
-                      label={{ value: 'Ambang PR & P3.0 (2.5%)', fill: '#dc2626', fontSize: 10 }}
-                    />
-                    <ReferenceLine
-                      y={3.0}
-                      stroke="#f59e0b"
-                      strokeDasharray="4 4"
-                      label={{ value: 'Ambang NPHR (3.0%)', fill: '#d97706', fontSize: 10 }}
+                      label={{ value: 'Ambang PR & P3.0 (2.5%)', fill: '#dc2626', fontSize: 12 }}
                     />
                     <ReferenceLine
                       y={4.0}
                       stroke="#0284c7"
                       strokeDasharray="4 4"
-                      label={{ value: 'Ambang Power (4.0%)', fill: '#0369a1', fontSize: 10 }}
+                      label={{ value: 'Ambang Power (4.0%)', fill: '#0369a1', fontSize: 12 }}
                     />
                     <Line
                       type="monotone"
@@ -567,15 +539,6 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
                       dataKey="P3_0"
                       name="P3.0 (%)"
                       stroke="#9333ea"
-                      strokeWidth={2}
-                      dot={totalDays > 15 ? false : { r: 3 }}
-                      activeDot={{ r: 5 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="NPHR"
-                      name="NPHR (%)"
-                      stroke="#d97706"
                       strokeWidth={2}
                       dot={totalDays > 15 ? false : { r: 3 }}
                       activeDot={{ r: 5 }}
@@ -723,37 +686,6 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
                         </td>
                       </tr>
 
-                      {/* NPHR */}
-                      <tr className="hover:bg-slate-50/50">
-                        <td className="py-2 px-3 font-bold text-slate-900 flex items-center gap-1.5">
-                          <Flame className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                          Net Plant Heat Rate (NPHR)
-                        </td>
-                        <td className="py-2 px-3 font-semibold text-amber-700">&le;3.0%</td>
-                        <td className="py-2 px-3 font-mono">
-                          +{forecastSummary.parameters.NPHR.currentDeterioration}%
-                        </td>
-                        {milestoneIndices.map((idx) => {
-                          const d = days[idx];
-                          const isLast = idx === days.length - 1;
-                          return (
-                            <td
-                              key={idx}
-                              className={`py-2 px-3 font-mono ${
-                                isLast
-                                  ? 'font-bold bg-rose-50/70 text-rose-800'
-                                  : 'text-slate-700'
-                              }`}
-                            >
-                              +{d?.NPHR.deterioration}% ({d?.NPHR.projectedValue} kcal/kWh)
-                            </td>
-                          );
-                        })}
-                        <td className="py-2 px-3 font-mono text-slate-600">
-                          +{days[days.length - 1]?.NPHR.deltaFromCurrent}%
-                        </td>
-                      </tr>
-
                       {/* Real Power */}
                       <tr className="hover:bg-slate-50/50">
                         <td className="py-2 px-3 font-bold text-slate-900 flex items-center gap-1.5">
@@ -801,7 +733,6 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
                         <th className="py-2.5 px-3">Fokus / Tahap</th>
                         <th className="py-2.5 px-3">PR (&le;2.5%)</th>
                         <th className="py-2.5 px-3">P3.0 (&le;2.5%)</th>
-                        <th className="py-2.5 px-3">NPHR (&le;3.0%)</th>
                         <th className="py-2.5 px-3">Real Power (&ge;4.0%)</th>
                         <th className="py-2.5 px-3">Lolos Ambang</th>
                       </tr>
@@ -853,13 +784,6 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
                             </td>
                             <td
                               className={`py-2 px-3 font-mono ${
-                                day.NPHR.isThresholdExceeded ? 'text-rose-700 font-bold' : 'text-slate-700'
-                              }`}
-                            >
-                              +{day.NPHR.deterioration}% ({day.NPHR.projectedValue})
-                            </td>
-                            <td
-                              className={`py-2 px-3 font-mono ${
                                 day.realPower.isThresholdExceeded
                                   ? 'text-rose-700 font-bold'
                                   : 'text-slate-700'
@@ -877,7 +801,7 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
                                     : 'bg-emerald-100 text-emerald-800'
                                 }`}
                               >
-                                {day.thresholdsMetCount}/4 Lolos
+                                {day.thresholdsMetCount}/3 Lolos
                               </span>
                             </td>
                           </tr>

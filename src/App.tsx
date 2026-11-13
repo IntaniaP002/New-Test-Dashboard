@@ -173,21 +173,37 @@ export default function App() {
     setActiveTab('pbSynthesis');
   };
 
-  // Sync to localStorage
+  // Sync to localStorage safely (protects against QuotaExceededError on large Excel imports)
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, activeTab);
+    try {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, activeTab);
+    } catch {
+      /* ignore storage errors */
+    }
   }, [activeTab]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.THRESHOLDS, JSON.stringify(thresholds));
+    try {
+      localStorage.setItem(STORAGE_KEYS.THRESHOLDS, JSON.stringify(thresholds));
+    } catch {
+      /* ignore storage errors */
+    }
   }, [thresholds]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.BASELINE, JSON.stringify(baseline));
+    try {
+      localStorage.setItem(STORAGE_KEYS.BASELINE, JSON.stringify(baseline));
+    } catch {
+      /* ignore storage errors */
+    }
   }, [baseline]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(records));
+    try {
+      localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(records));
+    } catch {
+      /* ignore storage errors */
+    }
   }, [records]);
 
   // Derived Analytics & Dynamic Evaluation against current thresholds
@@ -239,7 +255,6 @@ export default function App() {
         P3_0: input.P3_0,
         PR: pr,
         realPower: input.realPower,
-        nphr: input.nphr,
         referenceDescription: `Operational baseline established on ${input.date}`,
         setAt: new Date().toISOString(),
       };
@@ -413,7 +428,6 @@ export default function App() {
           P1_7: resolvedPT006,
           P3_0: p3Val,
           realPower: 35.0,
-          nphr: 2500,
           pbSynthesis: pbSynthesis ?? undefined,
           pbSynthesisDB: pbSynthesisDB ?? undefined,
           fNH: fNH ?? undefined,
@@ -501,7 +515,6 @@ export default function App() {
       let p1 = newInputs[0].P1_7;
       let p3 = newInputs[0].P3_0;
       let pw = newInputs[0].realPower;
-      let hr = newInputs[0].nphr;
 
       if (firstDayInputs.length > 1) {
         const getMed = (arr: (number | undefined | null)[]) => {
@@ -516,7 +529,6 @@ export default function App() {
         p1 = Number((getMed(firstDayInputs.map((i) => i.P1_7)) ?? p1).toFixed(2));
         p3 = Number((getMed(firstDayInputs.map((i) => i.P3_0)) ?? p3).toFixed(2));
         pw = Number((getMed(firstDayInputs.map((i) => i.realPower)) ?? pw).toFixed(2));
-        hr = Number((getMed(firstDayInputs.map((i) => i.nphr)) ?? hr).toFixed(1));
       }
 
       const pr = p1 > 0 ? Number((p3 / p1).toFixed(4)) : null;
@@ -528,7 +540,6 @@ export default function App() {
         P3_0: p3,
         PR: pr,
         realPower: pw,
-        nphr: hr,
         date: firstDate,
         time: firstDayInputs.length > 1 ? 'Daily Average' : newInputs[0].time,
         referenceDescription:
@@ -546,28 +557,24 @@ export default function App() {
     // - Brand new timestamps are added as new records
     // - Existing records with updated values are revised in-place (re-evaluated)
     // - Identical records are preserved without doubling!
-    let importCounts = { added: 0, updated: 0, identical: 0 };
-    setRecords((prev) => {
-      const { mergedRecords, addedCount, updatedCount, identicalCount } = smartMergeOperationalRecords(
-        sanitizedInputs,
-        prev,
-        activeBaseline,
-        thresholds
-      );
-      importCounts = { added: addedCount, updated: updatedCount, identical: identicalCount };
-      return mergedRecords;
-    });
+    const { mergedRecords, addedCount, updatedCount, identicalCount } = smartMergeOperationalRecords(
+      sanitizedInputs,
+      records,
+      activeBaseline,
+      thresholds
+    );
+    setRecords(mergedRecords);
 
-    if (importCounts.added > 0 || importCounts.updated > 0) {
+    if (addedCount > 0 || updatedCount > 0) {
       setImportNotification({
         type: 'success',
-        text: `Sinkronisasi Excel Berhasil: ${importCounts.added} data baru ditambahkan, ${importCounts.updated} data diperbarui.`,
-        details: importCounts.identical > 0 ? `${importCounts.identical} data identik dipertahankan tanpa membuat duplikasi ganda.` : undefined,
+        text: `Sinkronisasi Excel Berhasil: ${addedCount} data baru ditambahkan, ${updatedCount} data diperbarui.`,
+        details: identicalCount > 0 ? `${identicalCount} data identik dipertahankan tanpa membuat duplikasi ganda.` : undefined,
       });
-    } else if (importCounts.identical > 0) {
+    } else if (identicalCount > 0) {
       setImportNotification({
         type: 'info',
-        text: `Semua ${importCounts.identical} baris data dari berkas Excel sudah ada di sistem.`,
+        text: `Semua ${identicalCount} baris data dari berkas Excel sudah ada di sistem.`,
         details: 'Tidak ada data ganda yang dibuat.',
       });
     }
@@ -677,7 +684,6 @@ export default function App() {
       P3_0: p3,
       PR: pr,
       realPower: record.realPower,
-      nphr: record.nphr,
       referenceDescription: desc,
       setAt: new Date().toISOString(),
     };
@@ -864,14 +870,12 @@ export default function App() {
       <footer className="border-t border-slate-200 bg-white py-3.5 px-4 text-center text-xs text-slate-500">
         <div className="max-w-[1800px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>
-            Water Washing Monitoring • Decision Logic: {WATER_WASH_DECISION_RULES.minIndicatorsMet}-out-of-4 Parameter Rule
+            Water Washing Monitoring • Decision Logic: {WATER_WASH_DECISION_RULES.minIndicatorsMet}-out-of-3 Parameter Rule
           </span>
           <div className="flex items-center gap-3 text-slate-400 text-[11px]">
             <span>
-              Thresholds: NPHR ≥ {thresholds.nphrWWThreshold}% | PR ≥ {thresholds.prWWThreshold}% | P3.0 ≥ {thresholds.p3WWThreshold}% | Real Power ≥ {thresholds.powerWWThreshold}%
+              Thresholds: PR ≥ {thresholds.prWWThreshold}% | P3.0 ≥ {thresholds.p3WWThreshold}% | Real Power ≥ {thresholds.powerWWThreshold}%
             </span>
-            <span>•</span>
-            <span>Early Monitoring: NPHR {thresholds.nphrEarlyMonitoring}%</span>
           </div>
         </div>
       </footer>

@@ -1,7 +1,6 @@
 import React from 'react';
 import { X, Calendar, CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react';
 import { WaterWashEvent } from '../types';
-import { calculateEfficiencyFromNPHR } from '../utils/calculations';
 
 interface WaterWashDetailModalProps {
   isOpen: boolean;
@@ -18,8 +17,6 @@ export const WaterWashDetailModal: React.FC<WaterWashDetailModalProps> = ({
 
   const pre = event.preRecord;
   const post = event.postRecord;
-  const preEff = pre ? calculateEfficiencyFromNPHR(pre.nphr) : null;
-  const postEff = post ? calculateEfficiencyFromNPHR(post.nphr) : null;
 
   const formatVal = (val: number | null | undefined, unit: string = '', decimals: number = 2) => {
     if (val === null || val === undefined || isNaN(val)) return 'N/A';
@@ -59,7 +56,7 @@ export const WaterWashDetailModal: React.FC<WaterWashDetailModalProps> = ({
       : `After WW (H+${event.postDaysDiff})`
     : 'After WW (H+1)';
 
-  const hasBoth = Boolean(pre && post && event.deltaNPHR !== null && event.deltaNPHR !== undefined);
+  const hasBoth = Boolean(pre && post && (event.deltaPR !== null || event.deltaP3 !== null));
 
   return (
     <div
@@ -130,14 +127,6 @@ export const WaterWashDetailModal: React.FC<WaterWashDetailModalProps> = ({
               {pre ? (
                 <div className="space-y-2.5 text-xs">
                   <div>
-                    <span className="text-slate-500 block">NPHR:</span>
-                    <span className="font-semibold text-slate-800">{formatVal(pre.nphr, 'kcal/kWh')}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">Efficiency:</span>
-                    <span className="font-semibold text-slate-800">{formatVal(preEff, '%')}</span>
-                  </div>
-                  <div>
                     <span className="text-slate-500 block">PR:</span>
                     <span className="font-semibold text-slate-800">{formatVal(pre.pr, '', 4)}</span>
                   </div>
@@ -170,14 +159,6 @@ export const WaterWashDetailModal: React.FC<WaterWashDetailModalProps> = ({
               {post ? (
                 <div className="space-y-2.5 text-xs">
                   <div>
-                    <span className="text-slate-500 block">NPHR:</span>
-                    <span className="font-semibold text-slate-800">{formatVal(post.nphr, 'kcal/kWh')}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">Efficiency:</span>
-                    <span className="font-semibold text-slate-800">{formatVal(postEff, '%')}</span>
-                  </div>
-                  <div>
                     <span className="text-slate-500 block">PR:</span>
                     <span className="font-semibold text-slate-800">{formatVal(post.pr, '', 4)}</span>
                   </div>
@@ -207,14 +188,6 @@ export const WaterWashDetailModal: React.FC<WaterWashDetailModalProps> = ({
               </div>
               {hasBoth ? (
                 <div className="space-y-2.5 text-xs">
-                  <div>
-                    <span className="text-slate-500 block">NPHR Change:</span>
-                    {formatDelta(event.deltaNPHR, event.deltaNPHRPercent, 'kcal/kWh', true)}
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">Efficiency Change:</span>
-                    {formatDelta(event.deltaEfficiency, null, '%', false)}
-                  </div>
                   <div>
                     <span className="text-slate-500 block">PR Change:</span>
                     {formatDelta(event.deltaPR, event.deltaPRPercent, '', false)}

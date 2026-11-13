@@ -25,6 +25,7 @@ import {
   ImportClassification,
 } from '../utils/duplicateValidation';
 import {
+  FIELD_PATTERNS,
   autoNormalizeDiamondData,
   cleanNumericValue,
   standardizeDate,
@@ -127,7 +128,7 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
         setParseError(
           result.warnings.length > 0
             ? result.warnings.join(' ')
-            : 'Tidak ada baris data valid yang dapat diekstrak. Pastikan parameter turbin (P1.7, P3.0, Beban, NPHR) tersedia pada file.'
+            : 'Tidak ada baris data valid yang dapat diekstrak. Pastikan parameter turbin (P1.7, P3.0, Beban) tersedia pada file.'
         );
         return;
       }
@@ -139,29 +140,48 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
     }
   };
 
-  // Direct worksheet parser as fallback if CSV string conversion loses cell formats
+  // Direct worksheet parser: avoids sheet_to_csv multiline header splitting & preserves raw Excel serials
   const parseWorksheetDirectly = (worksheet: XLSX.WorkSheet): OperationalInput[] => {
     if (!worksheet || !worksheet['!ref']) return [];
     try {
-      const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
-      if (rows.length < 2) return [];
+      const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true, defval: '' });
+      const fmtRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: '' });
+      if (rawRows.length < 2) return [];
 
-      let headerRowIdx = -1;
+      const normalizeHeaderCell = (val: any) =>
+        String(val ?? '')
+          .replace(/[\r\n]+/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .toLowerCase();
+
+      const isCandidateHeaderCell = (cellStr: string, patterns: string[]): boolean => {
+        if (!cellStr || cellStr.length < 2) return false;
+        if (!isNaN(Number(cellStr.replace(/,/g, '.')))) return false;
+        if (/^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/.test(cellStr)) return false;
+        if (/^\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}/.test(cellStr)) return false;
+        if (/^\d{1,2}[:.]\d{2}/.test(cellStr)) return false;
+        return patterns.some((p) => {
+          if (cellStr === p) return true;
+          if (p.length >= 2 && cellStr.includes(p)) return true;
+          if (cellStr.length >= 3 && p.includes(cellStr)) return true;
+          return false;
+        });
+      };
+
+      let headerRowIdx = 0;
       let maxScore = -1;
+      const scanLimit = Math.min(50, rawRows.length);
 
-      // Scan first 25 rows to identify the true header row
-      for (let r = 0; r < Math.min(25, rows.length); r++) {
-        const row = rows[r];
-        if (!Array.isArray(row)) continue;
+      for (let r = 0; r < scanLimit; r++) {
+        const row = rawRows[r];
+        if (!Array.isArray(row) || row.length < 2) continue;
+        const normalizedCells = row.map(normalizeHeaderCell);
         let score = 0;
-        for (const cell of row) {
-          const s = String(cell || '').toLowerCase().trim();
-          if (s.includes('pt007') || s.includes('p3.0') || s.includes('discharge') || s.includes('pt-007') || s.includes('pb aktual')) score += 5;
-          if (s.includes('pt006') || s.includes('p1.7') || s.includes('inlet') || s.includes('pt-006')) score += 5;
-          if (s.includes('tanggal') || s.includes('date') || s.includes('tgl') || s.includes('waktu')) score += 3;
-          if (s.includes('beban') || s.includes('power') || s.includes('mw') || s.includes('load')) score += 3;
-          if (s.includes('nh') || s.includes('speed') || s.includes('rpm')) score += 2;
-          if (s.includes('t1.7') || s.includes('t17') || s.includes('temp') || s.includes('suhu')) score += 2;
+        for (const patterns of Object.values(FIELD_PATTERNS)) {
+          if (normalizedCells.some((c) => isCandidateHeaderCell(c, patterns))) {
+            score++;
+          }
         }
         if (score > maxScore) {
           maxScore = score;
@@ -169,46 +189,106 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
         }
       }
 
-      if (headerRowIdx === -1 || maxScore < 3) headerRowIdx = 0;
-      const headers = (rows[headerRowIdx] || []).map((h: any) => String(h || '').toLowerCase().trim());
+      const rawHeaderRow = rawRows[headerRowIdx] || [];
+      const fmtHeaderRow = fmtRows[headerRowIdx] || [];
+      const maxCols = Math.max(rawHeaderRow.length, fmtHeaderRow.length);
+      const headers: string[] = [];
+      for (let c = 0; c < maxCols; c++) {
+        const h1 = normalizeHeaderCell(rawHeaderRow[c]);
+        const h2 = normalizeHeaderCell(fmtHeaderRow[c]);
+        headers.push(h1 || h2);
+      }
 
-      const findIdx = (patterns: string[]) => {
-        return headers.findIndex((h) => patterns.some((p) => h.includes(p)));
+      const findColIdx = (patterns: string[]): number => {
+        for (let i = 0; i < headers.length; i++) {
+          if (headers[i] && patterns.includes(headers[i])) return i;
+        }
+        for (let i = 0; i < headers.length; i++) {
+          const h = headers[i];
+          if (!h || h.length < 2) continue;
+          if (patterns.some((p) => (p.length >= 2 && h.includes(p)) || (h.length >= 3 && p.includes(h)))) {
+            return i;
+          }
+        }
+        return -1;
       };
 
-      const dateIdx = findIdx(['tanggal', 'date', 'tgl', 'waktu & tanggal', 'tanggal & waktu']);
-      const timeIdx = findIdx(['waktu', 'time', 'jam', 'pukul']);
-      const p3Idx = findIdx(['pt007', 'p3.0', 'p30', 'discharge', 'pt-007', 'pb aktual', 'pb testing', '★ pt007']);
-      const p1Idx = findIdx(['pt006', 'p1.7', 'p17', 'inlet', 'pt-006']);
-      const powerIdx = findIdx(['beban', 'power', 'mw', 'load', 'turbin']);
-      const nhIdx = findIdx(['nh speed', 'nh', 'speed', 'rpm']);
-      const t17Idx = findIdx(['t1.7', 't17', 'temp', 'suhu']);
-      const nphrIdx = findIdx(['nphr', 'heat rate', 'hr']);
+      const dateIdx = findColIdx(FIELD_PATTERNS.date);
+      const rawTimeIdx = findColIdx(FIELD_PATTERNS.time);
+      const timeIdx = rawTimeIdx === dateIdx ? -1 : rawTimeIdx;
+      const t17Idx = findColIdx(FIELD_PATTERNS.T1_7);
+      const p1Idx = findColIdx(FIELD_PATTERNS.P1_7);
+      const p3Idx = findColIdx(FIELD_PATTERNS.P3_0);
+      const powerIdx = findColIdx(FIELD_PATTERNS.realPower);
+      const nhIdx = findColIdx(FIELD_PATTERNS.nhSpeed);
+      const pbIdx = findColIdx(FIELD_PATTERNS.pbSynthesis);
+      const wwIdx = findColIdx(FIELD_PATTERNS.isWaterWashEvent);
+
+      if (p3Idx === -1) return [];
+
+      const getNum = (rawCell: any, fmtCell: any): number | null => {
+        if (typeof rawCell === 'number' && !isNaN(rawCell) && isFinite(rawCell)) {
+          return rawCell;
+        }
+        const fromRaw = cleanNumericValue(rawCell !== undefined && rawCell !== null ? String(rawCell) : '');
+        if (fromRaw !== null) return fromRaw;
+        return cleanNumericValue(fmtCell !== undefined && fmtCell !== null ? String(fmtCell) : '');
+      };
 
       const records: OperationalInput[] = [];
-      for (let r = headerRowIdx + 1; r < rows.length; r++) {
-        const row = rows[r];
+      for (let r = headerRowIdx + 1; r < rawRows.length; r++) {
+        const row = rawRows[r] || [];
+        const fmtRow = fmtRows[r] || [];
         if (!Array.isArray(row) || row.length === 0) continue;
 
-        const p3Raw = p3Idx >= 0 ? cleanNumericValue(String(row[p3Idx] ?? '')) : null;
-        if (p3Raw === null) continue; // Row must contain discharge pressure
+        const p3Raw = getNum(row[p3Idx], fmtRow[p3Idx]);
+        if (p3Raw === null) continue;
 
-        const p1Raw = p1Idx >= 0 ? cleanNumericValue(String(row[p1Idx] ?? '')) : null;
-        const powerRaw = powerIdx >= 0 ? cleanNumericValue(String(row[powerIdx] ?? '')) : null;
-        const nhRaw = nhIdx >= 0 ? cleanNumericValue(String(row[nhIdx] ?? '')) : undefined;
-        const t17Raw = t17Idx >= 0 ? cleanNumericValue(String(row[t17Idx] ?? '')) : undefined;
-        const nphrRaw = nphrIdx >= 0 ? cleanNumericValue(String(row[nphrIdx] ?? '')) : null;
+        const p1Raw = p1Idx >= 0 ? getNum(row[p1Idx], fmtRow[p1Idx]) : null;
+        const powerRaw = powerIdx >= 0 ? getNum(row[powerIdx], fmtRow[powerIdx]) : null;
+        const nhRaw = nhIdx >= 0 ? getNum(row[nhIdx], fmtRow[nhIdx]) ?? undefined : undefined;
+        const t17Raw = t17Idx >= 0 ? getNum(row[t17Idx], fmtRow[t17Idx]) ?? undefined : undefined;
+        const pbRaw = pbIdx >= 0 ? getNum(row[pbIdx], fmtRow[pbIdx]) ?? undefined : undefined;
 
-        let dateStr = dateIdx >= 0 && row[dateIdx] !== undefined ? standardizeDate(String(row[dateIdx])) : new Date().toISOString().slice(0, 10);
-        let timeStr = timeIdx >= 0 && row[timeIdx] !== undefined ? standardizeTime(String(row[timeIdx])) : '20:00';
+        const rawDateCell = dateIdx >= 0 ? row[dateIdx] : '';
+        const fmtDateCell = dateIdx >= 0 ? fmtRow[dateIdx] : '';
+        const rawTimeCell = timeIdx >= 0 ? row[timeIdx] : '';
+        const fmtTimeCell = timeIdx >= 0 ? fmtRow[timeIdx] : '';
 
-        if (dateIdx >= 0 && (timeIdx === -1 || !row[timeIdx])) {
-          const dtStr = String(row[dateIdx] || '');
-          if (dtStr.includes(' ') || dtStr.includes('T')) {
-            const parts = dtStr.replace('T', ' ').trim().split(/\s+/);
-            dateStr = standardizeDate(parts[0]);
-            if (parts[1]) timeStr = standardizeTime(parts[1]);
+        // Prefer raw Excel serial number if numeric (avoids locale/timezone drift), otherwise formatted text
+        const dateSource =
+          typeof rawDateCell === 'number' && rawDateCell >= 35000
+            ? rawDateCell
+            : (fmtDateCell !== '' && fmtDateCell !== undefined ? String(fmtDateCell) : String(rawDateCell ?? ''));
+
+        let dateStr = dateIdx >= 0 && dateSource !== '' ? standardizeDate(dateSource) : new Date().toISOString().slice(0, 10);
+
+        let timeStr = '20:00';
+        if (timeIdx >= 0 && (rawTimeCell !== '' || fmtTimeCell !== '')) {
+          if (typeof rawTimeCell === 'number' && rawTimeCell >= 0) {
+            timeStr = standardizeTime(rawTimeCell);
+          } else {
+            const tStr = String(fmtTimeCell || rawTimeCell || '');
+            timeStr = standardizeTime(tStr);
           }
+        } else if (dateIdx >= 0) {
+          // Combined date + time in single Date column
+          if (typeof rawDateCell === 'number' && rawDateCell >= 35000 && rawDateCell % 1 > 0) {
+            timeStr = standardizeTime(rawDateCell);
+          } else {
+            const dtStr = String(fmtDateCell || rawDateCell || '').trim();
+            if (dtStr.includes(' ') || dtStr.includes('T')) {
+              const parts = dtStr.replace('T', ' ').split(/\s+/);
+              dateStr = standardizeDate(parts[0]);
+              if (parts[1]) timeStr = standardizeTime(parts.slice(1).join(' '));
+            }
+          }
+        }
+
+        let isWW = false;
+        if (wwIdx >= 0 && (row[wwIdx] !== '' || fmtRow[wwIdx] !== '')) {
+          const v = String(fmtRow[wwIdx] ?? row[wwIdx] ?? '').toLowerCase().trim();
+          isWW = v === 'yes' || v === 'y' || v === '1' || v === 'true';
         }
 
         records.push({
@@ -217,10 +297,11 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
           P1_7: p1Raw !== null ? p1Raw : 14.65,
           P3_0: p3Raw,
           realPower: powerRaw !== null ? powerRaw : 20.0,
-          nphr: nphrRaw !== null ? nphrRaw : 2450,
-          nhSpeed: nhRaw ?? undefined,
-          T1_7: t17Raw ?? undefined,
-          isWaterWashEvent: false,
+          nhSpeed: nhRaw,
+          T1_7: t17Raw,
+          pbSynthesis: pbRaw,
+          isWaterWashEvent: isWW,
+          notes: isWW ? 'Water Wash Event' : undefined,
         });
       }
 
@@ -234,49 +315,61 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
     if (!file) return;
     setUploadedFileName(file.name);
     setParseError(null);
+    setPreviewRows([]);
     setIsLoadingFile(true);
 
-    const isExcel = /\.(xlsx|xls|xlsm|xlsb)$/i.test(file.name);
-
     try {
+      let buffer: ArrayBuffer;
+      if (typeof file.arrayBuffer === 'function') {
+        buffer = await file.arrayBuffer();
+      } else {
+        buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as ArrayBuffer);
+          reader.onerror = () => reject(new Error('Gagal membaca berkas.'));
+          reader.readAsArrayBuffer(file);
+        });
+      }
+
+      if (!buffer || buffer.byteLength === 0) {
+        setParseError('Berkas kosong atau tidak dapat diakses.');
+        return;
+      }
+
+      const bytes = new Uint8Array(buffer);
+      const hasZipMagic = bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b; // .xlsx / .xlsm
+      const hasOleMagic = bytes.length >= 4 && bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0; // .xls
+      const isExcel =
+        /\.(xlsx|xls|xlsm|xlsb)$/i.test(file.name) ||
+        hasZipMagic ||
+        hasOleMagic ||
+        file.type.includes('spreadsheet') ||
+        file.type.includes('excel');
+
       if (isExcel) {
-        let buffer: ArrayBuffer;
-        if (typeof file.arrayBuffer === 'function') {
-          buffer = await file.arrayBuffer();
-        } else {
-          buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as ArrayBuffer);
-            reader.onerror = () => reject(new Error('Gagal membaca berkas Excel.'));
-            reader.readAsArrayBuffer(file);
-          });
-        }
-
-        if (!buffer || buffer.byteLength === 0) {
-          setIsLoadingFile(false);
-          setParseError('Berkas Excel kosong atau tidak dapat diakses.');
-          return;
-        }
-
-        const workbook = XLSX.read(new Uint8Array(buffer), {
+        const workbook = XLSX.read(bytes, {
           type: 'array',
-          cellDates: true,
+          cellDates: false,
         });
 
         if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
-          setIsLoadingFile(false);
           setParseError('Berkas Excel tidak memiliki sheet yang valid.');
           return;
         }
 
-        // Try extracting records across sheets
         let bestRecords: OperationalInput[] = [];
 
         for (const sName of workbook.SheetNames) {
           const ws = workbook.Sheets[sName];
           if (!ws || !ws['!ref']) continue;
 
-          // Attempt 1: via sheet_to_csv and autoNormalizeDiamondData
+          // Attempt 1: Direct worksheet extraction (safe for multiline headers & Excel serials)
+          const direct = parseWorksheetDirectly(ws);
+          if (direct.length > bestRecords.length) {
+            bestRecords = direct;
+          }
+
+          // Attempt 2: CSV normalization fallback
           try {
             const csv = XLSX.utils.sheet_to_csv(ws);
             const res = autoNormalizeDiamondData(csv, file.name);
@@ -284,21 +377,11 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
               bestRecords = res.extractedRecords;
             }
           } catch {
-            // fallback to direct parsing
-          }
-
-          // Attempt 2: direct worksheet extraction
-          if (bestRecords.length === 0) {
-            const direct = parseWorksheetDirectly(ws);
-            if (direct.length > bestRecords.length) {
-              bestRecords = direct;
-            }
+            // ignore fallback error
           }
 
           if (bestRecords.length > 0) break;
         }
-
-        setIsLoadingFile(false);
 
         if (bestRecords.length === 0) {
           setParseError(
@@ -310,36 +393,21 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
         setPreviewRows(bestRecords);
       } else {
         // Plain CSV / Text file
-        let text: string;
-        if (typeof file.text === 'function') {
-          text = await file.text();
-        } else {
-          text = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = () => reject(new Error('Gagal membaca berkas CSV.'));
-            reader.readAsText(file);
-          });
-        }
+        const text = new TextDecoder('utf-8').decode(bytes);
         parseCsvContent(text, file.name);
       }
     } catch (err: unknown) {
-      setIsLoadingFile(false);
       const msg = err instanceof Error ? err.message : 'Kesalahan saat memproses berkas.';
       setParseError(`Gagal membaca berkas: ${msg}`);
+    } finally {
+      setIsLoadingFile(false);
     }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      processSelectedFile(file);
-      // Safely reset input value in a timeout so subsequent uploads of the same file still trigger onChange
-      setTimeout(() => {
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-      }, 800);
+      void processSelectedFile(file);
     }
   };
 
@@ -361,7 +429,7 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
     setIsDragOver(false);
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      processSelectedFile(file);
+      void processSelectedFile(file);
     }
   };
 
@@ -377,14 +445,14 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
   };
 
   const executeImport = () => {
+    if (displayedRows.length === 0) return;
     let targetRows = displayedRows;
     if (skipDuplicates && duplicateIndices.size > 0) {
       targetRows = displayedRows.filter((_, idx) => !duplicateIndices.has(idx));
     }
-    if (targetRows.length > 0) {
-      onImportData(targetRows);
-      onClose();
-    }
+    // Always pass displayedRows if all rows were identical so smartMerge reports the sync status & closes cleanly
+    onImportData(targetRows.length > 0 ? targetRows : displayedRows);
+    onClose();
   };
 
   const executeImportExcludingAnomalies = () => {
@@ -396,9 +464,9 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
     }
     if (cleanRows.length > 0) {
       onImportData(cleanRows);
-      setShowAnomalyModal(false);
-      onClose();
     }
+    setShowAnomalyModal(false);
+    onClose();
   };
 
   const handleDownloadStandardizedExcel = () => {
@@ -412,7 +480,6 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
       'P1.7 / PT006 (PSIA)': r.P1_7,
       'P3.0 / PT007 (PSIA)': r.P3_0,
       'PR (Calc)': r.P1_7 > 0 ? Number((r.P3_0 / r.P1_7).toFixed(4)) : null,
-      'NPHR (kcal/kWh)': r.nphr,
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -430,7 +497,6 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
         'T1.7 (°F)': 85.5,
         'P1.7': 14.60,
         'P3.0': 265.79,
-        'NPHR': 2435,
       },
       {
         'Tanggal (YYYY-MM-DD)': '2026-10-25',
@@ -440,7 +506,6 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
         'T1.7 (°F)': 84.8,
         'P1.7': 14.64,
         'P3.0': 265.00,
-        'NPHR': 2450,
       },
     ];
     const ws = XLSX.utils.json_to_sheet(templateRows);
@@ -482,12 +547,27 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={`p-5 rounded-lg transition-all duration-150 border-2 ${
+            className={`relative p-5 rounded-lg transition-all duration-150 border-2 ${
               isDragOver
                 ? 'border-dashed border-sky-500 bg-sky-50/90 shadow-md ring-2 ring-sky-300'
                 : 'border-dashed border-slate-300 bg-slate-50/70 hover:bg-slate-100/80 hover:border-sky-400'
             }`}
           >
+            {/* Native input overlaid directly on the dropzone so hardware clicks work reliably in all browsers & iframes */}
+            <input
+              ref={fileInputRef}
+              id="dataset-file-upload"
+              type="file"
+              accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.txt,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+              onClick={(e) => {
+                e.currentTarget.value = '';
+              }}
+              onChange={handleFileUpload}
+              disabled={isLoadingFile}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed"
+              aria-label="Pilih File Excel atau CSV"
+            />
+
             <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
               <div className="flex items-center gap-2">
                 <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
@@ -503,10 +583,11 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
               <button
                 type="button"
                 onClick={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
                   handleDownloadExcelTemplate();
                 }}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded border border-emerald-300 transition-colors"
+                className="relative z-20 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded border border-emerald-300 transition-colors cursor-pointer"
                 title="Download template Excel dengan format kolom standar"
               >
                 <Download className="w-3.5 h-3.5" />
@@ -514,18 +595,13 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
               </button>
             </div>
 
-            {/* Clickable Area with Big Button */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-md border border-slate-200">
+            {/* Visual Trigger Bar (clicks pass straight to overlaid native input) */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-md border border-slate-200 pointer-events-none">
               <div className="flex items-center gap-3 w-full sm:w-auto">
-                <button
-                  type="button"
-                  disabled={isLoadingFile}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white text-xs font-bold rounded shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 shrink-0"
-                >
+                <span className="px-4 py-2 bg-sky-600 text-white text-xs font-bold rounded shadow-xs flex items-center justify-center gap-2 shrink-0">
                   <Upload className="w-4 h-4" />
                   <span>{uploadedFileName ? 'Ganti File Excel / CSV' : 'Pilih File dari Komputer'}</span>
-                </button>
+                </span>
                 <span className="text-xs text-slate-500 hidden sm:inline">
                   atau tarik &amp; lepas file ke kotak ini
                 </span>
@@ -535,16 +611,6 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
                 Format didukung: .xlsx, .xls, .csv
               </span>
             </div>
-
-            {/* Hidden native input for clean, standard file selection without browser interference */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.txt,.tsv"
-              onChange={handleFileUpload}
-              disabled={isLoadingFile}
-              className="hidden"
-            />
 
             {isLoadingFile && (
               <div className="mt-3 flex items-center gap-2.5 text-xs font-medium text-sky-800 bg-sky-50 py-2.5 px-3 rounded-md border border-sky-200 animate-pulse">
@@ -723,7 +789,6 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
                       <th className="py-2 px-3 whitespace-nowrap">P1.7 / PT006 (PSIA)</th>
                       <th className="py-2 px-3 whitespace-nowrap">P3.0 / PT007 (PSIA)</th>
                       <th className="py-2 px-3 whitespace-nowrap">PR (Calc)</th>
-                      <th className="py-2 px-3 whitespace-nowrap">NPHR</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-[11px]">
@@ -795,9 +860,6 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
                           </td>
                           <td className="py-1.5 px-3 font-mono font-medium text-slate-700">
                             {pr}
-                          </td>
-                          <td className="py-1.5 px-3 text-slate-800">
-                            {r.nphr.toLocaleString()}
                           </td>
                         </tr>
                       );

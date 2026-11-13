@@ -142,9 +142,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const getParamStatus = (
     currentVal: number | null | undefined,
     det: number | null | undefined,
-    thresh: number,
-    isNphr: boolean = false,
-    earlyBound: number = 1.7
+    thresh: number
   ): { label: 'Normal' | 'Monitoring' | 'Threshold Reached' | 'Data Error (≤ 0)' | 'N/A'; colorClass: string } => {
     if (currentVal !== null && currentVal !== undefined && !isNaN(currentVal) && currentVal <= 0) {
       return { label: 'Data Error (≤ 0)', colorClass: 'bg-rose-100 text-rose-900 border-rose-300 font-bold' };
@@ -155,22 +153,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (det >= thresh) {
       return { label: 'Threshold Reached', colorClass: 'bg-rose-50 text-rose-800 border-rose-300 font-semibold' };
     }
-    if (isNphr && det >= earlyBound) {
-      return { label: 'Monitoring', colorClass: 'bg-amber-50 text-amber-800 border-amber-300 font-medium' };
-    }
-    if (!isNphr && det >= thresh * 0.5) {
+    if (det >= thresh * 0.5) {
       return { label: 'Monitoring', colorClass: 'bg-amber-50 text-amber-800 border-amber-300 font-medium' };
     }
     return { label: 'Normal', colorClass: 'bg-emerald-50 text-emerald-800 border-emerald-300' };
   };
 
-  const nphrStatus = getParamStatus(
-    activeRecord?.nphr,
-    activeRecord?.nphrDeterioration,
-    thresholds.nphrWWThreshold,
-    true,
-    thresholds.nphrEarlyMonitoring
-  );
   const prStatus = getParamStatus(
     activeRecord?.pr,
     activeRecord?.prDeterioration,
@@ -236,7 +224,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       boxStyle: 'bg-emerald-50/70 border-emerald-300',
       badgeStyle: 'bg-emerald-600 text-white',
       icon: <CheckCircle2 className="w-8 h-8 text-emerald-600 shrink-0 stroke-[2.25]" />,
-      explanation: activeRecord?.statusExplanation || '0 of 4 parameters reached threshold.',
+      explanation: activeRecord?.statusExplanation || '0 of 3 parameters reached threshold.',
     };
   };
 
@@ -248,17 +236,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const isPrInvalid = Boolean(activeRecord && (activeRecord.P1_7 <= 0 || activeRecord.P3_0 <= 0 || activeRecord.pr <= 0));
   const isP3Invalid = Boolean(activeRecord && activeRecord.P3_0 <= 0);
-  const isNphrInvalid = Boolean(activeRecord && activeRecord.nphr <= 0);
   const isPowerInvalid = Boolean(activeRecord && activeRecord.realPower <= 0);
 
   const prMet = Boolean(!isPrInvalid && (activeRecord?.prThresholdReached || (contrib && contrib.pr >= INDICATOR_WEIGHTS.pr)));
   const p3Met = Boolean(!isP3Invalid && (activeRecord?.p3ThresholdReached || (contrib && contrib.p3 >= INDICATOR_WEIGHTS.p3)));
-  const nphrMet = Boolean(!isNphrInvalid && (activeRecord?.nphrThresholdReached || (contrib && contrib.nphr >= INDICATOR_WEIGHTS.nphr)));
   const powerMet = Boolean(!isPowerInvalid && (activeRecord?.powerThresholdReached || (contrib && contrib.power >= INDICATOR_WEIGHTS.power)));
 
   const thresholdsMetCount =
     activeRecord?.thresholdsMetCount ??
-    [prMet, p3Met, nphrMet, powerMet].filter(Boolean).length;
+    [prMet, p3Met, powerMet].filter(Boolean).length;
   const bobotLolos = piScore ?? 0;
 
   const isRecommendWW =
@@ -271,10 +257,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     (activeRecord?.overallStatus === 'CAUTION' ||
       activeRecord?.overallStatus === 'MONITORING' ||
       activeRecord?.overallStatus === 'EARLY MONITORING' ||
-      (bobotLolos >= WATER_WASH_DECISION_RULES.minPantauWeight && bobotLolos < WATER_WASH_DECISION_RULES.minRecommendWeight) ||
-      (activeRecord?.nphrDeterioration !== null &&
-        activeRecord?.nphrDeterioration !== undefined &&
-        activeRecord.nphrDeterioration >= thresholds.nphrEarlyMonitoring));
+      (bobotLolos >= WATER_WASH_DECISION_RULES.minPantauWeight && bobotLolos < WATER_WASH_DECISION_RULES.minRecommendWeight));
 
   const isNormal = !isRecommendWW && !isMonitoring && hasBaseline && piScore !== null;
 
@@ -501,7 +484,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {/* Concise summary line and last reading date */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pt-1 border-t border-slate-200/60 text-xs">
               <span className="font-semibold text-slate-800">
-                {thresholdsMetCount} of 4 parameter thresholds met with combined weight {bobotLolos}%.
+                {thresholdsMetCount} of 3 parameter thresholds met with combined weight {bobotLolos}%.
               </span>
               {!isHistorical && activeRecord && (
                 <span className="text-[11px] text-slate-500 whitespace-nowrap">
@@ -526,10 +509,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </span>
               </div>
               <p className="text-rose-900 text-xs">
-                {activeRecord.dataQualityWarning || 'Besaran fisik turbin gas (P1.7, P3.0, Real Power, NPHR) harus bernilai positif (> 0). Nilai ≤ 0 merupakan data error.'}
+                {activeRecord.dataQualityWarning || 'Besaran fisik turbin gas (P1.7, P3.0, Real Power) harus bernilai positif (> 0). Nilai ≤ 0 merupakan data error.'}
               </p>
               <p className="text-[11px] text-rose-700">
-                Penyebut tidak diam-diam diturunkan menjadi {activeRecord.thresholdsMetCount} dari 3. Periksa input data atau kalibrasi sensor agar evaluasi valid.
+                Penyebut tetap dihitung dari 3 parameter utama. Periksa input data atau kalibrasi sensor agar evaluasi valid.
               </p>
             </div>
           </div>
@@ -568,7 +551,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span>Power: <strong className="text-slate-900">{baseline.realPower?.toFixed(2)} MW</strong></span>
                 <span>PR: <strong className="text-slate-900 font-mono">{baseline.PR?.toFixed(4)}</strong></span>
                 <span>P3.0: <strong className="text-slate-900">{baseline.P3_0?.toFixed(2)} PSIA</strong></span>
-                <span>NPHR: <strong className="text-slate-900">{baseline.nphr?.toLocaleString()} kcal</strong></span>
               </div>
             )}
             {onOpenBaselineConfig && (
@@ -606,9 +588,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Unified 4 Performance Parameters Grid (PR, P3.0, NPHR, Real Power) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
-          {/* PR Card (30%) */}
+        {/* Unified 3 Performance Parameters Grid (PR, P3.0, Real Power) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+          {/* PR Card (35%) */}
           <div className={`border rounded-md p-3.5 transition-colors shadow-2xs ${
             isPrInvalid ? 'bg-rose-50/60 border-rose-300' : prMet ? 'bg-rose-50/25 border-rose-200' : 'bg-white border-slate-200 hover:border-slate-300'
           }`}>
@@ -667,7 +649,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          {/* P3.0 Card (30%) */}
+          {/* P3.0 Card (35%) */}
           <div className={`border rounded-md p-3.5 transition-colors shadow-2xs ${
             isP3Invalid ? 'bg-rose-50/60 border-rose-300' : p3Met ? 'bg-rose-50/25 border-rose-200' : 'bg-white border-slate-200 hover:border-slate-300'
           }`}>
@@ -727,81 +709,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          {/* NPHR Card (20%) */}
-          <div className={`border rounded-md p-3.5 transition-colors shadow-2xs ${
-            isNphrInvalid ? 'bg-rose-50/60 border-rose-300' : nphrMet ? 'bg-rose-50/25 border-rose-200' : 'bg-white border-slate-200 hover:border-slate-300'
-          }`}>
-            <div className="flex items-center justify-between gap-1.5 pb-2 border-b border-slate-100">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-900">NPHR</span>
-                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                  Weight: {INDICATOR_WEIGHTS.nphr}%
-                </span>
-              </div>
-              <span className={`text-[11px] px-2 py-0.5 rounded border font-semibold ${
-                isNphrInvalid
-                  ? 'bg-rose-100 text-rose-900 border-rose-300 font-bold'
-                  : nphrMet
-                  ? 'bg-rose-50 text-rose-800 border-rose-300'
-                  : activeRecord?.nphrEarlyMonitoringReached
-                  ? 'bg-amber-50 text-amber-800 border-amber-300'
-                  : 'bg-emerald-50 text-emerald-800 border-emerald-300'
-              }`}>
-                {isNphrInvalid
-                  ? 'Data Error'
-                  : nphrMet
-                  ? `Met (≥${thresholds.nphrWWThreshold}%)`
-                  : activeRecord?.nphrEarlyMonitoringReached
-                  ? `Caution (≥${thresholds.nphrEarlyMonitoring}%)`
-                  : 'Normal'}
-              </span>
-            </div>
-            <div className="mt-2.5 flex items-baseline justify-between">
-              <div className="text-lg font-extrabold text-slate-900 tracking-tight">
-                {activeRecord ? `${activeRecord.nphr.toLocaleString()} ` : '— '}
-                <span className="text-xs font-normal text-slate-500">kcal/kWh</span>
-              </div>
-              <div className="text-xs font-bold text-slate-700">
-                Score: <span className={nphrMet ? 'text-rose-700' : 'text-slate-500'}>{contrib ? `${contrib.nphr}%` : nphrMet ? `${INDICATOR_WEIGHTS.nphr}%` : '0%'}</span>
-              </div>
-            </div>
-            <div className="mt-2 text-xs space-y-1 text-slate-600 border-t border-slate-100 pt-2">
-              <div className="flex justify-between items-baseline">
-                <span
-                  className="shrink-0 cursor-help border-b border-dotted border-slate-400"
-                  title="Rumus Deteriorasi NPHR: ((Nilai Saat Ini - Baseline) / Baseline) × 100%. Untuk NPHR (Heat Rate), kenaikan konsumsi energi adalah degradasi efisiensi (higher is worse). Jika bernilai positif (+), artinya turbin lebih boros bahan bakar dibanding baseline."
-                >
-                  Deterioration:
-                </span>
-                <span className={`font-semibold text-right ml-auto ${activeRecord?.nphrDeterioration && activeRecord.nphrDeterioration >= thresholds.nphrWWThreshold ? 'text-rose-700' : 'text-slate-800'}`}>
-                  {activeRecord?.nphrDeterioration !== null && activeRecord?.nphrDeterioration !== undefined
-                    ? `${activeRecord.nphrDeterioration > 0 ? '+' : ''}${activeRecord.nphrDeterioration}%`
-                    : 'N/A'}
-                </span>
-              </div>
-              <div className="flex justify-between items-baseline text-[11px] text-slate-500 gap-2">
-                <span
-                  className="shrink-0 cursor-help border-b border-dotted border-slate-300"
-                  title="Rumus Delta: Nilai Saat Ini - Nilai Baseline. Tanda (+) berarti nilai aktual saat ini berada di atas baseline."
-                >
-                  Delta vs Baseline:
-                </span>
-                <span className="font-mono font-medium text-slate-700 text-right ml-auto whitespace-nowrap">
-                  {activeRecord?.nphrDelta !== null && activeRecord?.nphrDelta !== undefined
-                    ? `${activeRecord.nphrDelta > 0 ? '+' : ''}${activeRecord.nphrDelta.toFixed(1)} kcal/kWh`
-                    : (hasBaseline && baseline.nphr && activeRecord ? `${(activeRecord.nphr - baseline.nphr) > 0 ? '+' : ''}${(activeRecord.nphr - baseline.nphr).toFixed(1)} kcal/kWh` : '—')}
-                </span>
-              </div>
-              <div className="flex justify-between items-baseline text-slate-500 text-[11px] gap-2">
-                <span className="shrink-0">Threshold:</span>
-                <span className="text-right ml-auto whitespace-nowrap">
-                  ≥ {thresholds.nphrWWThreshold}% <span className="text-[10px] text-slate-400 font-normal">(Early: {thresholds.nphrEarlyMonitoring}%)</span>
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Real Power Card (20%) */}
+          {/* Real Power Card (30%) */}
           <div className={`border rounded-md p-3.5 transition-colors shadow-2xs ${
             isPowerInvalid ? 'bg-rose-50/60 border-rose-300' : powerMet ? 'bg-rose-50/25 border-rose-200' : 'bg-white border-slate-200 hover:border-slate-300'
           }`}>
@@ -875,7 +783,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span className="text-slate-500 font-medium">Status Gerbang Rekomendasi WW:</span>
                 {isRecommendWW ? (
                   <span className="font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                    Terpenuhi ({thresholdsMetCount}/4 Lolos, Bobot {bobotLolos}%)
+                    Terpenuhi ({thresholdsMetCount}/3 Lolos, Bobot {bobotLolos}%)
                   </span>
                 ) : (
                   <span className="font-medium text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
@@ -905,7 +813,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   )}
                 </div>
                 <p className="text-slate-600 text-[11px]">
-                  Kriteria terpenuhi: <strong>Indikator Lolos ≥ {WATER_WASH_DECISION_RULES.minIndicatorsMet}</strong> (dari 4) <strong>DAN</strong> total <strong>Bobot Lolos ≥ {WATER_WASH_DECISION_RULES.minRecommendWeight}%</strong>.
+                  Kriteria terpenuhi: <strong>Indikator Lolos ≥ {WATER_WASH_DECISION_RULES.minIndicatorsMet}</strong> (dari 3) <strong>DAN</strong> total <strong>Bobot Lolos ≥ {WATER_WASH_DECISION_RULES.minRecommendWeight}%</strong>.
                 </p>
               </div>
 
@@ -920,7 +828,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   )}
                 </div>
                 <p className="text-slate-600 text-[11px]">
-                  Kriteria WW belum terpenuhi, dan: <strong>Bobot Lolos {WATER_WASH_DECISION_RULES.minPantauWeight}% – {WATER_WASH_DECISION_RULES.maxPantauWeight}%</strong> <strong>ATAU</strong> Deteriorasi <strong>NPHR ≥ {thresholds.nphrEarlyMonitoring}%</strong> (Early Monitoring).
+                  Kriteria WW belum terpenuhi, dan: <strong>Bobot Lolos {WATER_WASH_DECISION_RULES.minPantauWeight}% – {WATER_WASH_DECISION_RULES.maxPantauWeight}%</strong>.
                 </p>
               </div>
 
@@ -935,7 +843,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   )}
                 </div>
                 <p className="text-slate-600 text-[11px]">
-                  Operasi turbin gas berada dalam batas normal: <strong>Bobot Lolos &lt; {WATER_WASH_DECISION_RULES.minPantauWeight}%</strong> <strong>DAN</strong> Deteriorasi <strong>NPHR &lt; {thresholds.nphrEarlyMonitoring}%</strong>.
+                  Operasi turbin gas berada dalam batas normal: <strong>Bobot Lolos &lt; {WATER_WASH_DECISION_RULES.minPantauWeight}%</strong>.
                 </p>
               </div>
             </div>
@@ -1034,7 +942,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               onClick={() => onNavigate('input')}
               className="text-sky-700 font-semibold underline hover:text-sky-900"
             >
-              Input Data
+              Dashboard
             </button>
             .
           </div>
@@ -1068,8 +976,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   </th>
                   <th className="py-3 px-4">Comparison Scope (Daily Average)</th>
-                  <th className="py-3 px-4">NPHR Change</th>
-                  <th className="py-3 px-4">Efficiency Change</th>
                   <th className="py-3 px-4">PR Change</th>
                   <th className="py-3 px-4">P3.0 Change</th>
                   <th className="py-3 px-4">Real Power Change</th>
@@ -1108,14 +1014,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       ) : (
                         <span className="text-slate-400 italic">Data belum lengkap</span>
                       )}
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      {formatChange(evt.deltaNPHR, evt.deltaNPHRPercent, 'kcal/kWh', true)}
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      {evt.deltaEfficiency !== null && evt.deltaEfficiency !== undefined
-                        ? <span className="text-emerald-700 font-semibold">+{evt.deltaEfficiency.toFixed(2)}%</span>
-                        : 'N/A'}
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap">
                       {formatChange(evt.deltaPR, evt.deltaPRPercent, '', false)}

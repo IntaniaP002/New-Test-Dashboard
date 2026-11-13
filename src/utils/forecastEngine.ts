@@ -7,11 +7,10 @@
  *    - PR deterioration (%) = (Baseline PR - Daily PR) / Baseline PR * 100
  *    - P3.0 deterioration (%) = (Baseline P3.0 - Daily P3.0) / Baseline P3.0 * 100
  *    - Real Power deterioration (%) = (Baseline Real Power - Daily Real Power) / Baseline Real Power * 100
- *    - NPHR deterioration (%) = (Daily NPHR - Baseline NPHR) / Baseline NPHR * 100
  * 3. Uses CURRENT Water Washing cycle data only (not combining previous WW cycles).
  * 4. Dates converted to elapsed calendar days from baseline date: Day 0, Day 1, Day 2, etc.
  * 5. Linear regression trend: D(t) = a + b * t
- * 6. Fixed thresholds: PR = 2.5%, P3.0 = 2.5%, NPHR = 3.0%, Real Power = 4.0%.
+ * 6. Fixed thresholds: PR = 2.5%, P3.0 = 2.5%, Real Power = 4.0%.
  * 7. Days to threshold: Remaining / Slope (when Remaining > 0 and Slope > 0).
  * 8. Status = "THRESHOLD REACHED" if Current deterioration >= Threshold.
  * 9. Status = "NO PROJECTED THRESHOLD CROSSING" if Slope <= 0.
@@ -114,7 +113,6 @@ export function applyRollingMedian(
  * PR deterioration (%) = ((Baseline PR - Daily PR) / Baseline PR) * 100
  * P3.0 deterioration (%) = ((Baseline P3.0 - Daily P3.0) / Baseline P3.0) * 100
  * Real Power deterioration (%) = ((Baseline Real Power - Daily Real Power) / Baseline Real Power) * 100
- * NPHR deterioration (%) = ((Daily NPHR - Baseline NPHR) / Baseline NPHR) * 100
  * 
  * Positive value means deterioration. Negative value means improvement.
  */
@@ -144,12 +142,6 @@ export function calculateDailyParameterDeterioration(
       const basePower = baseline.realPower;
       if (!basePower || basePower <= 0 || !dailyPower || dailyPower <= 0) return null;
       return Number((((basePower - dailyPower) / basePower) * 100).toFixed(4));
-    }
-    case 'NPHR': {
-      const dailyNphr = record.nphr;
-      const baseNphr = baseline.nphr;
-      if (!baseNphr || baseNphr <= 0 || !dailyNphr || dailyNphr <= 0) return null;
-      return Number((((dailyNphr - baseNphr) / baseNphr) * 100).toFixed(4));
     }
   }
 }
@@ -594,11 +586,10 @@ export function getCalendarDaysBetween(fromDateStr: string, toDateStr: string): 
 }
 
 /**
- * Calculates complete forecasting suite across all 4 parameters:
+ * Calculates complete forecasting suite across all 3 parameters:
  * 1. PR
  * 2. P3.0
- * 3. NPHR
- * 4. Real Power
+ * 3. Real Power
  * 
  * Uses the Input History table as the source dataset, isolates the current cycle,
  * fits linear regression on elapsed days, and identifies the nearest threshold.
@@ -617,7 +608,6 @@ export function calculateOverallForecast(
   // Use FIXED project thresholds
   const prThresh = FIXED_FORECAST_THRESHOLDS.PR; // 2.5%
   const p3Thresh = FIXED_FORECAST_THRESHOLDS.P3_0; // 2.5%
-  const nphrThresh = FIXED_FORECAST_THRESHOLDS.NPHR; // 3.0%
   const powerThresh = FIXED_FORECAST_THRESHOLDS.realPower; // 4.0%
 
   // 3. Isolate CURRENT Water Washing cycle or newest input data records
@@ -649,16 +639,6 @@ export function calculateOverallForecast(
     effectiveBaseDate
   );
 
-  const nphrForecast = calculateParameterForecast(
-    'NPHR',
-    'Net Plant Heat Rate (NPHR)',
-    'kcal/kWh',
-    nphrThresh,
-    cycleRecords,
-    baseline,
-    effectiveBaseDate
-  );
-
   const powerForecast = calculateParameterForecast(
     'realPower',
     'Real Power (MW)',
@@ -672,7 +652,6 @@ export function calculateOverallForecast(
   const parameters: Record<ForecastParameter, ParameterForecast> = {
     PR: prForecast,
     P3_0: p3Forecast,
-    NPHR: nphrForecast,
     realPower: powerForecast,
   };
 
@@ -690,34 +669,19 @@ export function calculateOverallForecast(
 
   const daysPR = getParamCombinationDays(prForecast);
   const daysP3 = getParamCombinationDays(p3Forecast);
-  const daysNPHR = getParamCombinationDays(nphrForecast);
   const daysPower = getParamCombinationDays(powerForecast);
-
-  // Sub-clause: MIN(Forecast NPHR, Forecast Real Power) for (NPHR OR Real Power)
-  let daysAux: number | null = null;
-  if (daysNPHR !== null && daysPower !== null) {
-    daysAux = Math.min(daysNPHR, daysPower);
-  } else if (daysNPHR !== null) {
-    daysAux = daysNPHR;
-  } else if (daysPower !== null) {
-    daysAux = daysPower;
-  } else {
-    daysAux = null;
-  }
 
   // Gerbang keputusan AND murni: (jumlah indikator lolos >= 3) DAN (bobot indikator yang lolos >= 80%)
   const prReached = prForecast.status === 'THRESHOLD REACHED';
   const p3Reached = p3Forecast.status === 'THRESHOLD REACHED';
-  const nphrReached = nphrForecast.status === 'THRESHOLD REACHED';
   const powerReached = powerForecast.status === 'THRESHOLD REACHED';
 
   let reachedWeight = 0;
   if (prReached) reachedWeight += INDICATOR_WEIGHTS.pr;
   if (p3Reached) reachedWeight += INDICATOR_WEIGHTS.p3;
-  if (nphrReached) reachedWeight += INDICATOR_WEIGHTS.nphr;
   if (powerReached) reachedWeight += INDICATOR_WEIGHTS.power;
 
-  const reachedCount = [prReached, p3Reached, nphrReached, powerReached].filter(Boolean).length;
+  const reachedCount = [prReached, p3Reached, powerReached].filter(Boolean).length;
   // Sinkron dengan gerbang keputusan evaluateOperationalRecord (checkWaterWashRecommendCondition)
   const isConditionSatisfied = checkWaterWashRecommendCondition(reachedCount, reachedWeight);
 
@@ -725,13 +689,11 @@ export function calculateOverallForecast(
   const reachedParameters: ForecastParameter[] = [];
   if (prReached) reachedParameters.push('PR');
   if (p3Reached) reachedParameters.push('P3_0');
-  if (nphrReached) reachedParameters.push('NPHR');
   if (powerReached) reachedParameters.push('realPower');
 
   // Overall Forecast WW:
-  // Forecast WW = MAX(Forecast PR, Forecast P3.0, MIN(Forecast NPHR, Forecast Real Power))
-  // "If only one parameter reaches its threshold, do not show 0 days for the overall Water Washing forecast.
-  // The overall status remains Normal until the existing PR AND P3.0 AND (NPHR OR Real Power) condition is satisfied."
+  // Forecast WW = MAX(Forecast PR, Forecast P3.0, Forecast Real Power)
+  // The overall status remains Normal/Caution until PR AND P3.0 AND Real Power condition is satisfied.
   let rawForecastWW: number | null = null;
   let governingParam: ForecastParameter | null = null;
 
@@ -739,17 +701,15 @@ export function calculateOverallForecast(
     // Condition is already fully satisfied: rule updated to 3 days lead-time for Water Wash preparation
     rawForecastWW = 3;
     governingParam = null;
-  } else if (daysPR !== null && daysP3 !== null && daysAux !== null) {
-    rawForecastWW = Math.max(daysPR, daysP3, daysAux);
+  } else if (daysPR !== null && daysP3 !== null && daysPower !== null) {
+    rawForecastWW = Math.max(daysPR, daysP3, daysPower);
 
     // Governing parameter that determined the MAX
     if (rawForecastWW === daysPR) {
       governingParam = 'PR';
     } else if (rawForecastWW === daysP3) {
       governingParam = 'P3_0';
-    } else if (daysAux === daysNPHR && daysNPHR !== null) {
-      governingParam = 'NPHR';
-    } else if (daysAux === daysPower && daysPower !== null) {
+    } else {
       governingParam = 'realPower';
     }
   } else {
@@ -759,7 +719,7 @@ export function calculateOverallForecast(
   }
 
   // Deteksi status operasional saat ini (CAUTION / MONITORING vs NORMAL):
-  // Saat bobot lolos 50% - 79% (misal PR 30% + P3.0 30% = 60%, atau NPHR early monitoring)
+  // Saat bobot lolos 50% - 79% (2 dari 3 parameter lolos ambang batas)
   const latestRecord = cycleRecords[cycleRecords.length - 1];
   const isPantauOperationalState =
     !isConditionSatisfied &&
@@ -777,7 +737,7 @@ export function calculateOverallForecast(
     if (rawForecastWW === null || rawForecastWW > MAX_PANTAU_FORECAST_DAYS) {
       forecastWW = MAX_PANTAU_FORECAST_DAYS;
       isPantauCapped = true;
-      pantauExplanation = `Dibatasi batas atas Status Caution (Maksimal ${MAX_PANTAU_FORECAST_DAYS} hari, justifikasi: 22 hari tercepat historis - 7 hari observasi regresi). Bobot deteriorasi ${reachedWeight}% (${reachedCount}/4 parameter lolos ambang batas).`;
+      pantauExplanation = `Dibatasi batas atas Status Caution (Maksimal ${MAX_PANTAU_FORECAST_DAYS} hari, justifikasi: 22 hari tercepat historis - 7 hari observasi regresi). Bobot deteriorasi ${reachedWeight}% (${reachedCount}/3 parameter lolos ambang batas).`;
     }
   }
 
@@ -839,7 +799,7 @@ export function calculateOverallForecast(
       }
 
       // Also auto-update each individual parameter's daysToThreshold
-      for (const key of ['PR', 'P3_0', 'NPHR', 'realPower'] as const) {
+      for (const key of ['PR', 'P3_0', 'realPower'] as const) {
         const pFc = parameters[key];
         if (pFc.status === 'FORECAST AVAILABLE' && pFc.estimatedDate) {
           const pRemaining = getCalendarDaysBetween(activeRefDate, pFc.estimatedDate);
@@ -870,7 +830,7 @@ export function calculateOverallForecast(
   // Nearest individual parameter (for informational reference)
   let nearestParam: ForecastParameter | null = null;
   let minDays = Infinity;
-  for (const key of ['PR', 'P3_0', 'NPHR', 'realPower'] as const) {
+  for (const key of ['PR', 'P3_0', 'realPower'] as const) {
     const fc = parameters[key];
     if (fc.status === 'FORECAST AVAILABLE' && fc.daysToThreshold !== null && fc.daysToThreshold > 0) {
       if (fc.daysToThreshold < minDays) {
@@ -903,14 +863,10 @@ export function calculateOverallForecast(
     governingDisplayName: governingParam ? parameters[governingParam].displayName : null,
     forecastDaysPR: daysPR,
     forecastDaysP3: daysP3,
-    forecastDaysNPHR: daysNPHR,
     forecastDaysPower: daysPower,
-    forecastDaysAux: daysAux,
     forecastHoursPR: daysPR !== null ? daysPR * DEFAULT_RUNNING_HOURS_PER_DAY : null,
     forecastHoursP3: daysP3 !== null ? daysP3 * DEFAULT_RUNNING_HOURS_PER_DAY : null,
-    forecastHoursNPHR: daysNPHR !== null ? daysNPHR * DEFAULT_RUNNING_HOURS_PER_DAY : null,
     forecastHoursPower: daysPower !== null ? daysPower * DEFAULT_RUNNING_HOURS_PER_DAY : null,
-    forecastHoursAux: daysAux !== null ? daysAux * DEFAULT_RUNNING_HOURS_PER_DAY : null,
     isConditionSatisfied,
     nearestParameter: nearestParam,
     nearestDisplayName: nearestParam ? parameters[nearestParam].displayName : null,
@@ -930,7 +886,7 @@ export function calculateOverallForecast(
 }
 
 /**
- * Calculates a forward projection for all 4 parameters (PR, P3.0, NPHR, Real Power).
+ * Calculates a forward projection for all 3 parameters (PR, P3.0, Real Power).
  * - For DUE_NOW (threshold reached): evaluates a 3-day lead-time window (H+1, H+2, H+3).
  * - For Normal status: evaluates all projected days (e.g. 29 days from H+1 to H+29) matching the estimated countdown.
  */
@@ -956,7 +912,7 @@ export function calculateThreeDayProjection(
 
   const offsets = Array.from({ length: count }, (_, i) => i + 1);
 
-  const paramKeys: ForecastParameter[] = ['PR', 'P3_0', 'NPHR', 'realPower'];
+  const paramKeys: ForecastParameter[] = ['PR', 'P3_0', 'realPower'];
 
   const getParamConfig = (key: ForecastParameter) => {
     switch (key) {
@@ -975,14 +931,6 @@ export function calculateThreeDayProjection(
           baseVal: baseline.P3_0 ?? 154.0,
           defaultSlope: 0.032,
           isHigherDeteriorating: false,
-        };
-      case 'NPHR':
-        return {
-          threshold: FIXED_FORECAST_THRESHOLDS.NPHR,
-          unit: 'kcal/kWh',
-          baseVal: baseline.nphr ?? 2450.0,
-          defaultSlope: 0.040,
-          isHigherDeteriorating: true,
         };
       case 'realPower':
         return {
@@ -1066,7 +1014,6 @@ export function calculateThreeDayProjection(
       focusLabel,
       PR: paramMap.PR,
       P3_0: paramMap.P3_0,
-      NPHR: paramMap.NPHR,
       realPower: paramMap.realPower,
       thresholdsMetCount: metCount,
       isAllThresholdsMet: metCount >= 3,

@@ -13,7 +13,6 @@ interface DuplicateWarningModalProps {
     P1_7: number;
     P3_0: number;
     pr: number | null;
-    nphr: number;
     T1_7?: number | null;
     nhSpeed?: number | null;
   };
@@ -141,15 +140,6 @@ export const DuplicateWarningModal: React.FC<DuplicateWarningModalProps> = ({
                   </td>
                   <td className="py-2 px-3 text-right font-bold text-slate-800">
                     {existingRecord.pr ? existingRecord.pr.toFixed(4) : '—'}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-2 px-3 font-sans font-medium text-slate-700">NPHR (Heat Rate)</td>
-                  <td className="py-2 px-3 text-right font-bold text-amber-900 bg-amber-50/30">
-                    {candidateData.nphr.toFixed(1)} kcal/kWh
-                  </td>
-                  <td className="py-2 px-3 text-right font-bold text-slate-800">
-                    {existingRecord.nphr.toFixed(1)} kcal/kWh
                   </td>
                 </tr>
               </tbody>

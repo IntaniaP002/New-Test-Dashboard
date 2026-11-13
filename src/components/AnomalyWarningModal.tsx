@@ -142,14 +142,13 @@ export const AnomalyWarningModal: React.FC<AnomalyWarningModalProps> = ({
                     <th className="py-2 px-3 whitespace-nowrap text-right">P3.0 (PSIA)</th>
                     <th className="py-2 px-3 whitespace-nowrap text-right">PR (Calc)</th>
                     <th className="py-2 px-3 whitespace-nowrap text-right">Power (MW)</th>
-                    <th className="py-2 px-3 whitespace-nowrap text-right">NPHR</th>
                     <th className="py-2 px-3 whitespace-nowrap">Keterangan Anomali</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-[11px]">
                   {displayedReports.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-6 text-center text-slate-400">
+                      <td colSpan={7} className="py-6 text-center text-slate-400">
                         Tidak ada data anomali pada tanggal yang dipilih.
                       </td>
                     </tr>
@@ -158,7 +157,6 @@ export const AnomalyWarningModal: React.FC<AnomalyWarningModalProps> = ({
                       const p1Anomaly = isFieldAnomalous(rep, 'P1_7');
                       const p3Anomaly = isFieldAnomalous(rep, 'P3_0');
                       const powerAnomaly = isFieldAnomalous(rep, 'realPower');
-                      const nphrAnomaly = isFieldAnomalous(rep, 'nphr');
 
                       return (
                         <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
@@ -204,16 +202,6 @@ export const AnomalyWarningModal: React.FC<AnomalyWarningModalProps> = ({
                           }`}>
                             {rep.rowData.realPower}
                             {powerAnomaly && <span className="ml-1 text-[10px]">⚠️</span>}
-                          </td>
-
-                          {/* NPHR Cell */}
-                          <td className={`py-2.5 px-3 font-mono text-right whitespace-nowrap ${
-                            nphrAnomaly
-                              ? 'bg-rose-100/80 text-rose-900 font-black border-x border-rose-300'
-                              : 'text-slate-700'
-                          }`}>
-                            {rep.rowData.nphr}
-                            {nphrAnomaly && <span className="ml-1 text-[10px]">⚠️</span>}
                           </td>
 
                           {/* Issues summary */}

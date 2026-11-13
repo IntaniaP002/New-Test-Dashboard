@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Gauge,
-  Edit3,
+  LayoutDashboard,
   Trash2,
   Compass,
   Activity,
@@ -73,9 +73,9 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const navItems: { id: ActiveNavTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'dashboard', label: 'Efisiensi Kompresor', icon: <Gauge className="w-4 h-4" /> },
+    { id: 'input', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: 'dashboard', label: 'Performa Kompresor', icon: <Gauge className="w-4 h-4" /> },
     { id: 'pbSynthesis', label: 'PB Synthesis', icon: <Activity className="w-4 h-4" /> },
-    { id: 'input', label: 'Input Data', icon: <Edit3 className="w-4 h-4" /> },
   ];
 
   return (

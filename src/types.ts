@@ -10,7 +10,6 @@ export interface OperationalInput {
   P1_7: number; // Compressor Inlet Pressure (PSIA)
   P3_0: number; // Compressor Discharge Pressure (PSIA)
   realPower: number; // Gas Turbine Real Power (MW)
-  nphr: number; // Net Plant Heat Rate (kcal/kWh)
   pbSynthesis?: number | null; // PB Synthesis (NH) in PSIA
   pbSynthesisDB?: number | null; // PB Synthesis DB in PSIA
   fNH?: number | null; // Kurva f(NH) Speedronic (Y)
@@ -54,26 +53,22 @@ export interface OperationalRecord extends OperationalInput {
   pr: number; // Pressure Ratio = P3_0 / P1_7
 
   // Deteriorations (% - positive means worse performance)
-  nphrDeterioration: number | null;
   prDeterioration: number | null;
   p3Deterioration: number | null;
   powerDeterioration: number | null;
 
   // Actual physical deltas vs baseline (Current - Baseline)
-  nphrDelta?: number | null; // kcal/kWh (positive = higher heat rate)
   prDelta?: number | null; // dimensionless (negative = loss of PR)
   p3Delta?: number | null; // PSIA (negative = drop in discharge pressure)
   powerDelta?: number | null; // MW (negative = loss of generator power)
 
   // Threshold evaluations
-  nphrThresholdReached: boolean | null;
-  nphrEarlyMonitoringReached: boolean | null;
   prThresholdReached: boolean | null;
   p3ThresholdReached: boolean | null;
   powerThresholdReached: boolean | null;
 
-  // Water Washing 3-out-of-4 Rule metrics
-  thresholdsMetCount: number; // 0 to 4
+  // Water Washing 3-out-of-3 Rule metrics
+  thresholdsMetCount: number; // 0 to 3
   evaluatedIndicatorsCount: number; // How many indicators had valid baseline
   overallStatus: OverallWaterWashStatus;
   statusExplanation: string;
@@ -82,14 +77,13 @@ export interface OperationalRecord extends OperationalInput {
   syncedToSpreadsheet?: boolean;
   syncTimestamp?: string;
 
-  // Performance Index / Bobot Lolos Diskrit (PR 30%, P3.0 30%, NPHR 20%, Real Power 20%)
-  // Dihitung diskrit hanya dari indikator yang telah melampaui batas ambang (0%, 20%, 30%, 50%, 60%, 70%, 80%, 100%)
+  // Performance Index / Bobot Lolos Diskrit (PR 35%, P3.0 35%, Real Power 30%)
+  // Dihitung diskrit hanya dari indikator yang telah melampaui batas ambang (0%, 30%, 35%, 65%, 70%, 100%)
   performanceIndex?: number | null;
   performanceIndexContribution?: {
-    pr: number; // 30 atau 0
-    p3: number; // 30 atau 0
-    nphr: number; // 20 atau 0
-    power: number; // 20 atau 0
+    pr: number; // 35 atau 0
+    p3: number; // 35 atau 0
+    power: number; // 30 atau 0
   };
 
   // Proximity Score (Continuous insight only - TIDAK PERNAH digunakan untuk penentuan status operasional)
@@ -142,11 +136,9 @@ export interface OperationalRecord extends OperationalInput {
 }
 
 export interface ThresholdConfig {
-  nphrWWThreshold: number; // Default: 3.0 (%)
   prWWThreshold: number; // Default: 2.5 (%)
   p3WWThreshold: number; // Default: 2.5 (%)
   powerWWThreshold: number; // Default: 4.0 (%)
-  nphrEarlyMonitoring: number; // Default: 1.7 (%)
 }
 
 /**
@@ -162,7 +154,6 @@ export interface DailyRepresentativeRecord {
   // Average values
   PR: number;
   P3_0: number;
-  nphr: number;
   realPower: number;
   T1_7?: number;
   P1_7?: number;
@@ -170,14 +161,13 @@ export interface DailyRepresentativeRecord {
   // Daily Deteriorations relative to Active Baseline (%)
   prDeterioration: number | null;
   p3Deterioration: number | null;
-  nphrDeterioration: number | null;
   powerDeterioration: number | null;
 
   // Performance Index for this representative day
   performanceIndex: number | null;
 }
 
-export type ForecastParameter = 'PR' | 'P3_0' | 'NPHR' | 'realPower';
+export type ForecastParameter = 'PR' | 'P3_0' | 'realPower';
 
 export type ForecastStatus =
   | 'THRESHOLD REACHED'
@@ -191,7 +181,7 @@ export interface ParameterForecast {
   unit: string;
   currentDeterioration: number | null; // % (raw observation from latest day)
   currentFitted?: number | null; // % (fitted regression value at latest elapsed day)
-  threshold: number; // % (PR: 2.5, P3.0: 2.5, NPHR: 3.0, Real Power: 4.0)
+  threshold: number; // % (PR: 2.5, P3.0: 2.5, Real Power: 4.0)
   remainingDeterioration: number | null; // percentage points (Threshold - Current Fitted)
   
   // Regression metrics
@@ -235,7 +225,6 @@ export interface ThreeDayProjectionPoint {
   focusLabel: string; // e.g. "Persiapan", "Cooldown", "Eksekusi WW"
   PR: DailyParamProjection;
   P3_0: DailyParamProjection;
-  NPHR: DailyParamProjection;
   realPower: DailyParamProjection;
   thresholdsMetCount: number;
   isAllThresholdsMet: boolean;
@@ -256,7 +245,7 @@ export type ProjectionSummary = ThreeDayProjectionSummary;
 
 export interface OverallForecastSummary {
   hasForecast: boolean;
-  forecastWW: number | null; // Forecast WW in days: MAX(PR, P3.0, MIN(NPHR, Real Power))
+  forecastWW: number | null; // Forecast WW in days: MAX(PR, P3.0, Real Power)
   forecastWWDate: string | null; // Projected date for WW (YYYY-MM-DD)
   forecastRunningHours: number | null; // Forecast WW in Running Hours (forecastWW * 4)
   rawForecastRunningHours?: number | null;
@@ -266,15 +255,11 @@ export interface OverallForecastSummary {
   governingDisplayName: string | null;
   forecastDaysPR: number | null;
   forecastDaysP3: number | null;
-  forecastDaysNPHR: number | null;
   forecastDaysPower: number | null;
-  forecastDaysAux: number | null; // MIN(Forecast NPHR, Forecast Real Power)
   forecastHoursPR?: number | null;
   forecastHoursP3?: number | null;
-  forecastHoursNPHR?: number | null;
   forecastHoursPower?: number | null;
-  forecastHoursAux?: number | null;
-  isConditionSatisfied: boolean; // PR AND P3.0 AND (NPHR OR Real Power)
+  isConditionSatisfied: boolean; // PR AND P3.0 AND Real Power
   nearestParameter: ForecastParameter | null;
   nearestDisplayName: string | null;
   nearestDays: number | null;
@@ -304,7 +289,6 @@ export interface BaselineConfig {
   P3_0: number | null; // PSIA
   PR: number | null; // P3.0 / P1.7
   realPower: number | null; // MW
-  nphr: number | null; // kcal/kWh
   referenceDescription?: string;
   setAt?: string;
   sourceRecordId?: string; // ID of the record currently serving as baseline
@@ -325,9 +309,6 @@ export interface WaterWashEvent {
   preDailyRepresentative?: DailyRepresentativeRecord;
   postDailyRepresentative?: DailyRepresentativeRecord;
   hourlyObservationsCount?: number; // Number of hourly records grouped for this WW event
-  deltaNPHR?: number | null; // Post - Pre (negative is improvement)
-  deltaNPHRPercent?: number | null;
-  deltaEfficiency?: number | null; // Post - Pre (positive is improvement)
   deltaP3?: number | null; // Post - Pre (positive is improvement)
   deltaP3Percent?: number | null;
   deltaPR?: number | null; // Post - Pre (positive is improvement)
@@ -347,8 +328,6 @@ export interface WaterWashCycleDeterioration {
   intervalDays: number;
   startRecord?: OperationalRecord; // H+1 after previous WW
   endRecord?: OperationalRecord; // H-1 before next WW
-  nphrDeteriorationPercent?: number | null;
-  efficiencyDeteriorationPercent?: number | null;
   prDeteriorationPercent?: number | null;
   p3DeteriorationPercent?: number | null;
   powerDeteriorationPercent?: number | null;

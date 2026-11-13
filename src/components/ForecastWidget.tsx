@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   HelpCircle,
   BarChart3,
-  Flame,
   Gauge,
   Zap,
   Activity,
@@ -115,9 +114,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
     governingDisplayName,
     forecastDaysPR,
     forecastDaysP3,
-    forecastDaysNPHR,
     forecastDaysPower,
-    forecastDaysAux,
     isConditionSatisfied,
     waterWashStatus,
     daysUntilNextWaterWash,
@@ -199,8 +196,6 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
         return 'PR';
       case 'P3_0':
         return 'P3.0';
-      case 'NPHR':
-        return 'NPHR';
       case 'realPower':
         return 'Real Power';
     }
@@ -212,8 +207,6 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
         return <Gauge className="w-3.5 h-3.5" />;
       case 'P3_0':
         return <Activity className="w-3.5 h-3.5" />;
-      case 'NPHR':
-        return <Flame className="w-3.5 h-3.5" />;
       case 'realPower':
         return <Zap className="w-3.5 h-3.5" />;
     }
@@ -229,10 +222,9 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
     const result = dates.map((d: string) => {
       const prPt = parameters.PR?.elapsedDaysData?.find((p) => p.date === d);
       const p3Pt = parameters.P3_0?.elapsedDaysData?.find((p) => p.date === d);
-      const nphrPt = parameters.NPHR?.elapsedDaysData?.find((p) => p.date === d);
       const powerPt = parameters.realPower?.elapsedDaysData?.find((p) => p.date === d);
 
-      const elapsed = prPt?.elapsedDays ?? p3Pt?.elapsedDays ?? nphrPt?.elapsedDays ?? powerPt?.elapsedDays ?? 0;
+      const elapsed = prPt?.elapsedDays ?? p3Pt?.elapsedDays ?? powerPt?.elapsedDays ?? 0;
 
       return {
         date: d,
@@ -240,11 +232,9 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
         elapsedDays: elapsed,
         PR: prPt ? Number(prPt.deterioration.toFixed(2)) : null,
         P3_0: p3Pt ? Number(p3Pt.deterioration.toFixed(2)) : null,
-        NPHR: nphrPt ? Number(nphrPt.deterioration.toFixed(2)) : null,
         realPower: powerPt ? Number(powerPt.deterioration.toFixed(2)) : null,
         PR_forecast: null as number | null,
         P3_0_forecast: null as number | null,
-        NPHR_forecast: null as number | null,
         realPower_forecast: null as number | null,
         count: 1,
         tooltipTitle: `${d} (Day ${elapsed})`,
@@ -255,7 +245,6 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
     const hasAnySlope = Boolean(
       parameters.PR?.slope !== null ||
       parameters.P3_0?.slope !== null ||
-      parameters.NPHR?.slope !== null ||
       parameters.realPower?.slope !== null
     );
 
@@ -264,7 +253,6 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
       // Set initial connection points on the last historical entry
       lastPt.PR_forecast = lastPt.PR;
       lastPt.P3_0_forecast = lastPt.P3_0;
-      lastPt.NPHR_forecast = lastPt.NPHR;
       lastPt.realPower_forecast = lastPt.realPower;
 
       const lastDate = new Date(lastPt.date + 'T00:00:00');
@@ -282,16 +270,12 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
           elapsedDays: pElapsed,
           PR: null,
           P3_0: null,
-          NPHR: null,
           realPower: null,
           PR_forecast: lastPt.PR !== null && parameters.PR?.slope !== null
             ? Number((lastPt.PR + parameters.PR.slope * offset).toFixed(2))
             : null,
           P3_0_forecast: lastPt.P3_0 !== null && parameters.P3_0?.slope !== null
             ? Number((lastPt.P3_0 + parameters.P3_0.slope * offset).toFixed(2))
-            : null,
-          NPHR_forecast: lastPt.NPHR !== null && parameters.NPHR?.slope !== null
-            ? Number((lastPt.NPHR + parameters.NPHR.slope * offset).toFixed(2))
             : null,
           realPower_forecast: lastPt.realPower !== null && parameters.realPower?.slope !== null
             ? Number((lastPt.realPower + parameters.realPower.slope * offset).toFixed(2))
@@ -318,11 +302,9 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
       elapsedDays: number[];
       PR: number[];
       P3_0: number[];
-      NPHR: number[];
       realPower: number[];
       PR_forecast: number[];
       P3_0_forecast: number[];
-      NPHR_forecast: number[];
       realPower_forecast: number[];
       count: number;
     }>();
@@ -353,11 +335,9 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
           elapsedDays: [],
           PR: [],
           P3_0: [],
-          NPHR: [],
           realPower: [],
           PR_forecast: [],
           P3_0_forecast: [],
-          NPHR_forecast: [],
           realPower_forecast: [],
           count: 0,
         });
@@ -368,11 +348,9 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
       g.elapsedDays.push(pt.elapsedDays);
       if (pt.PR !== null && pt.PR !== undefined) g.PR.push(pt.PR);
       if (pt.P3_0 !== null && pt.P3_0 !== undefined) g.P3_0.push(pt.P3_0);
-      if (pt.NPHR !== null && pt.NPHR !== undefined) g.NPHR.push(pt.NPHR);
       if (pt.realPower !== null && pt.realPower !== undefined) g.realPower.push(pt.realPower);
       if (pt.PR_forecast !== null && pt.PR_forecast !== undefined) g.PR_forecast.push(pt.PR_forecast);
       if (pt.P3_0_forecast !== null && pt.P3_0_forecast !== undefined) g.P3_0_forecast.push(pt.P3_0_forecast);
-      if (pt.NPHR_forecast !== null && pt.NPHR_forecast !== undefined) g.NPHR_forecast.push(pt.NPHR_forecast);
       if (pt.realPower_forecast !== null && pt.realPower_forecast !== undefined) g.realPower_forecast.push(pt.realPower_forecast);
     });
 
@@ -385,11 +363,9 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
       elapsedDays: Math.round(g.elapsedDays.reduce((a, b) => a + b, 0) / g.elapsedDays.length),
       PR: avg(g.PR),
       P3_0: avg(g.P3_0),
-      NPHR: avg(g.NPHR),
       realPower: avg(g.realPower),
       PR_forecast: avg(g.PR_forecast),
       P3_0_forecast: avg(g.P3_0_forecast),
-      NPHR_forecast: avg(g.NPHR_forecast),
       realPower_forecast: avg(g.realPower_forecast),
       count: g.count,
     }));
@@ -612,7 +588,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
           </div>
         </div>
       ) : waterWashStatus === 'DUE_NOW' ? (
-        /* CASE 1: FULL CONDITION SATISFIED: PR AND P3.0 AND (NPHR OR Real Power) -> 12 JAM OPERASI / 3 HARI LAGI */
+        /* CASE 1: FULL CONDITION SATISFIED: PR AND P3.0 AND Real Power -> 12 JAM OPERASI / 3 HARI LAGI */
         <div className="p-4 rounded-md bg-gradient-to-r from-rose-50 via-rose-100/75 to-amber-50 border-2 border-rose-400 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start sm:items-center gap-3.5">
             <div className="w-16 h-16 rounded-full bg-rose-600 text-white flex flex-col items-center justify-center shrink-0 shadow-md ring-4 ring-rose-200 font-black">
@@ -839,7 +815,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                 Water Wash Selanjutnya: <span className="text-emerald-700">Belum Diperlukan (&gt;120 Jam Operasi / &gt;30 Hari Lagi)</span>
               </div>
               <p className="text-emerald-800 text-xs mt-1">
-                Laju penurunan performa (slope) pada parameter kunci stabil atau membaik (≤ 0). Kriteria PR AND P3.0 AND (NPHR OR Real Power) tidak diproyeksikan tercapai dalam waktu dekat (asumsi operasional {rhPerDay} jam/hari).
+                Laju penurunan performa (slope) pada parameter kunci stabil atau membaik (≤ 0). Kriteria PR AND P3.0 AND Real Power tidak diproyeksikan tercapai dalam waktu dekat (asumsi operasional {rhPerDay} jam/hari).
               </p>
             </div>
           </div>
@@ -864,7 +840,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-bold text-slate-700 mr-1">Pilih Parameter:</span>
 
-            {/* Option to show All 4 Parameters in one look */}
+            {/* Option to show All 3 Parameters in one look */}
             <button
               type="button"
               onClick={() => setSelectedParamChart('ALL')}
@@ -893,7 +869,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
               </span>
             </button>
 
-            {(['PR', 'P3_0', 'NPHR', 'realPower'] as const).map((param) => {
+            {(['PR', 'P3_0', 'realPower'] as const).map((param) => {
               const fc = parameters[param];
               const isSelected = selectedParamChart === param;
               const isGoverning = governingParameter === param;
@@ -1014,7 +990,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                     }`}
                   >
                     <LayoutGrid className="w-3.5 h-3.5 text-sky-600" />
-                    <span>Grid 4 Card</span>
+                    <span>Grid 3 Card</span>
                   </button>
                 </div>
               </div>
@@ -1069,7 +1045,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-bold text-slate-800 flex items-center gap-1">
                 <Layers className="w-3.5 h-3.5 text-sky-600" />
-                Semua Parameter (All 4 Parameters Overview)
+                Semua Parameter (All 3 Parameters Overview)
               </span>
             </div>
             <div className="flex items-center gap-2 text-slate-500 text-[11px] flex-wrap">
@@ -1077,7 +1053,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                 Periode: {timePeriod === 'daily' ? 'Harian (Daily)' : timePeriod === 'weekly' ? 'Mingguan (Weekly avg)' : 'Bulanan (Monthly avg)'}
               </span>
               <span>
-                Ambang Batas: PR ({FIXED_FORECAST_THRESHOLDS.PR}%), P3.0 ({FIXED_FORECAST_THRESHOLDS.P3_0}%), NPHR ({FIXED_FORECAST_THRESHOLDS.NPHR}%), Real Power ({FIXED_FORECAST_THRESHOLDS.realPower}%)
+                Ambang Batas: PR ({FIXED_FORECAST_THRESHOLDS.PR}%), P3.0 ({FIXED_FORECAST_THRESHOLDS.P3_0}%), Real Power ({FIXED_FORECAST_THRESHOLDS.realPower}%)
               </span>
             </div>
           </div>
@@ -1129,7 +1105,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
         {selectedParamChart === 'ALL' ? (
           allViewMode === 'combined' ? (
             <div className="space-y-3">
-              {/* All 4 Parameters Combined LineChart */}
+              {/* All 3 Parameters Combined LineChart */}
               <div className="h-80 w-full bg-slate-50/40 rounded border border-slate-200 p-2">
                 {allChartData.length === 0 ? (
                   <div className="h-full flex items-center justify-center text-xs text-slate-400">
@@ -1141,7 +1117,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                       <XAxis
                         dataKey="displayLabel"
-                        tick={{ fontSize: 10, fill: '#64748b' }}
+                        tick={{ fontSize: 12, fill: '#64748b' }}
                         tickLine={{ stroke: '#cbd5e1' }}
                         label={{
                           value:
@@ -1152,19 +1128,19 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                               : 'Month (Monthly Aggregation - Current Water Washing Cycle)',
                           position: 'insideBottom',
                           offset: -12,
-                          fontSize: 10,
+                          fontSize: 12,
                           fill: '#94a3b8',
                         }}
                       />
                       <YAxis
-                        tick={{ fontSize: 10, fill: '#64748b' }}
+                        tick={{ fontSize: 12, fill: '#64748b' }}
                         tickLine={{ stroke: '#cbd5e1' }}
                         unit="%"
                         label={{
                           value: 'Deterioration (%)',
                           angle: -90,
                           position: 'insideLeft',
-                          fontSize: 10,
+                          fontSize: 12,
                           fill: '#94a3b8',
                         }}
                       />
@@ -1173,7 +1149,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                           backgroundColor: '#ffffff',
                           border: '1px solid #cbd5e1',
                           borderRadius: '6px',
-                          fontSize: '11px',
+                          fontSize: '13px',
                           boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
                         }}
                         formatter={(val: any, name: any) => {
@@ -1191,9 +1167,9 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                       <Legend
                         verticalAlign="top"
                         align="right"
-                        height={32}
+                        height={34}
                         iconType="plainline"
-                        wrapperStyle={{ fontSize: '11px', paddingBottom: '4px' }}
+                        wrapperStyle={{ fontSize: '13px', paddingBottom: '4px' }}
                       />
 
                       {/* Threshold Reference Lines */}
@@ -1204,18 +1180,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                         label={{
                           value: `Limit PR & P3.0 (${FIXED_FORECAST_THRESHOLDS.PR}%)`,
                           fill: '#0284c7',
-                          fontSize: 9,
-                          position: 'insideTopLeft',
-                        }}
-                      />
-                      <ReferenceLine
-                        y={FIXED_FORECAST_THRESHOLDS.NPHR}
-                        stroke="#d97706"
-                        strokeDasharray="3 3"
-                        label={{
-                          value: `Limit NPHR (${FIXED_FORECAST_THRESHOLDS.NPHR}%)`,
-                          fill: '#d97706',
-                          fontSize: 9,
+                          fontSize: 11.5,
                           position: 'insideTopLeft',
                         }}
                       />
@@ -1226,7 +1191,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                         label={{
                           value: `Limit Real Power (${FIXED_FORECAST_THRESHOLDS.realPower}%)`,
                           fill: '#059669',
-                          fontSize: 9,
+                          fontSize: 11.5,
                           position: 'insideTopLeft',
                         }}
                       />
@@ -1247,14 +1212,14 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                           label={{
                             value: `Inspecting: ${selectedDate}`,
                             fill: '#0284c7',
-                            fontSize: 9,
+                            fontSize: 11.5,
                             fontWeight: 'bold',
                             position: 'insideTopRight',
                           }}
                         />
                       )}
 
-                      {/* 4 Trend Lines - clean line representation without bulky dots */}
+                      {/* 3 Trend Lines - clean line representation without bulky dots */}
                       <Line
                         type="monotone"
                         dataKey="PR"
@@ -1270,16 +1235,6 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                         dataKey="P3_0"
                         name={`P3.0 (Limit: ${FIXED_FORECAST_THRESHOLDS.P3_0}%)`}
                         stroke="#7c3aed"
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 5, strokeWidth: 2, stroke: '#ffffff' }}
-                        connectNulls
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="NPHR"
-                        name={`NPHR (Limit: ${FIXED_FORECAST_THRESHOLDS.NPHR}%)`}
-                        stroke="#d97706"
                         strokeWidth={2}
                         dot={false}
                         activeDot={{ r: 5, strokeWidth: 2, stroke: '#ffffff' }}
@@ -1321,17 +1276,6 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                       />
                       <Line
                         type="linear"
-                        dataKey="NPHR_forecast"
-                        name="NPHR (Forecast)"
-                        stroke="#d97706"
-                        strokeWidth={1.5}
-                        strokeDasharray="3 3"
-                        dot={false}
-                        activeDot={{ r: 4 }}
-                        connectNulls
-                      />
-                      <Line
-                        type="linear"
                         dataKey="realPower_forecast"
                         name="Real Power (Forecast)"
                         stroke="#059669"
@@ -1347,9 +1291,9 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
               </div>
             </div>
           ) : (
-            /* All 4 Parameters Grid View */
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {(['PR', 'P3_0', 'NPHR', 'realPower'] as const).map((param) => {
+            /* All 3 Parameters Grid View */
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {(['PR', 'P3_0', 'realPower'] as const).map((param) => {
                 const fc = parameters[param];
                 const isGoverning = governingParameter === param;
                 const paramColor =
@@ -1357,8 +1301,6 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                     ? '#0284c7'
                     : param === 'P3_0'
                     ? '#7c3aed'
-                    : param === 'NPHR'
-                    ? '#d97706'
                     : '#059669';
 
                 const rawPts: {
@@ -1506,14 +1448,14 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                         <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={miniData} margin={{ top: 5, right: 15, left: -20, bottom: 5 }}>
                             <CartesianGrid strokeDasharray="2 2" stroke="#f1f5f9" vertical={false} />
-                            <XAxis dataKey="displayLabel" tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} />
-                            <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} unit="%" />
+                            <XAxis dataKey="displayLabel" tick={{ fontSize: 11.5, fill: '#94a3b8' }} tickLine={false} />
+                            <YAxis tick={{ fontSize: 11.5, fill: '#94a3b8' }} tickLine={false} unit="%" />
                             <Tooltip
                               contentStyle={{
                                 backgroundColor: '#ffffff',
                                 border: '1px solid #cbd5e1',
                                 borderRadius: '4px',
-                                fontSize: '10px',
+                                fontSize: '12.5px',
                                 padding: '4px 8px',
                               }}
                               formatter={(val: any, name: any) => [
@@ -1525,7 +1467,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                               y={fc.threshold}
                               stroke="#dc2626"
                               strokeDasharray="3 3"
-                              label={{ value: `${fc.threshold}%`, fill: '#dc2626', fontSize: 9, position: 'insideTopRight' }}
+                              label={{ value: `${fc.threshold}%`, fill: '#dc2626', fontSize: 11, position: 'insideTopRight' }}
                             />
                             <Line
                               type="monotone"
@@ -1584,7 +1526,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                   <XAxis
                     dataKey="displayLabel"
-                    tick={{ fontSize: 10, fill: '#64748b' }}
+                    tick={{ fontSize: 12, fill: '#64748b' }}
                     tickLine={{ stroke: '#cbd5e1' }}
                     label={{
                       value:
@@ -1595,12 +1537,12 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                           : 'Month (Monthly Aggregation - Current Water Washing Cycle)',
                       position: 'insideBottom',
                       offset: -12,
-                      fontSize: 10,
+                      fontSize: 12,
                       fill: '#94a3b8',
                     }}
                   />
                   <YAxis
-                    tick={{ fontSize: 10, fill: '#64748b' }}
+                    tick={{ fontSize: 12, fill: '#64748b' }}
                     tickLine={{ stroke: '#cbd5e1' }}
                     unit="%"
                     domain={[
@@ -1612,7 +1554,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                       value: 'Deterioration (%)',
                       angle: -90,
                       position: 'insideLeft',
-                      fontSize: 10,
+                      fontSize: 12,
                       fill: '#94a3b8',
                     }}
                   />
@@ -1621,7 +1563,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                       backgroundColor: '#ffffff',
                       border: '1px solid #cbd5e1',
                       borderRadius: '6px',
-                      fontSize: '11px',
+                      fontSize: '13px',
                       boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
                     }}
                     formatter={(val: any, name: any) => {
@@ -1640,8 +1582,8 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                   <Legend
                     verticalAlign="top"
                     align="right"
-                    height={32}
-                    wrapperStyle={{ fontSize: '11px', paddingBottom: '4px' }}
+                    height={34}
+                    wrapperStyle={{ fontSize: '13px', paddingBottom: '4px' }}
                   />
 
                   {/* Fixed Threshold Line */}
@@ -1652,7 +1594,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                     label={{
                       value: `Threshold (${activeFc.threshold}%)`,
                       fill: '#dc2626',
-                      fontSize: 10,
+                      fontSize: 11.5,
                       position: 'insideTopRight',
                     }}
                   />
@@ -1672,7 +1614,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                       label={{
                         value: `~${activeFc.daysToThreshold}d (${activeFc.estimatedDate})`,
                         fill: '#7c3aed',
-                        fontSize: 10,
+                        fontSize: 11.5,
                         position: 'insideTopLeft',
                       }}
                     />
@@ -1694,7 +1636,7 @@ export const ForecastWidget: React.FC<ForecastWidgetProps> = ({
                       label={{
                         value: `Inspecting: ${selectedDate}`,
                         fill: '#0284c7',
-                        fontSize: 9,
+                        fontSize: 11.5,
                         fontWeight: 'bold',
                         position: 'insideTopRight',
                       }}

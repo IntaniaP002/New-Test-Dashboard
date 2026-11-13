@@ -46,7 +46,6 @@ export const BaselineConfigModal: React.FC<BaselineConfigModalProps> = ({
   const [manualP1_7, setManualP1_7] = useState<string>('14.65');
   const [manualP3_0, setManualP3_0] = useState<string>('245.0');
   const [manualPower, setManualPower] = useState<string>('156.0');
-  const [manualNphr, setManualNphr] = useState<string>('2420.0');
   const [manualDesc, setManualDesc] = useState<string>('OEM Rated / Commissioning Baseline');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -67,11 +66,6 @@ export const BaselineConfigModal: React.FC<BaselineConfigModalProps> = ({
         activeBaseline.realPower !== null && activeBaseline.realPower !== undefined
           ? String(activeBaseline.realPower)
           : '156.0'
-      );
-      setManualNphr(
-        activeBaseline.nphr !== null && activeBaseline.nphr !== undefined
-          ? String(activeBaseline.nphr)
-          : '2420.0'
       );
       setManualDesc(
         activeBaseline.referenceDescription || 'OEM Rated / Commissioning Baseline'
@@ -100,7 +94,6 @@ export const BaselineConfigModal: React.FC<BaselineConfigModalProps> = ({
       P3_0: record.P3_0,
       PR: pr,
       realPower: record.realPower,
-      nphr: record.nphr,
       sourceRecordId: record.id,
       date: record.date,
       time: isAvg ? 'Daily Average' : record.time,
@@ -118,15 +111,14 @@ export const BaselineConfigModal: React.FC<BaselineConfigModalProps> = ({
     const p1 = parseFloat(manualP1_7);
     const p3 = parseFloat(manualP3_0);
     const pw = parseFloat(manualPower);
-    const hr = parseFloat(manualNphr);
 
-    if (isNaN(p1) || isNaN(p3) || isNaN(pw) || isNaN(hr)) {
+    if (isNaN(p1) || isNaN(p3) || isNaN(pw)) {
       setErrorMsg('Please ensure all numerical fields are valid numbers.');
       return;
     }
 
-    if (p1 <= 0 || p3 <= 0 || pw <= 0 || hr <= 0) {
-      setErrorMsg('Pressures, Real Power, and NPHR must all be positive numbers greater than 0.');
+    if (p1 <= 0 || p3 <= 0 || pw <= 0) {
+      setErrorMsg('Pressures and Real Power must all be positive numbers greater than 0.');
       return;
     }
 
@@ -138,7 +130,6 @@ export const BaselineConfigModal: React.FC<BaselineConfigModalProps> = ({
       P3_0: p3,
       PR: pr,
       realPower: pw,
-      nphr: hr,
       referenceDescription: manualDesc.trim() || 'Manual Reference Baseline',
       setAt: new Date().toISOString(),
     };
@@ -166,8 +157,7 @@ export const BaselineConfigModal: React.FC<BaselineConfigModalProps> = ({
       activeBaseline.realPower !== null &&
       activeBaseline.realPower !== undefined &&
       Math.abs(activeBaseline.P3_0 - r.P3_0) < 0.01 &&
-      Math.abs(activeBaseline.realPower - r.realPower) < 0.01 &&
-      Math.abs((activeBaseline.nphr ?? 0) - r.nphr) < 0.1
+      Math.abs(activeBaseline.realPower - r.realPower) < 0.01
     ) {
       return true;
     }
@@ -231,7 +221,7 @@ export const BaselineConfigModal: React.FC<BaselineConfigModalProps> = ({
             </div>
 
             {activeBaseline.isConfigured && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] bg-white p-2.5 rounded border border-slate-200">
+              <div className="grid grid-cols-3 gap-2 text-[11px] bg-white p-2.5 rounded border border-slate-200">
                 <div>
                   <span className="text-slate-400 block text-[10px]">Real Power</span>
                   <span className="font-bold text-slate-900">{activeBaseline.realPower?.toFixed(2)} MW</span>
@@ -243,10 +233,6 @@ export const BaselineConfigModal: React.FC<BaselineConfigModalProps> = ({
                 <div>
                   <span className="text-slate-400 block text-[10px]">P3.0</span>
                   <span className="font-bold text-slate-900">{activeBaseline.P3_0?.toFixed(2)} PSIA</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px]">NPHR</span>
-                  <span className="font-bold text-slate-900">{activeBaseline.nphr?.toLocaleString()} kcal</span>
                 </div>
               </div>
             )}
@@ -332,7 +318,6 @@ export const BaselineConfigModal: React.FC<BaselineConfigModalProps> = ({
                             <span>Power: <strong className="text-slate-800">{r.realPower.toFixed(2)} MW</strong></span>
                             <span>PR: <strong className="text-slate-800 font-mono">{r.pr.toFixed(4)}</strong></span>
                             <span>P3.0: <strong className="text-slate-800">{r.P3_0.toFixed(2)} PSIA</strong></span>
-                            <span>NPHR: <strong className="text-slate-800">{r.nphr.toLocaleString()} kcal</strong></span>
                           </div>
                           {r.notes && (
                             <p className="text-[11px] text-slate-500 italic">
@@ -421,20 +406,6 @@ export const BaselineConfigModal: React.FC<BaselineConfigModalProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Net Plant Heat Rate (NPHR) [kcal/kWh]
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={manualNphr}
-                    onChange={(e) => setManualNphr(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-slate-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Calculated Pressure Ratio (PR)
                   </label>
                   <div className="w-full px-3 py-2 text-xs bg-slate-100 border border-slate-200 rounded font-mono font-bold text-slate-700">
@@ -480,7 +451,7 @@ export const BaselineConfigModal: React.FC<BaselineConfigModalProps> = ({
         {/* Footer */}
         <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-500">
           <span>
-            💡 Tip: You can also click <strong>"Set as Baseline"</strong> on any row directly in the <strong>Input Data</strong> table.
+            💡 Tip: You can also click <strong>"Set as Baseline"</strong> on any row directly in the <strong>Dashboard</strong> table.
           </span>
           <button
             type="button"

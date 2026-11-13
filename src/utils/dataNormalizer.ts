@@ -57,10 +57,6 @@ export const FIELD_PATTERNS: Record<string, string[]> = {
     'active power', 'gen_mw', 'power_output', 'gross_power', 'real power (mw)', 'beban turbin', 'beban turbin (mw)',
     'turbin mw', 'load (mw)', 'beban mw', 'mw turbin', 'turbin (mw)', 'generator (mw)'
   ],
-  nphr: [
-    'nphr', 'heat_rate', 'heat rate', 'heatrate', 'hr', 'spesific fuel consumption',
-    'sfc', 'laju kalor', 'laju_kalor', 'heat_consumption', 'heat_rate_gross', 'gross_nphr', 'nphr (kcal/kwh)', 'nphr(kcal/kwh)'
-  ],
   nhSpeed: [
     'nhspeed', 'nh_speed', 'nh speed', 'nh', 'speed', 'rpm', 'kecepatan_nh', 'kecepatan nh', 'speedronic',
     'nh speed (rpm)', 'nh speed(rpm)', 'nh (rpm)', 'n-high', 'nh raw', 'speed (rpm)'
@@ -152,16 +148,29 @@ export function cleanNumericValue(raw: string | undefined): number | null {
 /**
  * Standardize date strings into YYYY-MM-DD, supporting Excel serial numbers, month names, 2-digit years, and MM/DD vs DD/MM
  */
-export function standardizeDate(raw: string | number | undefined): string {
+export function standardizeDate(raw: string | number | Date | undefined): string {
   if (raw === undefined || raw === null || raw === '') {
     return new Date().toISOString().slice(0, 10);
   }
 
-  // 1. If it's a numeric Excel serial date code (e.g. 46327 or "46327")
-  const numVal = typeof raw === 'number' ? raw : (typeof raw === 'string' && /^\d{5}$/.test(raw.trim()) ? parseInt(raw.trim(), 10) : NaN);
+  if (raw instanceof Date && !isNaN(raw.getTime())) {
+    const y = raw.getFullYear();
+    const m = String(raw.getMonth() + 1).padStart(2, '0');
+    const d = String(raw.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  // 1. If it's a numeric Excel serial date code (e.g. 46327, 46327.7916, or "46327")
+  const rawStr = typeof raw === 'string' ? raw.trim() : '';
+  const numVal =
+    typeof raw === 'number'
+      ? raw
+      : /^\d{5}(\.\d+)?$/.test(rawStr)
+      ? parseFloat(rawStr)
+      : NaN;
   if (!isNaN(numVal) && numVal >= 35000 && numVal <= 65000) {
     try {
-      const dc = XLSX.SSF.parse_date_code(numVal);
+      const dc = XLSX.SSF.parse_date_code(Math.floor(numVal));
       if (dc && dc.y && dc.m && dc.d) {
         return `${dc.y}-${String(dc.m).padStart(2, '0')}-${String(dc.d).padStart(2, '0')}`;
       }
@@ -296,11 +305,56 @@ export function standardizeDate(raw: string | number | undefined): string {
 }
 
 /**
- * Standardize time strings (supports HH:MM:SS, HH.MM.SS, HH:MM, HH.MM)
+ * Standardize time strings (supports HH:MM:SS, HH.MM.SS, HH:MM, HH.MM, AM/PM, and Excel serial time fractions)
  */
-export function standardizeTime(raw: string | undefined): string {
-  if (!raw) return '12:00';
-  const trimmed = raw.trim().replace(/["']/g, '');
+export function standardizeTime(raw: string | number | Date | undefined): string {
+  if (raw === undefined || raw === null || raw === '') return '12:00';
+
+  if (raw instanceof Date && !isNaN(raw.getTime())) {
+    const hh = String(raw.getHours()).padStart(2, '0');
+    const mm = String(raw.getMinutes()).padStart(2, '0');
+    const ss = String(raw.getSeconds()).padStart(2, '0');
+    return ss !== '00' ? `${hh}:${mm}:${ss}` : `${hh}:${mm}`;
+  }
+
+  // Handle Excel serial time (0 <= x < 1) or Excel serial datetime (x >= 35000 with fractional part)
+  const rawStr = typeof raw === 'string' ? raw.trim() : '';
+  const isExcelSerial =
+    typeof raw === 'number' ||
+    /^0?\.\d+$/.test(rawStr) ||
+    /^\d{5}\.\d+$/.test(rawStr);
+  if (isExcelSerial) {
+    const num = typeof raw === 'number' ? raw : parseFloat(rawStr);
+    if (!isNaN(num) && num >= 0 && (num < 1 || num >= 35000)) {
+      const fraction = num - Math.floor(num);
+      const totalSeconds = Math.round(fraction * 86400);
+      const hh = String(Math.floor(totalSeconds / 3600) % 24).padStart(2, '0');
+      const mm = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+      const ss = String(totalSeconds % 60).padStart(2, '0');
+      return ss !== '00' ? `${hh}:${mm}:${ss}` : `${hh}:${mm}`;
+    }
+  }
+
+  let trimmed = String(raw).trim().replace(/["']/g, '');
+
+  // If string includes a date prefix like "2026-11-12 19:00:00" or "2026-11-12T19:00:00Z", extract the time part
+  const combinedMatch = trimmed.match(/^(?:\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})[\sT]+(.+)$/);
+  if (combinedMatch) {
+    trimmed = combinedMatch[1].replace(/Z$/i, '').trim();
+  }
+
+  // Handle AM/PM e.g. "7:05:10 PM" or "07:30 AM"
+  const amPmMatch = trimmed.match(/^(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?\s*(AM|PM)$/i);
+  if (amPmMatch) {
+    let h = parseInt(amPmMatch[1], 10);
+    const m = amPmMatch[2];
+    const s = amPmMatch[3];
+    const meridiem = amPmMatch[4].toUpperCase();
+    if (meridiem === 'PM' && h < 12) h += 12;
+    if (meridiem === 'AM' && h === 12) h = 0;
+    const hh = String(h).padStart(2, '0');
+    return s && s !== '00' ? `${hh}:${m}:${s}` : `${hh}:${m}`;
+  }
 
   // Extract HH:MM:SS or HH.MM.SS
   const matchSec = trimmed.match(/^(\d{1,2})[:.](\d{2})[:.](\d{2})/);
@@ -437,14 +491,13 @@ export function autoNormalizeDiamondData(
   const colP30 = findColumn('P3_0', FIELD_PATTERNS.P3_0);
   const colPR = findColumn('PR', FIELD_PATTERNS.PR);
   const colPower = findColumn('realPower', FIELD_PATTERNS.realPower);
-  const colNphr = findColumn('nphr', FIELD_PATTERNS.nphr);
   const colNHSpeed = findColumn('nhSpeed', FIELD_PATTERNS.nhSpeed);
   const colPbSyn = findColumn('pbSynthesis', FIELD_PATTERNS.pbSynthesis);
   const colWW = findColumn('isWaterWashEvent', FIELD_PATTERNS.isWaterWashEvent);
 
   const mappedIndices = new Set([
     colDate.index, colTime.index, colT17.index, colP17.index,
-    colP30.index, colPR.index, colPower.index, colNphr.index, colNHSpeed.index, colPbSyn.index, colWW.index
+    colP30.index, colPR.index, colPower.index, colNHSpeed.index, colPbSyn.index, colWW.index
   ].filter(i => i >= 0));
 
   const unmappedColumns = rawHeaders
@@ -469,10 +522,6 @@ export function autoNormalizeDiamondData(
     { targetField: 'P1_7', detectedColumn: colP17.colName, columnIndex: colP17.index, confidence: colP17.conf },
     { targetField: 'P3_0', detectedColumn: colP30.colName, columnIndex: colP30.index, confidence: colP30.conf }
   );
-
-  if (colNphr.index >= 0) {
-    mappedHeaders.push({ targetField: 'nphr', detectedColumn: colNphr.colName, columnIndex: colNphr.index, confidence: colNphr.conf });
-  }
 
   if (colPbSyn.index >= 0) {
     mappedHeaders.push({ targetField: 'pbSynthesis', detectedColumn: colPbSyn.colName, columnIndex: colPbSyn.index, confidence: colPbSyn.conf });
@@ -505,7 +554,6 @@ export function autoNormalizeDiamondData(
     const p1Val = colP17.index >= 0 ? cleanNumericValue(cells[colP17.index]) : null;
     const p3Val = colP30.index >= 0 ? cleanNumericValue(cells[colP30.index]) : null;
     const pwVal = colPower.index >= 0 ? cleanNumericValue(cells[colPower.index]) : null;
-    const hrVal = colNphr.index >= 0 ? cleanNumericValue(cells[colNphr.index]) : null;
     const nhVal = colNHSpeed.index >= 0 ? cleanNumericValue(cells[colNHSpeed.index]) : undefined;
 
     // Check if row has valid pressure reading (P3.0/PT007 is the core operational indicator)
@@ -515,10 +563,7 @@ export function autoNormalizeDiamondData(
 
     // Fallbacks: P1.7 defaults to nominal 14.65 PSIA if omitted; Power defaults to nominal 20.0 MW
     const finalP1 = p1Val !== null ? p1Val : 14.65;
-    const finalPw = pwVal !== null ? pwVal : (nhVal ? 20.0 : 20.0);
-
-    // Default NPHR to nominal 2450 if not present in uploaded dataset
-    const finalNphr = hrVal !== null ? hrVal : 2450;
+    const finalPw = pwVal !== null ? pwVal : 20.0;
 
     // Handle date and time
     let dateStr = colDate.index >= 0 ? standardizeDate(cells[colDate.index]) : new Date().toISOString().slice(0, 10);
@@ -549,7 +594,6 @@ export function autoNormalizeDiamondData(
       P1_7: finalP1,
       P3_0: p3Val,
       realPower: finalPw,
-      nphr: finalNphr,
       nhSpeed: nhVal,
       pbSynthesis: pbVal,
       isWaterWashEvent: isWW,
@@ -572,12 +616,12 @@ export function autoNormalizeDiamondData(
  * Format records back into our standard standardized CSV export format
  */
 export function exportToStandardCsv(records: OperationalInput[]): string {
-  const header = 'Tanggal,Waktu,Beban (MW),NH Speed (RPM),T1.7 (°F),P1.7 (PSIA),P3.0 (PSIA),PR,NPHR';
+  const header = 'Tanggal,Waktu,Beban (MW),NH Speed (RPM),T1.7 (°F),P1.7 (PSIA),P3.0 (PSIA),PR';
   const rows = records.map(r => {
     const pr = r.P1_7 > 0 ? (r.P3_0 / r.P1_7).toFixed(4) : '';
     const nh = r.nhSpeed !== undefined && r.nhSpeed !== null ? r.nhSpeed : '';
     const t1 = r.T1_7 !== undefined && r.T1_7 !== null ? r.T1_7 : '';
-    return `${r.date},${r.time},${r.realPower},${nh},${t1},${r.P1_7},${r.P3_0},${pr},${r.nphr}`;
+    return `${r.date},${r.time},${r.realPower},${nh},${t1},${r.P1_7},${r.P3_0},${pr}`;
   });
   return [header, ...rows].join('\n');
 }

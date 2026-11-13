@@ -42,20 +42,17 @@ export function checkWaterWashRecommendCondition(
 
 /**
  * Evaluates the full Water Wash operational status classification based on
- * indicators met count, combined weight (Performance Index), and optional NPHR early monitoring.
+ * indicators met count and combined weight (Performance Index).
  */
 export function evaluateWaterWashDecision(params: {
   evaluatedIndicatorsCount: number;
   hasBaseline: boolean;
   performanceIndex: number | null;
   thresholdsMetCount: number;
-  nphrDeterioration: number | null;
-  nphrEarlyMonitoringThreshold: number;
 }): {
   overallStatus: OverallWaterWashStatus;
   isRecommendWaterWash: boolean;
   isBobotInPantauRange: boolean;
-  isNphrEarlyMonitoring: boolean;
   bobotLolos: number;
 } {
   const {
@@ -63,8 +60,6 @@ export function evaluateWaterWashDecision(params: {
     hasBaseline,
     performanceIndex,
     thresholdsMetCount,
-    nphrDeterioration,
-    nphrEarlyMonitoringThreshold,
   } = params;
 
   const bobotLolos = performanceIndex ?? 0;
@@ -72,15 +67,13 @@ export function evaluateWaterWashDecision(params: {
   const isBobotInPantauRange =
     bobotLolos >= WATER_WASH_DECISION_RULES.minPantauWeight &&
     bobotLolos <= WATER_WASH_DECISION_RULES.maxPantauWeight;
-  const isNphrEarlyMonitoring =
-    nphrDeterioration !== null && nphrDeterioration >= nphrEarlyMonitoringThreshold;
 
   let overallStatus: OverallWaterWashStatus = 'INSUFFICIENT DATA';
   if (evaluatedIndicatorsCount < WATER_WASH_DECISION_RULES.minIndicatorsMet || !hasBaseline || performanceIndex === null) {
     overallStatus = 'INSUFFICIENT DATA';
   } else if (isRecommendWaterWash) {
     overallStatus = 'RECOMMEND WATER WASH';
-  } else if (isBobotInPantauRange || isNphrEarlyMonitoring) {
+  } else if (isBobotInPantauRange) {
     overallStatus = 'CAUTION';
   } else {
     overallStatus = 'NORMAL';
@@ -90,7 +83,6 @@ export function evaluateWaterWashDecision(params: {
     overallStatus,
     isRecommendWaterWash,
     isBobotInPantauRange,
-    isNphrEarlyMonitoring,
     bobotLolos,
   };
 }
@@ -107,11 +99,6 @@ export function calculatePressureRatio(P3_0: number, P1_7: number): number {
   return Number((P3_0 / P1_7).toFixed(4));
 }
 
-/**
- * Net Plant Thermal Efficiency from NPHR:
- * Standard thermodynamic conversion: 1 kWh = 859.845 kcal (commonly rounded to 860 kcal/kWh)
- * Efficiency (%) = (859.845 / NPHR) * 100
- */
 /**
  * Official Reference Points for Speedronic NH Curve f(NH):
  * No. | X (NH, RPM) | Y (f(NH))
@@ -475,11 +462,6 @@ export function comparePT007ToBaseline(
   };
 }
 
-export function calculateEfficiencyFromNPHR(nphr: number | null | undefined): number | null {
-  if (!nphr || nphr <= 0) return null;
-  return Number(((859.845 / nphr) * 100).toFixed(2));
-}
-
 /**
  * Reliably parses a date string and optional time string into a millisecond timestamp.
  * Avoids Invalid Date and never falls back to Date.now() when a valid date is provided.
@@ -522,10 +504,6 @@ export function compareRecordsChronologically<T extends { date: string; time?: s
 /**
  * Deterioration Calculations:
  * The calculation direction must reflect whether higher or lower values represent better performance.
- *
- * For NPHR:
- * Higher NPHR = worse performance.
- * Deterioration % = ((Current - Baseline) / Baseline) * 100%
  *
  * For PR:
  * Lower PR = worse compressor performance.
@@ -590,7 +568,7 @@ export function evaluateDeterioration(
 
   // Perhitungan deteriorasi fisik yang valid
   if (direction === 'higher_is_worse') {
-    // For NPHR: Increase is deterioration
+    // Increase is deterioration
     const det = ((current - baseline) / baseline) * 100;
     return { value: Number(det.toFixed(2)), status: 'valid' };
   } else {
@@ -610,7 +588,7 @@ export function calculateDeteriorationPercent(
 }
 
 /**
- * Evaluates record against thresholds and applies the 3-out-of-4 Water Wash recommendation rule.
+ * Evaluates record against thresholds and applies the 3-out-of-3 Water Wash recommendation rule.
  */
 export function evaluateOperationalRecord(
   input: OperationalInput,
@@ -626,7 +604,7 @@ export function evaluateOperationalRecord(
   // Baseline values
   const hasBaseline = baseline.isConfigured;
 
-  // Deteksi error fisik nilai masukan (P1.7, P3.0, Real Power, NPHR harus bernilai positif > 0)
+  // Deteksi error fisik nilai masukan (P1.7, P3.0, Real Power harus bernilai positif > 0)
   const isP17Missing = input.P1_7 === null || input.P1_7 === undefined || isNaN(input.P1_7);
   const isP17Invalid = !isP17Missing && input.P1_7 <= 0;
   const isP30Missing = input.P3_0 === null || input.P3_0 === undefined || isNaN(input.P3_0);
@@ -640,11 +618,7 @@ export function evaluateOperationalRecord(
     physicalDataErrors.push(`P3.0 = ${input.P3_0} PSIA (harus > 0)`);
   }
 
-  // Evaluasi 4 indikator deteriorasi dengan pembedaan eksplisit kasus (a) vs kasus (b)
-  const nphrEval = hasBaseline
-    ? evaluateDeterioration(input.nphr, baseline.nphr, 'higher_is_worse', 'NPHR', 'kcal/kWh')
-    : { value: null, status: 'missing' as const };
-
+  // Evaluasi 3 indikator deteriorasi dengan pembedaan eksplisit kasus (a) vs kasus (b)
   const prEval = hasBaseline
     ? (isP17Invalid || isP30Invalid
         ? { value: null, status: 'invalid_physical' as const, errorDetail: 'PR tidak valid karena P1.7 atau P3.0 ≤ 0' }
@@ -659,9 +633,6 @@ export function evaluateOperationalRecord(
     ? evaluateDeterioration(input.realPower, baseline.realPower, 'lower_is_worse', 'Real Power', 'MW')
     : { value: null, status: 'missing' as const };
 
-  if (nphrEval.status === 'invalid_physical' && nphrEval.errorDetail) {
-    physicalDataErrors.push(nphrEval.errorDetail);
-  }
   if (prEval.status === 'invalid_physical' && prEval.errorDetail && !isP17Invalid && !isP30Invalid) {
     physicalDataErrors.push(prEval.errorDetail);
   }
@@ -677,17 +648,11 @@ export function evaluateOperationalRecord(
     ? `Data tidak wajar, cek input: ${physicalDataErrors.join('; ')}`
     : null;
 
-  const nphrDeterioration = nphrEval.value;
   const prDeterioration = prEval.value;
   const p3Deterioration = p3Eval.value;
   const powerDeterioration = powerEval.value;
 
   // Actual physical deltas vs baseline (Current - Baseline)
-  const nphrDelta =
-    hasBaseline && baseline.nphr !== null && baseline.nphr !== undefined
-      ? Number((input.nphr - baseline.nphr).toFixed(1))
-      : null;
-
   const prDelta =
     hasBaseline && baseline.PR !== null && baseline.PR !== undefined
       ? Number((pr - baseline.PR).toFixed(4))
@@ -704,17 +669,6 @@ export function evaluateOperationalRecord(
       : null;
 
   // Evaluasi batas ambang: hanya indikator dengan status 'valid' yang bisa lolos threshold
-  const nphrThresholdReached =
-    nphrEval.status === 'valid' && nphrDeterioration !== null
-      ? nphrDeterioration >= thresholds.nphrWWThreshold
-      : null;
-
-  const nphrEarlyMonitoringReached =
-    nphrEval.status === 'valid' && nphrDeterioration !== null
-      ? nphrDeterioration >= thresholds.nphrEarlyMonitoring &&
-        nphrDeterioration < thresholds.nphrWWThreshold
-      : null;
-
   const prThresholdReached =
     prEval.status === 'valid' && prDeterioration !== null
       ? prDeterioration >= thresholds.prWWThreshold
@@ -732,9 +686,8 @@ export function evaluateOperationalRecord(
 
   // Hitung jumlah indikator yang dievaluasi (Penyebut):
   // Kasus (a) 'missing': data memang belum diinput -> wajar dikecualikan dari penyebut
-  // Kasus (b) 'invalid_physical': data ada tapi <= 0 -> indikasi data error, TETAP DIHITUNG di penyebut (tidak turun jadi "dari 3")
+  // Kasus (b) 'invalid_physical': data ada tapi <= 0 -> indikasi data error, TETAP DIHITUNG di penyebut
   const indicatorEvaluations = [
-    { name: 'NPHR', eval: nphrEval },
     { name: 'PR', eval: prEval },
     { name: 'P3.0', eval: p3Eval },
     { name: 'Real Power', eval: powerEval },
@@ -745,21 +698,18 @@ export function evaluateOperationalRecord(
   ).length;
 
   const thresholdsMetCount = [
-    nphrThresholdReached,
     prThresholdReached,
     p3ThresholdReached,
     powerThresholdReached,
   ].filter(Boolean).length;
 
-  // Performance Index / Bobot Lolos Diskrit (Formula Excel / Tabel 5 Dashboard Live):
+  // Performance Index / Bobot Lolos Diskrit:
   // Dihitung diskrit HANYA dari indikator yang telah lolos threshold:
-  // bobotLolos = (PR lolos ? 30 : 0) + (P3.0 lolos ? 30 : 0) + (NPHR lolos ? 20 : 0) + (RealPower lolos ? 20 : 0)
-  // Tidak ada nilai pecahan / proporsional (partial credit dihapus).
+  // bobotLolos = (PR lolos ? 35 : 0) + (P3.0 lolos ? 35 : 0) + (RealPower lolos ? 30 : 0)
   let performanceIndex: number | null = null;
   let performanceIndexContribution: {
     pr: number;
     p3: number;
-    nphr: number;
     power: number;
   } | undefined = undefined;
 
@@ -769,14 +719,12 @@ export function evaluateOperationalRecord(
   if (hasBaseline && evaluatedIndicatorsCount >= WATER_WASH_DECISION_RULES.minIndicatorsMet) {
     const prPart = prThresholdReached ? INDICATOR_WEIGHTS.pr : 0;
     const p3Part = p3ThresholdReached ? INDICATOR_WEIGHTS.p3 : 0;
-    const nphrPart = nphrThresholdReached ? INDICATOR_WEIGHTS.nphr : 0;
     const powerPart = powerThresholdReached ? INDICATOR_WEIGHTS.power : 0;
 
-    performanceIndex = prPart + p3Part + nphrPart + powerPart;
+    performanceIndex = prPart + p3Part + powerPart;
     performanceIndexContribution = {
       pr: prPart,
       p3: p3Part,
-      nphr: nphrPart,
       power: powerPart,
     };
 
@@ -787,13 +735,10 @@ export function evaluateOperationalRecord(
     const p3Prox = p3Deterioration !== null
       ? Math.min(INDICATOR_WEIGHTS.p3, Math.max(0, (p3Deterioration / thresholds.p3WWThreshold) * INDICATOR_WEIGHTS.p3))
       : 0;
-    const nphrProx = nphrDeterioration !== null
-      ? Math.min(INDICATOR_WEIGHTS.nphr, Math.max(0, (nphrDeterioration / thresholds.nphrWWThreshold) * INDICATOR_WEIGHTS.nphr))
-      : 0;
     const powerProx = powerDeterioration !== null
       ? Math.min(INDICATOR_WEIGHTS.power, Math.max(0, (powerDeterioration / thresholds.powerWWThreshold) * INDICATOR_WEIGHTS.power))
       : 0;
-    proximityScore = Number((prProx + p3Prox + nphrProx + powerProx).toFixed(1));
+    proximityScore = Number((prProx + p3Prox + powerProx).toFixed(1));
   }
 
   let statusExplanation = '';
@@ -805,15 +750,12 @@ export function evaluateOperationalRecord(
     hasBaseline,
     performanceIndex,
     thresholdsMetCount,
-    nphrDeterioration,
-    nphrEarlyMonitoringThreshold: thresholds.nphrEarlyMonitoring,
   });
 
   let overallStatus: OverallWaterWashStatus = decision.overallStatus;
   const {
     isRecommendWaterWash,
     isBobotInPantauRange,
-    isNphrEarlyMonitoring,
     bobotLolos,
   } = decision;
 
@@ -821,36 +763,30 @@ export function evaluateOperationalRecord(
     statusExplanation = 'Reference baseline required for deterioration & Performance Index calculation.';
   } else if (isRecommendWaterWash) {
     overallStatus = 'RECOMMEND WATER WASH';
-    statusExplanation = `${thresholdsMetCount} of 4 parameter thresholds met with combined weight ${bobotLolos}%.`;
-  } else if (isBobotInPantauRange || isNphrEarlyMonitoring) {
-    // Target: else if (bobotLolos berada di rentang Caution) ATAU (deteriorasi NPHR >= nphrEarlyMonitoring) -> CAUTION
+    statusExplanation = `${thresholdsMetCount} of 3 parameter thresholds met with combined weight ${bobotLolos}%.`;
+  } else if (isBobotInPantauRange) {
     overallStatus = 'CAUTION';
     const reachedNames = [
       prThresholdReached ? 'PR' : '',
       p3ThresholdReached ? 'P3.0' : '',
       powerThresholdReached ? 'Real Power' : '',
-      nphrThresholdReached ? 'NPHR' : '',
     ].filter(Boolean);
-    if (isNphrEarlyMonitoring && !isBobotInPantauRange) {
-      statusExplanation = `Status Caution: Deteriorasi NPHR ${nphrDeterioration?.toFixed(1)}% mencapai batas early monitoring (≥${thresholds.nphrEarlyMonitoring}%). Bobot indikator lolos: ${bobotLolos}%.`;
-    } else if (reachedNames.length > 0) {
-      statusExplanation = `Status Caution: Bobot indikator lolos ${bobotLolos}% (rentang ${WATER_WASH_DECISION_RULES.minPantauWeight}% - ${WATER_WASH_DECISION_RULES.maxPantauWeight}%). Parameter lolos ambang: ${reachedNames.join(', ')} (${thresholdsMetCount}/4).`;
+    if (reachedNames.length > 0) {
+      statusExplanation = `Status Caution: Bobot indikator lolos ${bobotLolos}% (rentang ${WATER_WASH_DECISION_RULES.minPantauWeight}% - ${WATER_WASH_DECISION_RULES.maxPantauWeight}%). Parameter lolos ambang: ${reachedNames.join(', ')} (${thresholdsMetCount}/3).`;
     } else {
       statusExplanation = `Status Caution: Bobot indikator lolos ${bobotLolos}% (rentang ${WATER_WASH_DECISION_RULES.minPantauWeight}% - ${WATER_WASH_DECISION_RULES.maxPantauWeight}%).`;
     }
   } else {
-    // Target: else -> NORMAL
     overallStatus = 'NORMAL';
     const reachedNames = [
       prThresholdReached ? 'PR' : '',
       p3ThresholdReached ? 'P3.0' : '',
       powerThresholdReached ? 'Real Power' : '',
-      nphrThresholdReached ? 'NPHR' : '',
     ].filter(Boolean);
     if (reachedNames.length > 0) {
       statusExplanation = `Status Normal: Bobot indikator lolos ${bobotLolos}% (<${WATER_WASH_DECISION_RULES.minPantauWeight}%). Parameter lolos tunggal: ${reachedNames.join(', ')}.`;
     } else {
-      statusExplanation = `Status Normal: Beroperasi normal (Bobot lolos: ${bobotLolos}%, NPHR < ${thresholds.nphrEarlyMonitoring}%).`;
+      statusExplanation = `Status Normal: Beroperasi normal (Bobot lolos: ${bobotLolos}%).`;
     }
   }
 
@@ -904,16 +840,12 @@ export function evaluateOperationalRecord(
     id,
     timestamp,
     pr,
-    nphrDeterioration,
     prDeterioration,
     p3Deterioration,
     powerDeterioration,
-    nphrDelta,
     prDelta,
     p3Delta,
     powerDelta,
-    nphrThresholdReached,
-    nphrEarlyMonitoringReached,
     prThresholdReached,
     p3ThresholdReached,
     powerThresholdReached,
@@ -1053,7 +985,6 @@ export function aggregateRecordsByDailyAverage(
     const avgP17 = Number((getAverage(dayRecords.map((r) => r.P1_7)) ?? 0).toFixed(2));
     const avgP30 = Number((getAverage(dayRecords.map((r) => r.P3_0)) ?? 0).toFixed(2));
     const avgPower = Number((getAverage(dayRecords.map((r) => r.realPower)) ?? 0).toFixed(2));
-    const avgNphr = Number((getAverage(dayRecords.map((r) => r.nphr)) ?? 0).toFixed(1));
 
     const pbSynAvg = getAverage(dayRecords.map((r) => r.pbSynthesis));
     const avgPbSyn = pbSynAvg !== null ? Number(pbSynAvg.toFixed(2)) : undefined;
@@ -1072,7 +1003,6 @@ export function aggregateRecordsByDailyAverage(
       P1_7: avgP17,
       P3_0: avgP30,
       realPower: avgPower,
-      nphr: avgNphr,
       pbSynthesis: avgPbSyn,
       pbSynthesisDB: avgPbSynDB,
       fNH: avgFNH,
@@ -1167,18 +1097,15 @@ function createDailyRepresentativeRecord(
   const prAvg = getAverage(dayRecords.map((r) => r.pr));
   const avgPR = avgP17 > 0 ? Number((avgP30 / avgP17).toFixed(4)) : Number((prAvg ?? 0).toFixed(4));
   const avgPower = Number((getAverage(dayRecords.map((r) => r.realPower)) ?? 0).toFixed(2));
-  const avgNphr = Number((getAverage(dayRecords.map((r) => r.nphr)) ?? 0).toFixed(1));
 
   // Deteriorations average
   const validPRDet = dayRecords.map((r) => r.prDeterioration).filter((v): v is number => v !== null && !isNaN(v));
   const validP3Det = dayRecords.map((r) => r.p3Deterioration).filter((v): v is number => v !== null && !isNaN(v));
-  const validNphrDet = dayRecords.map((r) => r.nphrDeterioration).filter((v): v is number => v !== null && !isNaN(v));
   const validPowerDet = dayRecords.map((r) => r.powerDeterioration).filter((v): v is number => v !== null && !isNaN(v));
   const validPerfIndex = dayRecords.map((r) => r.performanceIndex).filter((v): v is number => v !== null && !isNaN(v));
 
   const repPRDet = validPRDet.length > 0 ? Number((getAverage(validPRDet) ?? 0).toFixed(4)) : null;
   const repP3Det = validP3Det.length > 0 ? Number((getAverage(validP3Det) ?? 0).toFixed(4)) : null;
-  const repNphrDet = validNphrDet.length > 0 ? Number((getAverage(validNphrDet) ?? 0).toFixed(4)) : null;
   const repPowerDet = validPowerDet.length > 0 ? Number((getAverage(validPowerDet) ?? 0).toFixed(4)) : null;
   const repPerfIndex = validPerfIndex.length > 0 ? Number((getAverage(validPerfIndex) ?? 0).toFixed(1)) : null;
 
@@ -1195,10 +1122,8 @@ function createDailyRepresentativeRecord(
     P3_0: avgP30,
     pr: avgPR,
     realPower: avgPower,
-    nphr: avgNphr,
     prDeterioration: repPRDet,
     p3Deterioration: repP3Det,
-    nphrDeterioration: repNphrDet,
     powerDeterioration: repPowerDet,
     performanceIndex: repPerfIndex,
     isDailyMedian: true,
@@ -1273,9 +1198,6 @@ export function calculateWaterWashRecovery(
         postDaysDiff,
         preRecord,
         postRecord,
-        deltaNPHR: null,
-        deltaNPHRPercent: null,
-        deltaEfficiency: null,
         deltaP3: null,
         deltaP3Percent: null,
         deltaPR: null,
@@ -1286,17 +1208,6 @@ export function calculateWaterWashRecovery(
     }
 
     // Delta = Post - Pre
-    // For NPHR: negative delta means lower heat rate = recovery
-    const deltaNPHR = Number((postRecord.nphr - preRecord.nphr).toFixed(2));
-    const deltaNPHRPercent = Number(
-      (((postRecord.nphr - preRecord.nphr) / preRecord.nphr) * 100).toFixed(2)
-    );
-
-    const preEff = calculateEfficiencyFromNPHR(preRecord.nphr);
-    const postEff = calculateEfficiencyFromNPHR(postRecord.nphr);
-    const deltaEfficiency =
-      preEff !== null && postEff !== null ? Number((postEff - preEff).toFixed(2)) : null;
-
     // For P3.0, PR, Power: positive delta means increase = recovery
     const deltaP3 = Number((postRecord.P3_0 - preRecord.P3_0).toFixed(2));
     const deltaP3Percent = Number(
@@ -1319,9 +1230,6 @@ export function calculateWaterWashRecovery(
       postDaysDiff,
       preRecord,
       postRecord,
-      deltaNPHR,
-      deltaNPHRPercent,
-      deltaEfficiency,
       deltaP3,
       deltaP3Percent,
       deltaPR,
@@ -1374,25 +1282,12 @@ export function calculateCycleDeterioration(
         intervalDays,
         startRecord,
         endRecord,
-        nphrDeteriorationPercent: null,
-        efficiencyDeteriorationPercent: null,
         prDeteriorationPercent: null,
         p3DeteriorationPercent: null,
         powerDeteriorationPercent: null,
       });
       continue;
     }
-
-    // NPHR deterioration (% increase):
-    const nphrDet = Number(
-      (((endRecord.nphr - startRecord.nphr) / startRecord.nphr) * 100).toFixed(2)
-    );
-
-    // Efficiency deterioration (% decrease):
-    const startEff = calculateEfficiencyFromNPHR(startRecord.nphr);
-    const endEff = calculateEfficiencyFromNPHR(endRecord.nphr);
-    const effDet =
-      startEff && endEff ? Number((((startEff - endEff) / startEff) * 100).toFixed(2)) : null;
 
     // PR deterioration (% decrease):
     const prDet = Number((((startRecord.pr - endRecord.pr) / startRecord.pr) * 100).toFixed(2));
@@ -1415,8 +1310,6 @@ export function calculateCycleDeterioration(
       intervalDays,
       startRecord,
       endRecord,
-      nphrDeteriorationPercent: nphrDet,
-      efficiencyDeteriorationPercent: effDet,
       prDeteriorationPercent: prDet,
       p3DeteriorationPercent: p3Det,
       powerDeteriorationPercent: powerDet,
