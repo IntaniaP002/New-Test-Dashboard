@@ -180,11 +180,19 @@ export function findExactDuplicate(
   return null;
 }
 
+function makeTimestampKey(date?: string | null, time?: string | null): string {
+  if (!date) return '';
+  const d = standardizeDate(date).trim();
+  const norm = normalizeTimeString(time || '19:00');
+  return `${d}__${norm.slice(0, 5)}`;
+}
+
 /**
  * Classifies an incoming list of rows into:
  * - New rows (not found in existing records)
  * - Updated rows (found matching timestamp, but operational values differ)
  * - Identical rows (found matching timestamp and identical values)
+ * Uses O(N + M) Map indexing for instant performance on large Excel sheets.
  */
 export function classifyImportRows(
   candidateRows: OperationalInput[],
@@ -194,10 +202,17 @@ export function classifyImportRows(
   const updatedRows: { row: OperationalInput; existingRecord: OperationalRecord; index: number }[] = [];
   const identicalRows: { row: OperationalInput; existingRecord: OperationalRecord; index: number }[] = [];
 
+  const existingByKey = new Map<string, OperationalRecord>();
+  for (const existing of existingRecords) {
+    const key = makeTimestampKey(existing.date, existing.time);
+    if (key && !existingByKey.has(key)) {
+      existingByKey.set(key, existing);
+    }
+  }
+
   candidateRows.forEach((row, index) => {
-    const match = existingRecords.find((existing) =>
-      isSameOperationalTimestamp(existing.date, existing.time, row.date, row.time)
-    );
+    const key = makeTimestampKey(row.date, row.time);
+    const match = key ? existingByKey.get(key) : undefined;
 
     if (!match) {
       newRows.push({ row, index });
@@ -214,7 +229,7 @@ export function classifyImportRows(
 }
 
 /**
- * Merges incoming rows into existing records using Smart Upsert:
+ * Merges incoming rows into existing records using Smart Upsert (O(N + M)):
  * 1. Deduplicates multiple copies inside the incoming batch itself.
  * 2. If a record matches an existing Date & Time:
  *    - If parameters are identical: Kept as-is, never duplicated! (identicalCount++)
@@ -233,21 +248,25 @@ export function smartMergeOperationalRecords(
   updatedCount: number;
   identicalCount: number;
 } {
-  // Step 1: Deduplicate within the incoming batch itself (keeping the latest occurrence in the file)
-  const dedupedIncoming: OperationalInput[] = [];
-  for (const input of incomingInputs) {
-    const existingBatchIndex = dedupedIncoming.findIndex((item) =>
-      isSameOperationalTimestamp(item.date, item.time, input.date, input.time)
-    );
-    if (existingBatchIndex >= 0) {
-      dedupedIncoming[existingBatchIndex] = input;
-    } else {
-      dedupedIncoming.push(input);
+  // Step 1: Deduplicate within the incoming batch itself in O(N) (keeping latest occurrence in the file)
+  const dedupedByKey = new Map<string, OperationalInput>();
+  for (let i = 0; i < incomingInputs.length; i++) {
+    const input = incomingInputs[i];
+    const key = makeTimestampKey(input.date, input.time) || `__row_${i}`;
+    dedupedByKey.set(key, input);
+  }
+  const dedupedIncoming = Array.from(dedupedByKey.values());
+
+  // Step 2: Merge with existing records in O(N + M)
+  const result: OperationalRecord[] = [...existingRecords];
+  const existingIdxByKey = new Map<string, number>();
+  for (let i = 0; i < result.length; i++) {
+    const key = makeTimestampKey(result[i].date, result[i].time);
+    if (key && !existingIdxByKey.has(key)) {
+      existingIdxByKey.set(key, i);
     }
   }
 
-  // Step 2: Merge with existing records
-  const result: OperationalRecord[] = [...existingRecords];
   let addedCount = 0;
   let updatedCount = 0;
   let identicalCount = 0;
@@ -255,11 +274,10 @@ export function smartMergeOperationalRecords(
 
   for (let idx = 0; idx < dedupedIncoming.length; idx++) {
     const input = dedupedIncoming[idx];
-    const existingIdx = result.findIndex((rec) =>
-      isSameOperationalTimestamp(rec.date, rec.time, input.date, input.time)
-    );
+    const key = makeTimestampKey(input.date, input.time);
+    const existingIdx = key ? existingIdxByKey.get(key) : undefined;
 
-    if (existingIdx >= 0) {
+    if (existingIdx !== undefined) {
       const existing = result[existingIdx];
       if (areOperationalParametersIdentical(input, existing)) {
         // Exactly identical: keep existing, do NOT double
@@ -287,7 +305,11 @@ export function smartMergeOperationalRecords(
         baseline,
         thresholds
       );
+      const newIndex = result.length;
       result.push(newRecord);
+      if (key) {
+        existingIdxByKey.set(key, newIndex);
+      }
       addedCount++;
     }
   }

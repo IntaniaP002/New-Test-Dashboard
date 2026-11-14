@@ -24,29 +24,32 @@ export const FIELD_PATTERNS: Record<string, string[]> = {
   date: [
     'date', 'tanggal', 'tgl', 'timestamp', 'time_stamp', 'reading_date', 'datetime', 'tgl_log',
     'log_date', 'entry_date', 'waktu_catat', 'created_at', 'tanggal (yyyy-mm-dd)', 'tgl/date', 'day',
-    'waktu & tanggal', 'tanggal & waktu', 'waktu dan tanggal', 'tgl & jam', 'datetime (utc)', 'record date', 'date/time'
+    'waktu & tanggal', 'tanggal & waktu', 'waktu dan tanggal', 'tgl & jam', 'tgl/jam', 'hari',
+    'datetime (utc)', 'record date', 'date/time', 'log date', 'operation date', 'time stamp'
   ],
   time: [
     'time', 'jam', 'waktu', 'hour', 'pukul', 'log_time', 'time_log', 'hh:mm', 'hh:mm:ss', 'waktu (hh:mm)',
-    'jam log', 'waktu pengambilan', 'time (hh:mm)'
+    'jam log', 'waktu pengambilan', 'time (hh:mm)', 'waktu (wib)', 'jam (wib)', 'time (wib)'
   ],
   T1_7: [
-    't1.7', 't17', 't1_7', 'tinlet', 't_inlet', 'inlet_temp', 'inlet temp', 'compressor inlet temp',
+    't1.7', 't1,7', 't17', 't1_7', 'tinlet', 't_inlet', 'inlet_temp', 'inlet temp', 'compressor inlet temp',
     'cit', 'suhu_inlet', 'suhu inlet', 'suhu masuk', 't_in', 'temp_inlet', 't1', 't1.7 (°f)',
     't1.7(°f)', 't1.7 (f)', 't1.7(f)', 't 1.7', 't1_7 (°f)', 't1.7 (deg f)', 't1.7 f', 'suhu (°f)'
   ],
   P1_7: [
-    'p1.7', 'p17', 'p1_7', 'pinlet', 'p_inlet', 'inlet_press', 'inlet press', 'inlet pressure',
+    'p1.7', 'p1,7', 'p17', 'p1_7', 'pinlet', 'p_inlet', 'inlet_press', 'inlet press', 'inlet pressure',
     'cip', 'tekanan_inlet', 'tekanan inlet', 'tekanan masuk', 'p_in', 'press_inlet', 'p1',
     'pt006', 'pt 006', 'p1.7 / pt006', 'p1.7 (psia)', 'p1.7 / pt006 (psia)', 'pt-006', 'pt_006', 'p 1.7', 'pt6',
-    'pt006 (psia)', 'pt006(psia)', 'pt006 psia', 'tekanan pt006', 'tekanan pt-006', 'inlet pt006', 'pt 006 (psia)'
+    'pt-6', 'pt 6', 'pt_6', 'pt006 (psia)', 'pt006(psia)', 'pt006 psia', 'tekanan pt006', 'tekanan pt-006',
+    'inlet pt006', 'pt 006 (psia)'
   ],
   P3_0: [
-    'p3.0', 'p30', 'p3_0', 'pdisch', 'p_disch', 'discharge_press', 'discharge pressure', 'cdp',
+    'p3.0', 'p3,0', 'p30', 'p3_0', 'pdisch', 'p_disch', 'discharge_press', 'discharge pressure', 'cdp',
     'compressor discharge pressure', 'p3', 'tekanan_discharge', 'tekanan buang', 'p_out', 'tekanan_kompresor',
     'pt007', 'pt 007', 'p3.0 / pt007', 'p3.0 (psia)', 'p3.0 / pt007 (psia)', 'pt-007', 'pt_007', 'p 3.0', 'pt7',
-    'pb aktual', 'pb testing', 'pb target', 'testing pt007', 'pt007 (psia)', 'pt007(psia)', 'pt007 psia',
-    '★ pt007', 'pt007 testing', 'tekanan pt007', 'tekanan pt-007', 'discharge pt007', 'pt 007 (psia)', 'pb testing (pt007)'
+    'pt-7', 'pt 7', 'pt_7', 'pb aktual', 'pb testing', 'pb target', 'testing pt007', 'pt007 (psia)', 'pt007(psia)',
+    'pt007 psia', '★ pt007', 'pt007 testing', 'tekanan pt007', 'tekanan pt-007', 'discharge pt007',
+    'pt 007 (psia)', 'pb testing (pt007)'
   ],
   PR: [
     'pr', 'pressure ratio', 'pressure_ratio', 'rasio tekanan', 'rasio_tekanan', 'rc', 'pr (calc)'
