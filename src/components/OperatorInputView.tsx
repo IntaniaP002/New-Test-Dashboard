@@ -664,7 +664,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
       <section className="bg-white rounded-md border border-slate-200 p-6 shadow-xs">
         <div className="border-b border-slate-200 pb-3 mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-bold text-slate-900 tracking-tight">Input Data Operasional Turbin &amp; Kompresor</h2>
+            <h2 className="text-base font-bold text-slate-900 tracking-tight">Input Data Operasi</h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Masukkan 7 parameter operasi terintegrasi (Tanggal, Waktu, NH Speed, T1.7, P1.7, P3.0, Real Power) atau unggah berkas CSV / Excel.
             </p>
