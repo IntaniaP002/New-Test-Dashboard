@@ -142,9 +142,9 @@ export const AnomalyWarningModal: React.FC<AnomalyWarningModalProps> = ({
                 Kolom berlatar merah (<span className="text-rose-700 font-bold bg-rose-50 px-1 border border-rose-200 rounded">merah</span>) menandakan nilai anomali
               </span>
             </div>
-            <div className="overflow-x-auto max-h-80">
+            <div className="overflow-auto max-h-80">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-700 border-b border-slate-200 sticky top-0 font-semibold text-[11px]">
+                <thead className="bg-slate-50 text-slate-700 sticky top-0 z-10 [&_th:not([class*='bg-'])]:bg-slate-50 [&_th]:shadow-[inset_0_-1px_0_#e2e8f0] font-semibold text-[11px]">
                   <tr>
                     {mode === 'bulk' && <th className="py-2 px-3 whitespace-nowrap">Baris</th>}
                     <th className="py-2 px-3 whitespace-nowrap">Tanggal &amp; Waktu</th>

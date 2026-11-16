@@ -961,9 +961,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-auto max-h-[480px]">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
+              <thead className="bg-slate-50 text-slate-600 font-semibold sticky top-0 z-10 [&_th:not([class*='bg-'])]:bg-slate-50 [&_th]:shadow-[inset_0_-1px_0_#e2e8f0]">
                 <tr>
                   <th
                     className="py-3 px-4 cursor-pointer select-none hover:bg-slate-100 transition-colors"

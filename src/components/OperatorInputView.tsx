@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   Copy,
   Sparkles,
+  Zap,
 } from 'lucide-react';
 import {
   BaselineConfig,
@@ -158,11 +159,16 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     XLSX.writeFile(wb, 'Template_Upload_Operasional.xlsx');
   };
 
-  // History Section View Mode: 'water_washing' | 'pb_synthesis'
   const [historySection, setHistorySection] = useState<'water_washing' | 'pb_synthesis'>('water_washing');
+  const [perfPowerPreset, setPerfPowerPreset] = useState<string>('ALL');
+  const [perfMinPower, setPerfMinPower] = useState<string>('');
+  const [perfMaxPower, setPerfMaxPower] = useState<string>('');
   const [pbDateFilter, setPbDateFilter] = useState<string>('ALL');
   const [pbStartDateFilter, setPbStartDateFilter] = useState<string>('');
   const [pbEndDateFilter, setPbEndDateFilter] = useState<string>('');
+  const [pbPowerPreset, setPbPowerPreset] = useState<string>('ALL');
+  const [pbMinPower, setPbMinPower] = useState<string>('');
+  const [pbMaxPower, setPbMaxPower] = useState<string>('');
   const [pbPageSize, setPbPageSize] = useState<number>(50);
   const [pbCurrentPage, setPbCurrentPage] = useState<number>(1);
   const [recordToDelete, setRecordToDelete] = useState<DeleteTargetInfo | null>(null);
@@ -232,8 +238,21 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     return Array.from(new Set(rawPbRecords.map((r) => r.date))).sort().reverse();
   }, [rawPbRecords]);
 
-  // Filtered PB Synthesis records based on selected date or date range
+  // Filtered Performa Kompresor records based on Power (MW) range
+  const filteredDisplayedRecords = useMemo(() => {
+    const minVal = perfMinPower.trim() !== '' ? parseFloat(perfMinPower.replace(',', '.')) : NaN;
+    const maxVal = perfMaxPower.trim() !== '' ? parseFloat(perfMaxPower.replace(',', '.')) : NaN;
+    return displayedRecords.filter((r) => {
+      if (!isNaN(minVal) && r.realPower < minVal) return false;
+      if (!isNaN(maxVal) && r.realPower > maxVal) return false;
+      return true;
+    });
+  }, [displayedRecords, perfMinPower, perfMaxPower]);
+
+  // Filtered PB Synthesis records based on selected date, date range, and Power (MW) range
   const filteredPbRecords = useMemo(() => {
+    const minVal = pbMinPower.trim() !== '' ? parseFloat(pbMinPower.replace(',', '.')) : NaN;
+    const maxVal = pbMaxPower.trim() !== '' ? parseFloat(pbMaxPower.replace(',', '.')) : NaN;
     return rawPbRecords.filter((r) => {
       if (pbDateFilter !== 'ALL' && r.date !== pbDateFilter) {
         return false;
@@ -244,9 +263,15 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
       if (pbEndDateFilter && r.date > pbEndDateFilter) {
         return false;
       }
+      if (!isNaN(minVal) && r.realPower < minVal) {
+        return false;
+      }
+      if (!isNaN(maxVal) && r.realPower > maxVal) {
+        return false;
+      }
       return true;
     });
-  }, [rawPbRecords, pbDateFilter, pbStartDateFilter, pbEndDateFilter]);
+  }, [rawPbRecords, pbDateFilter, pbStartDateFilter, pbEndDateFilter, pbMinPower, pbMaxPower]);
 
   // Paginated PB Synthesis records
   const paginatedPbRecords = useMemo(() => {
@@ -915,9 +940,9 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               </div>
 
               {/* 23 Titik Kurva PB Synthesis */}
-              <div className="overflow-x-auto max-h-48 overflow-y-auto bg-white rounded border border-violet-200">
+              <div className="overflow-auto max-h-48 bg-white rounded border border-violet-200">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 sticky top-0 text-[11px]">
+                  <thead className="bg-slate-50 text-slate-600 sticky top-0 z-10 [&_th:not([class*='bg-'])]:bg-slate-50 [&_th]:shadow-[inset_0_-1px_0_#e2e8f0] text-[11px]">
                     <tr>
                       <th className="py-1.5 px-2.5">Beban (MW)</th>
                       <th className="py-1.5 px-2.5">NH Speed</th>
@@ -1820,8 +1845,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                 <button
                   id="btn-download-history-excel"
                   type="button"
-                  onClick={() => exportOperationalRecordsExcel(displayedRecords)}
-                  disabled={displayedRecords.length === 0}
+                  onClick={() => exportOperationalRecordsExcel(filteredDisplayedRecords)}
+                  disabled={filteredDisplayedRecords.length === 0}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50/50 border border-emerald-300 rounded hover:bg-emerald-100 disabled:opacity-50 transition-colors shadow-2xs cursor-pointer"
                   title="Download operational dataset as Excel (.xlsx)"
                 >
@@ -1850,24 +1875,124 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               </div>
             ) : (
               <div>
-                {/* Clean status bar - tip removed */}
-                <div className="px-6 py-2 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-slate-700">
-                      Total Data Harian: {displayedRecords.length} Hari Terverifikasi
+                {/* Filter Power & Status Bar */}
+                <div className="px-6 py-2.5 bg-slate-50 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 text-xs">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-sky-600" />
+                      <span>Filter Power:</span>
+                    </span>
+                    <div className="flex items-center gap-1 bg-white border border-slate-300 rounded px-2.5 py-1 shadow-2xs">
+                      <select
+                        value={perfPowerPreset}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPerfPowerPreset(val);
+                          if (val === 'ALL') {
+                            setPerfMinPower('');
+                            setPerfMaxPower('');
+                          } else if (val === 'HIGH_20') {
+                            setPerfMinPower('20');
+                            setPerfMaxPower('');
+                          } else if (val === 'BASE_19') {
+                            setPerfMinPower('19');
+                            setPerfMaxPower('');
+                          } else if (val === 'MID_10_19') {
+                            setPerfMinPower('10');
+                            setPerfMaxPower('19');
+                          } else if (val === 'LOW_10') {
+                            setPerfMinPower('');
+                            setPerfMaxPower('10');
+                          }
+                        }}
+                        className="text-xs font-semibold text-slate-700 bg-transparent border-0 focus:outline-none cursor-pointer"
+                        aria-label="Filter Power Performa Kompresor"
+                      >
+                        <option value="ALL">Semua Beban (MW)</option>
+                        <option value="HIGH_20">&ge; 20 MW (High Load)</option>
+                        <option value="BASE_19">&ge; 19 MW (Base Load)</option>
+                        <option value="MID_10_19">10 – 19 MW (Mid Load)</option>
+                        <option value="LOW_10">&le; 10 MW (Low Load)</option>
+                        {perfPowerPreset === 'CUSTOM' && <option value="CUSTOM">Kustom (Min–Max)</option>}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-slate-600 text-xs">
+                      <span className="text-[11px] text-slate-400">MW:</span>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        placeholder="Min"
+                        value={perfMinPower}
+                        onChange={(e) => {
+                          setPerfMinPower(e.target.value);
+                          setPerfPowerPreset(e.target.value || perfMaxPower ? 'CUSTOM' : 'ALL');
+                        }}
+                        className="w-20 px-2 py-0.5 text-xs border border-slate-300 rounded bg-white font-mono shadow-2xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        title="Beban Minimum (MW)"
+                      />
+                      <span className="text-slate-400">s/d</span>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        placeholder="Max"
+                        value={perfMaxPower}
+                        onChange={(e) => {
+                          setPerfMaxPower(e.target.value);
+                          setPerfPowerPreset(perfMinPower || e.target.value ? 'CUSTOM' : 'ALL');
+                        }}
+                        className="w-20 px-2 py-0.5 text-xs border border-slate-300 rounded bg-white font-mono shadow-2xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        title="Beban Maksimum (MW)"
+                      />
+                    </div>
+                    {(perfMinPower || perfMaxPower || perfPowerPreset !== 'ALL') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPerfPowerPreset('ALL');
+                          setPerfMinPower('');
+                          setPerfMaxPower('');
+                        }}
+                        className="px-2 py-0.5 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded shadow-2xs cursor-pointer transition-colors"
+                      >
+                        Reset Power
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {selectedRecordId && (
+                      <span className="text-[11px] font-semibold text-sky-800 bg-white px-2.5 py-0.5 rounded border border-sky-200 shadow-2xs shrink-0">
+                        Active in Performa Kompresor: {displayedRecords.find(d => d.id === selectedRecordId)?.date || selectedRecordId}
+                      </span>
+                    )}
+                    <span className="font-semibold text-slate-700 bg-white px-2.5 py-0.5 rounded border border-slate-200 shadow-2xs">
+                      Total Data Harian: {filteredDisplayedRecords.length} Hari{(perfMinPower || perfMaxPower) ? ` (dari ${displayedRecords.length})` : ' Terverifikasi'}
                     </span>
                   </div>
-                  {selectedRecordId && (
-                    <span className="text-[11px] font-semibold text-sky-800 bg-white px-2.5 py-0.5 rounded border border-sky-200 shadow-2xs self-start sm:self-auto shrink-0">
-                      Active in Performa Kompresor: {displayedRecords.find(d => d.id === selectedRecordId)?.date || selectedRecordId}
-                    </span>
-                  )}
                 </div>
 
-                <div className="overflow-x-auto">
+                {filteredDisplayedRecords.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-slate-500 space-y-2">
+                    <p>Tidak ada data harian dengan rentang Power (MW) yang dipilih.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPerfPowerPreset('ALL');
+                        setPerfMinPower('');
+                        setPerfMaxPower('');
+                      }}
+                      className="px-3 py-1 text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded cursor-pointer"
+                    >
+                      Reset Filter Power
+                    </button>
+                  </div>
+                ) : (
+                <div className="overflow-auto max-h-[520px]">
                   <table className="w-full text-left text-xs table-auto">
                     {/* Exact 10 Headers optimized to fit without horizontal cut-off */}
-                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-[11px]">
+                    <thead className="bg-slate-50 text-slate-600 font-semibold text-[11px] sticky top-0 z-10 [&_th:not([class*='bg-'])]:bg-slate-50 [&_th]:shadow-[inset_0_-1px_0_#e2e8f0]">
                       <tr>
                         <th className="py-2 px-2.5 whitespace-nowrap">Date</th>
                         <th className="py-2 px-1.5 text-center whitespace-nowrap">Navigasi</th>
@@ -1882,7 +2007,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-xs">
-                      {[...displayedRecords].reverse().map((r) => {
+                      {[...filteredDisplayedRecords].reverse().map((r) => {
                         const isActive = isRecordActiveBaseline(r);
                         const isSelected = selectedRecordId === r.id;
 
@@ -2057,6 +2182,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                     </tbody>
                   </table>
                 </div>
+                )}
               </div>
             )}
           </div>
@@ -2109,14 +2235,14 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               </div>
             </div>
 
-            {filteredPbRecords.length === 0 ? (
+            {rawPbRecords.length === 0 ? (
               <div className="p-8 text-center text-xs text-slate-500">
                 Belum ada data input untuk PB Synthesis. Silakan masukkan data di form atas atau impor file.
               </div>
             ) : (
               <div>
-                {/* Date Filter Bar - Clean, functional date filter toolbar replacing the tip banner */}
-                <div className="px-6 py-2.5 bg-slate-50/80 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                {/* Date & Power Filter Bar */}
+                <div className="px-6 py-2.5 bg-slate-50/80 border-b border-slate-200 flex flex-col xl:flex-row xl:items-center justify-between gap-3 text-xs">
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <span className="font-bold text-slate-700 flex items-center gap-1.5">
                       <Filter className="w-3.5 h-3.5 text-violet-600" />
@@ -2168,13 +2294,91 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                       />
                     </div>
 
-                    {(pbDateFilter !== 'ALL' || pbStartDateFilter || pbEndDateFilter) && (
+                    <div className="hidden sm:block h-4 w-px bg-slate-300 mx-0.5" />
+
+                    {/* Power (MW) Filter */}
+                    <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-violet-600" />
+                      <span>Filter Power:</span>
+                    </span>
+                    <div className="flex items-center gap-1 bg-white border border-slate-300 rounded px-2.5 py-1 shadow-2xs">
+                      <select
+                        value={pbPowerPreset}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPbPowerPreset(val);
+                          if (val === 'ALL') {
+                            setPbMinPower('');
+                            setPbMaxPower('');
+                          } else if (val === 'HIGH_20') {
+                            setPbMinPower('20');
+                            setPbMaxPower('');
+                          } else if (val === 'BASE_19') {
+                            setPbMinPower('19');
+                            setPbMaxPower('');
+                          } else if (val === 'MID_10_19') {
+                            setPbMinPower('10');
+                            setPbMaxPower('19');
+                          } else if (val === 'LOW_10') {
+                            setPbMinPower('');
+                            setPbMaxPower('10');
+                          }
+                          setPbCurrentPage(1);
+                        }}
+                        className="text-xs font-semibold text-slate-700 bg-transparent border-0 focus:outline-none cursor-pointer"
+                        aria-label="Filter Power PB Synthesis"
+                      >
+                        <option value="ALL">Semua Beban (MW)</option>
+                        <option value="HIGH_20">&ge; 20 MW (High Load)</option>
+                        <option value="BASE_19">&ge; 19 MW (Base Load)</option>
+                        <option value="MID_10_19">10 – 19 MW (Mid Load)</option>
+                        <option value="LOW_10">&le; 10 MW (Low Load)</option>
+                        {pbPowerPreset === 'CUSTOM' && <option value="CUSTOM">Kustom (Min–Max)</option>}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-slate-600 text-xs">
+                      <span className="text-[11px] text-slate-400">MW:</span>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        placeholder="Min"
+                        value={pbMinPower}
+                        onChange={(e) => {
+                          setPbMinPower(e.target.value);
+                          setPbPowerPreset(e.target.value || pbMaxPower ? 'CUSTOM' : 'ALL');
+                          setPbCurrentPage(1);
+                        }}
+                        className="w-20 px-2 py-0.5 text-xs border border-slate-300 rounded bg-white font-mono shadow-2xs focus:outline-none focus:ring-1 focus:ring-violet-500"
+                        title="Beban Minimum (MW)"
+                      />
+                      <span className="text-slate-400">s/d</span>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        placeholder="Max"
+                        value={pbMaxPower}
+                        onChange={(e) => {
+                          setPbMaxPower(e.target.value);
+                          setPbPowerPreset(pbMinPower || e.target.value ? 'CUSTOM' : 'ALL');
+                          setPbCurrentPage(1);
+                        }}
+                        className="w-20 px-2 py-0.5 text-xs border border-slate-300 rounded bg-white font-mono shadow-2xs focus:outline-none focus:ring-1 focus:ring-violet-500"
+                        title="Beban Maksimum (MW)"
+                      />
+                    </div>
+
+                    {(pbDateFilter !== 'ALL' || pbStartDateFilter || pbEndDateFilter || pbPowerPreset !== 'ALL' || pbMinPower || pbMaxPower) && (
                       <button
                         type="button"
                         onClick={() => {
                           setPbDateFilter('ALL');
                           setPbStartDateFilter('');
                           setPbEndDateFilter('');
+                          setPbPowerPreset('ALL');
+                          setPbMinPower('');
+                          setPbMaxPower('');
                           setPbCurrentPage(1);
                         }}
                         className="px-2 py-0.5 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded shadow-2xs cursor-pointer transition-colors"
@@ -2184,7 +2388,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+                  <div className="flex items-center gap-2 self-start xl:self-auto shrink-0">
                     {selectedPbRecordId && (
                       <span className="text-[11px] font-semibold text-violet-800 bg-violet-100/70 px-2.5 py-0.5 rounded border border-violet-200 shadow-2xs">
                         Aktif di PB Synthesis: {rawPbRecords.find((d) => d.id === selectedPbRecordId)?.date || selectedPbRecordId}
@@ -2196,9 +2400,30 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                   </div>
                 </div>
 
-                <div className="overflow-x-auto">
+                {filteredPbRecords.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-slate-500 space-y-2">
+                    <p>Tidak ada entri PB Synthesis yang cocok dengan filter Tanggal / Power (MW) yang dipilih.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPbDateFilter('ALL');
+                        setPbStartDateFilter('');
+                        setPbEndDateFilter('');
+                        setPbPowerPreset('ALL');
+                        setPbMinPower('');
+                        setPbMaxPower('');
+                        setPbCurrentPage(1);
+                      }}
+                      className="px-3 py-1 text-xs font-bold text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200 rounded cursor-pointer"
+                    >
+                      Reset Semua Filter
+                    </button>
+                  </div>
+                ) : (
+                <>
+                <div className="overflow-auto max-h-[520px]">
                   <table className="w-full text-left text-xs table-auto">
-                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-[11px]">
+                    <thead className="bg-slate-50 text-slate-600 font-semibold text-[11px] sticky top-0 z-10 [&_th:not([class*='bg-'])]:bg-slate-50 [&_th]:shadow-[inset_0_-1px_0_#e2e8f0]">
                       <tr>
                         <th className="py-2 px-2 whitespace-nowrap">Date</th>
                         <th className="py-2 px-1.5 text-center whitespace-nowrap">Navigasi</th>
@@ -2435,6 +2660,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                     </div>
                   )}
                 </div>
+                </>
+                )}
               </div>
             )}
           </div>

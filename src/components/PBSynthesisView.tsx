@@ -108,6 +108,9 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
   const [tableDateFilter, setTableDateFilter] = useState<string>('ALL');
   const [tableStartDateFilter, setTableStartDateFilter] = useState<string>('');
   const [tableEndDateFilter, setTableEndDateFilter] = useState<string>('');
+  const [tablePowerPreset, setTablePowerPreset] = useState<string>('ALL');
+  const [tableMinPower, setTableMinPower] = useState<string>('');
+  const [tableMaxPower, setTableMaxPower] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc');
   const [zoomMode, setZoomMode] = useState<'AUTO_DATA' | 'FOCUS_PT007' | 'FULL'>('AUTO_DATA');
   const [zoomLevel, setZoomLevel] = useState<number>(1.0);
@@ -507,6 +510,16 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
       list = list.filter((r) => r.date <= tableEndDateFilter);
     }
 
+    // Filter by Power (MW) range
+    const minVal = tableMinPower.trim() !== '' ? parseFloat(tableMinPower.replace(',', '.')) : NaN;
+    const maxVal = tableMaxPower.trim() !== '' ? parseFloat(tableMaxPower.replace(',', '.')) : NaN;
+    if (!isNaN(minVal)) {
+      list = list.filter((r) => r.beban >= minVal);
+    }
+    if (!isNaN(maxVal)) {
+      list = list.filter((r) => r.beban <= maxVal);
+    }
+
     // Filter by zone
     if (filterZone !== 'ALL') {
       list = list.filter((r) => r.zone === filterZone);
@@ -517,7 +530,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
       return sortDirection === 'desc' ? -cmp : cmp;
     });
     return list;
-  }, [allMonitoredRecords, tableDateFilter, tableStartDateFilter, tableEndDateFilter, filterZone, sortDirection]);
+  }, [allMonitoredRecords, tableDateFilter, tableStartDateFilter, tableEndDateFilter, tableMinPower, tableMaxPower, filterZone, sortDirection]);
 
   // Export to Excel (exports currently filtered dataset, or all if none filtered)
   const handleExportExcel = () => {
@@ -1846,6 +1859,72 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
               />
             </div>
 
+            {/* Power (MW) Filter */}
+            <div className="flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <select
+                value={tablePowerPreset}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setTablePowerPreset(val);
+                  if (val === 'ALL') {
+                    setTableMinPower('');
+                    setTableMaxPower('');
+                  } else if (val === 'HIGH_20') {
+                    setTableMinPower('20');
+                    setTableMaxPower('');
+                  } else if (val === 'BASE_19') {
+                    setTableMinPower('19');
+                    setTableMaxPower('');
+                  } else if (val === 'MID_10_19') {
+                    setTableMinPower('10');
+                    setTableMaxPower('19');
+                  } else if (val === 'LOW_10') {
+                    setTableMinPower('');
+                    setTableMaxPower('10');
+                  }
+                }}
+                className="px-2 py-1 text-xs border border-slate-300 rounded bg-white font-medium shadow-2xs focus:outline-none cursor-pointer"
+                aria-label="Filter Power (MW)"
+              >
+                <option value="ALL">Semua Beban (MW)</option>
+                <option value="HIGH_20">&ge; 20 MW</option>
+                <option value="BASE_19">&ge; 19 MW (Base Load)</option>
+                <option value="MID_10_19">10 – 19 MW</option>
+                <option value="LOW_10">&le; 10 MW</option>
+                {tablePowerPreset === 'CUSTOM' && <option value="CUSTOM">Kustom (MW)</option>}
+              </select>
+              <div className="flex items-center gap-1 text-xs text-slate-600 bg-white border border-slate-300 rounded px-1.5 py-0.5 shadow-2xs">
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  placeholder="Min MW"
+                  value={tableMinPower}
+                  onChange={(e) => {
+                    setTableMinPower(e.target.value);
+                    setTablePowerPreset(e.target.value || tableMaxPower ? 'CUSTOM' : 'ALL');
+                  }}
+                  className="w-16 px-1 py-0.5 text-xs border border-slate-200 rounded bg-slate-50 font-mono focus:bg-white focus:outline-none"
+                  title="Beban Minimum (MW)"
+                />
+                <span className="text-[11px] text-slate-400">–</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  placeholder="Max MW"
+                  value={tableMaxPower}
+                  onChange={(e) => {
+                    setTableMaxPower(e.target.value);
+                    setTablePowerPreset(tableMinPower || e.target.value ? 'CUSTOM' : 'ALL');
+                  }}
+                  className="w-16 px-1 py-0.5 text-xs border border-slate-200 rounded bg-slate-50 font-mono focus:bg-white focus:outline-none"
+                  title="Beban Maksimum (MW)"
+                />
+              </div>
+            </div>
+
             {/* Zone Filter */}
             <div className="flex items-center gap-1.5">
               <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -1866,17 +1945,20 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
             </div>
 
             {/* Reset Filters Button */}
-            {(tableDateFilter !== 'ALL' || tableStartDateFilter || tableEndDateFilter || filterZone !== 'ALL') && (
+            {(tableDateFilter !== 'ALL' || tableStartDateFilter || tableEndDateFilter || tablePowerPreset !== 'ALL' || tableMinPower || tableMaxPower || filterZone !== 'ALL') && (
               <button
                 type="button"
                 onClick={() => {
                   setTableDateFilter('ALL');
                   setTableStartDateFilter('');
                   setTableEndDateFilter('');
+                  setTablePowerPreset('ALL');
+                  setTableMinPower('');
+                  setTableMaxPower('');
                   setFilterZone('ALL');
                 }}
                 className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded cursor-pointer shadow-2xs transition-colors"
-                title="Reset semua filter tanggal dan zona"
+                title="Reset semua filter tanggal, power, dan zona"
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>Reset</span>
@@ -1926,9 +2008,9 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
               : 'Tidak ada rekaman data operasi yang cocok dengan filter.'}
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-auto max-h-[560px]">
             <table className="w-full text-left text-xs table-auto">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-[11px]">
+              <thead className="bg-slate-50 text-slate-600 font-semibold text-[11px] sticky top-0 z-10 [&_th:not([class*='bg-'])]:bg-slate-50 [&_th]:shadow-[inset_0_-1px_0_#e2e8f0]">
                 <tr>
                   <th className="py-2 px-2 whitespace-nowrap text-slate-800">Waktu &amp; Tanggal</th>
                   <th className="py-2 px-1 text-right whitespace-nowrap text-slate-800">
@@ -1954,7 +2036,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
                     <div>Batas WW Bawah</div>
                     <div className="text-[9px] font-normal text-amber-600">-4.0</div>
                   </th>
-                  <th className="py-2 px-1.5 whitespace-nowrap text-center text-purple-950 font-black bg-purple-100/90 border-x border-purple-200 text-xs">
+                  <th className="py-2 px-1.5 whitespace-nowrap text-center text-purple-950 font-black bg-purple-100 border-x border-purple-200 text-xs">
                     <div>★ PT007</div>
                     <div className="text-[9px] font-bold text-purple-700">Testing</div>
                   </th>

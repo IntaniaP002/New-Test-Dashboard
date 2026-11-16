@@ -89,14 +89,15 @@ export const DuplicateWarningModal: React.FC<DuplicateWarningModalProps> = ({
               </span>
             </div>
 
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-[11px]">
-                <tr>
-                  <th className="py-2 px-3">Parameter</th>
-                  <th className="py-2 px-3 text-right bg-amber-50/50 text-amber-950">Data Baru (Input Saat Ini)</th>
-                  <th className="py-2 px-3 text-right bg-slate-50 text-slate-700">Data Tersimpan di Sistem</th>
-                </tr>
-              </thead>
+            <div className="overflow-auto max-h-72">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600 font-semibold text-[11px] sticky top-0 z-10 [&_th:not([class*='bg-'])]:bg-slate-50 [&_th]:shadow-[inset_0_-1px_0_#e2e8f0]">
+                  <tr>
+                    <th className="py-2 px-3">Parameter</th>
+                    <th className="py-2 px-3 text-right bg-amber-50 text-amber-950">Data Baru (Input Saat Ini)</th>
+                    <th className="py-2 px-3 text-right bg-slate-50 text-slate-700">Data Tersimpan di Sistem</th>
+                  </tr>
+                </thead>
               <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
                 <tr>
                   <td className="py-2 px-3 font-sans font-medium text-slate-700">Tanggal &amp; Waktu</td>
@@ -144,7 +145,8 @@ export const DuplicateWarningModal: React.FC<DuplicateWarningModalProps> = ({
                   </td>
                 </tr>
               </tbody>
-            </table>
+              </table>
+            </div>
           </div>
 
           <p className="text-[11px] text-slate-500 leading-relaxed">

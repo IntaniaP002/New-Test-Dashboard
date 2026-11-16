@@ -597,9 +597,9 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
 
               {/* Table: Milestone Columns View (Parameter Rows) */}
               {(!isMultiDay || tableMode === 'milestones') && (
-                <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                <div className="overflow-auto max-h-[420px] rounded-lg border border-slate-200 bg-white">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold">
+                    <thead className="bg-slate-50 text-slate-700 font-bold sticky top-0 z-10 [&_th:not([class*='bg-'])]:bg-slate-50 [&_th]:shadow-[inset_0_-1px_0_#e2e8f0]">
                       <tr>
                         <th className="py-2.5 px-3">Parameter</th>
                         <th className="py-2.5 px-3">Ambang Batas</th>
@@ -723,9 +723,9 @@ export const ThreeDayProjectionSection: React.FC<ThreeDayProjectionSectionProps>
 
               {/* Table: Full Daily Rows View (All Days) */}
               {isMultiDay && tableMode === 'all' && (
-                <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white max-h-[480px] overflow-y-auto">
+                <div className="overflow-auto rounded-lg border border-slate-200 bg-white max-h-[480px]">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold sticky top-0 z-10">
+                    <thead className="bg-slate-50 text-slate-700 font-bold sticky top-0 z-10 [&_th:not([class*='bg-'])]:bg-slate-50 [&_th]:shadow-[inset_0_-1px_0_#e2e8f0]">
                       <tr>
                         <th className="py-2.5 px-3">Hari</th>
                         <th className="py-2.5 px-3">Jam Operasi</th>

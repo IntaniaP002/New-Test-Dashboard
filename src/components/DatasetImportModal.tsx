@@ -1110,9 +1110,9 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
               </div>
 
               {/* Standardized Table Preview with ALL Parameters Explicitly Displayed */}
-              <div className="overflow-x-auto max-h-64 border border-slate-200 rounded bg-white shadow-2xs">
+              <div className="overflow-auto max-h-64 border border-slate-200 rounded bg-white shadow-2xs">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100 text-slate-700 border-b border-slate-200 sticky top-0 font-semibold text-[11px]">
+                  <thead className="bg-slate-100 text-slate-700 sticky top-0 z-10 [&_th:not([class*='bg-'])]:bg-slate-100 [&_th]:shadow-[inset_0_-1px_0_#e2e8f0] font-semibold text-[11px]">
                     <tr>
                       <th className="py-2 px-3 whitespace-nowrap">Tanggal</th>
                       <th className="py-2 px-3 whitespace-nowrap">Waktu</th>
