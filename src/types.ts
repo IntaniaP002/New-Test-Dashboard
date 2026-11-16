@@ -425,14 +425,16 @@ export interface PBOperationCurvePoint {
   yInterpolated: number; // Y (hasil hitung)
   pt006: number; // PT006 (PSIA)
   pbSynthesis: number; // PB Synthesis (NH) = Y * PT006
-  earlyUpper: number; // Early Batas Atas (1.171x)
-  earlyLower: number; // Early Batas Bawah (0.829x)
+  earlyUpper: number; // Batas WW Atas (+4.0 PSIA di atas 1.18x)
+  earlyLower: number; // Batas WW Bawah (-4.0 PSIA di bawah 0.82x)
   upperThreshold: number; // Batas Atas (1.18x)
   lowerThreshold: number; // Batas Bawah (0.82x)
 }
 
 export type PBOperationZone =
   | 'NORMAL'
+  | 'CAUTION_UPPER'
+  | 'CAUTION_LOWER'
   | 'EARLY_UPPER'
   | 'EARLY_LOWER'
   | 'MELEWATI_BATAS_ATAS'
@@ -449,8 +451,10 @@ export interface PBOperationEvaluation {
   pt006: number; // PT006 (Inlet P1.7, PSIA)
   pt007: number; // PT007 (Testing Data P3.0, PSIA)
   pbSynthesis: number; // PB Synthesis (NH) = Y * PT006
-  earlyUpper: number; // 1.171x
-  earlyLower: number; // 0.829x
+  cautionUpper: number; // Batas Caution Atas (+2.0 PSIA di atas 1.18x)
+  cautionLower: number; // Batas Caution Bawah (-2.0 PSIA di bawah 0.82x)
+  earlyUpper: number; // Batas WW Atas (+4.0 PSIA di atas 1.18x)
+  earlyLower: number; // Batas WW Bawah (-4.0 PSIA di bawah 0.82x)
   upperThreshold: number; // 1.18x
   lowerThreshold: number; // 0.82x
   zone: PBOperationZone;

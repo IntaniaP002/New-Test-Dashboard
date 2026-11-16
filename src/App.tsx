@@ -331,7 +331,18 @@ export default function App() {
     setAsPbBaseline?: boolean
   ) => {
     setRecords((prev) => {
-      const cleanTime = time?.trim().slice(0, 5);
+      const normClean = (t?: string | null) => {
+        if (!t || !t.trim()) return '';
+        const parts = t.trim().split(/[:.]/);
+        if (parts.length >= 2 && /^\d+$/.test(parts[0]) && /^\d+$/.test(parts[1])) {
+          const hh = parts[0].padStart(2, '0');
+          const mm = parts[1].padStart(2, '0');
+          const ss = parts.length >= 3 && parts[2] && /^\d+$/.test(parts[2]) ? parts[2].padStart(2, '0') : '00';
+          return `${hh}:${mm}:${ss}`;
+        }
+        return t.trim();
+      };
+      const cleanTime = normClean(time);
       let matchedCount = 0;
 
       // If this record should be set as the active PB baseline, reset any previous baseline flags
@@ -340,7 +351,7 @@ export default function App() {
       // 1. Try to match both date and exact time first
       let updatedList = prev.map((r) => {
         const isDateMatch = r.date === date;
-        const rTimeClean = r.time?.trim().slice(0, 5);
+        const rTimeClean = normClean(r.time);
         const isTimeMatch = !cleanTime || rTimeClean === cleanTime || r.time?.includes('Average');
 
         if (isDateMatch && isTimeMatch) {

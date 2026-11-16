@@ -19,31 +19,24 @@ export interface ImportClassification {
 }
 
 /**
- * Normalizes time string to HH:MM or HH:MM:SS for reliable comparison
+ * Normalizes time string to HH:MM:SS (00:00:00) for reliable comparison
  */
 export function normalizeTimeString(t?: string | null): string {
-  if (!t) return '19:00';
+  if (!t) return '19:00:00';
   const clean = t.trim();
-  const parts = clean.split(':');
-  if (parts.length >= 2) {
+  const parts = clean.split(/[:.]/);
+  if (parts.length >= 2 && /^\d+$/.test(parts[0]) && /^\d+$/.test(parts[1])) {
     const hh = parts[0].padStart(2, '0');
     const mm = parts[1].padStart(2, '0');
-    if (parts.length >= 3 && parts[2]) {
-      const ss = parts[2].padStart(2, '0');
-      // If seconds are ':00', normalize to HH:MM for easy matching with non-seconds data
-      if (ss === '00') {
-        return `${hh}:${mm}`;
-      }
-      return `${hh}:${mm}:${ss}`;
-    }
-    return `${hh}:${mm}`;
+    const ss = parts.length >= 3 && parts[2] && /^\d+$/.test(parts[2]) ? parts[2].padStart(2, '0') : '00';
+    return `${hh}:${mm}:${ss}`;
   }
-  return clean.slice(0, 5);
+  return clean;
 }
 
 /**
  * Checks whether two operational readings share the exact same timestamp (Date and Time).
- * Handles flexible formats (e.g. 19:00 vs 19:00:00).
+ * Handles flexible formats (e.g. 19:00 vs 19:00:00) while keeping different seconds distinct.
  */
 export function isSameOperationalTimestamp(
   date1?: string | null,
@@ -56,18 +49,13 @@ export function isSameOperationalTimestamp(
   const d2 = standardizeDate(date2).trim();
   if (d1 !== d2) return false;
 
-  const t1 = (time1 || '19:00').trim();
-  const t2 = (time2 || '19:00').trim();
+  const t1 = (time1 || '19:00:00').trim();
+  const t2 = (time2 || '19:00:00').trim();
   if (t1 === t2) return true;
 
   const norm1 = normalizeTimeString(t1);
   const norm2 = normalizeTimeString(t2);
-  if (norm1 === norm2) return true;
-
-  // Also check if one has seconds and the other doesn't, but HH:MM match
-  const hhmm1 = norm1.slice(0, 5);
-  const hhmm2 = norm2.slice(0, 5);
-  return hhmm1 === hhmm2;
+  return norm1 === norm2;
 }
 
 /**
@@ -183,8 +171,8 @@ export function findExactDuplicate(
 function makeTimestampKey(date?: string | null, time?: string | null): string {
   if (!date) return '';
   const d = standardizeDate(date).trim();
-  const norm = normalizeTimeString(time || '19:00');
-  return `${d}__${norm.slice(0, 5)}`;
+  const norm = normalizeTimeString(time || '19:00:00');
+  return `${d}__${norm}`;
 }
 
 /**

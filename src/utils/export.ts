@@ -6,6 +6,7 @@
 import * as XLSX from 'xlsx';
 import { OperationalRecord, WaterWashCycleDeterioration, WaterWashEvent } from '../types';
 import { DEFAULT_THRESHOLDS } from '../data/initialData';
+import { formatTimeWithSeconds } from './dataNormalizer';
 
 /**
  * Trigger browser file download
@@ -79,7 +80,7 @@ export function exportOperationalRecordsCSV(records: OperationalRecord[]) {
   const rows = records.map((r) => [
     r.id,
     r.date,
-    r.time,
+    formatTimeWithSeconds(r.time),
     r.nhSpeed ?? 'N/A',
     r.T1_7 !== undefined && r.T1_7 !== null ? r.T1_7 : 'N/A',
     r.P1_7,
@@ -132,7 +133,7 @@ export function exportOperationalRecordsExcel(records: OperationalRecord[]) {
   const rows = records.map((r) => [
     r.id,
     r.date,
-    r.time,
+    formatTimeWithSeconds(r.time),
     r.nhSpeed ?? 'N/A',
     r.T1_7 !== undefined && r.T1_7 !== null ? r.T1_7 : 'N/A',
     r.P1_7,

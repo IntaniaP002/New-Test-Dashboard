@@ -44,6 +44,7 @@ import {
 import { validateRecordAnomalies, RecordAnomalyReport } from '../utils/anomalyValidation';
 import { AnomalyWarningModal } from './AnomalyWarningModal';
 import { findExactDuplicate, ExactDuplicateMatch } from '../utils/duplicateValidation';
+import { formatTimeWithSeconds } from '../utils/dataNormalizer';
 import { DuplicateWarningModal } from './DuplicateWarningModal';
 import { exportOperationalRecordsExcel } from '../utils/export';
 
@@ -98,7 +99,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
   onOpenImport,
 }) => {
   const today = new Date().toISOString().slice(0, 10);
-  const nowTime = new Date().toTimeString().slice(0, 5);
+  const nowTime = new Date().toTimeString().slice(0, 8);
 
   const [date, setDate] = useState(today);
   const [time, setTime] = useState(nowTime);
@@ -124,7 +125,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     const templateRows = [
       {
         'Tanggal (YYYY-MM-DD)': '2026-10-23',
-        'Waktu (HH:MM)': '19:00',
+        'Waktu (HH:MM:SS)': '19:00:00',
         'NH Speed (RPM)': 11670,
         'T1.7 (°F)': 85.5,
         'P1.7 / PT006 (PSIA)': 14.60,
@@ -133,7 +134,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
       },
       {
         'Tanggal (YYYY-MM-DD)': '2026-10-22',
-        'Waktu (HH:MM)': '19:00',
+        'Waktu (HH:MM:SS)': '19:00:00',
         'NH Speed (RPM)': 11399,
         'T1.7 (°F)': 84.8,
         'P1.7 / PT006 (PSIA)': 14.64,
@@ -142,7 +143,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
       },
       {
         'Tanggal (YYYY-MM-DD)': '2026-10-21',
-        'Waktu (HH:MM)': '19:00',
+        'Waktu (HH:MM:SS)': '19:00:00',
         'NH Speed (RPM)': 10645,
         'T1.7 (°F)': 86.0,
         'P1.7 / PT006 (PSIA)': 14.65,
@@ -190,7 +191,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     if (!records || records.length < 2) return false;
     const seen = new Set<string>();
     for (const r of records) {
-      const key = `${r.date}__${r.time || '19:00'}`;
+      const key = `${r.date}__${formatTimeWithSeconds(r.time, '19:00:00')}`;
       if (seen.has(key)) return true;
       seen.add(key);
     }
@@ -288,8 +289,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
   }, [displayedRecords, records, efisiensiDateFilter]);
 
   // Worst-case record & daily status breakdown for PB Synthesis monitoring overview
-  // Picks the highest-severity reading (WARNING > RECOMMEND WATER WASH > NORMAL) on the selected/latest date,
-  // and computes how many inputs on that date fall into Warning vs Recommend Water Wash vs Normal.
+  // Picks the highest-severity reading (WARNING > RECOMMEND WATER WASH > CAUTION > NORMAL) on the selected/latest date,
+  // and computes how many inputs on that date fall into Warning vs Recommend Water Wash vs Caution vs Normal.
   const latestPbOverview = useMemo(() => {
     if (!rawPbRecords || rawPbRecords.length === 0) return null;
 
@@ -300,13 +301,14 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     type EvaluatedCandidate = {
       record: OperationalRecord;
       evalRes: NonNullable<ReturnType<typeof evaluatePBOperationPoint>>;
-      severity: number; // 3 = WARNING, 2 = RECOMMEND WATER WASH, 1 = NORMAL
+      severity: number; // 4 = WARNING, 3 = RECOMMEND WATER WASH, 2 = CAUTION, 1 = NORMAL
       exceedance: number; // positive = further outside tolerance band
     };
 
     const evaluatedList: EvaluatedCandidate[] = [];
     let warningCount = 0;
     let recommendWWCount = 0;
+    let cautionCount = 0;
     let normalCount = 0;
 
     for (const r of onDate) {
@@ -319,11 +321,14 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
 
       let severity = 1;
       if (evalRes.zone === 'MELEWATI_BATAS_ATAS' || evalRes.zone === 'MELEWATI_BATAS_BAWAH') {
-        severity = 3;
+        severity = 4;
         warningCount++;
       } else if (evalRes.zone === 'EARLY_UPPER' || evalRes.zone === 'EARLY_LOWER') {
-        severity = 2;
+        severity = 3;
         recommendWWCount++;
+      } else if (evalRes.zone === 'CAUTION_UPPER' || evalRes.zone === 'CAUTION_LOWER') {
+        severity = 2;
+        cautionCount++;
       } else {
         severity = 1;
         normalCount++;
@@ -344,7 +349,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
 
     if (evaluatedList.length === 0) return null;
 
-    // Sort by severity descending; for Warning/Recommend WW tie-break by largest exceedance, then newest time.
+    // Sort by severity descending; for Warning/Recommend WW/Caution tie-break by largest exceedance, then newest time.
     // For Normal, preserve newest timestamp on that day.
     evaluatedList.sort((a, b) => {
       if (b.severity !== a.severity) return b.severity - a.severity;
@@ -363,6 +368,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
       totalCount: evaluatedList.length,
       warningCount,
       recommendWWCount,
+      cautionCount,
       normalCount,
     };
   }, [rawPbRecords, pbDateOverviewFilter]);
@@ -380,7 +386,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
 
       return {
         'Tanggal (YYYY-MM-DD)': r.date,
-        'Waktu (HH:MM)': r.time || '19:00',
+        'Waktu (HH:MM:SS)': formatTimeWithSeconds(r.time, '19:00:00'),
         'Beban (MW)': r.realPower,
         'NH Speed (RPM)': nh,
         'T1.7 (°F)': t,
@@ -390,8 +396,10 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
         'f(NH) / Y': evalRes ? evalRes.fNH : '',
         'PB Synthesis (PSIA)': evalRes ? evalRes.pbSynthesis : '',
         'Batas Bawah 0.82x (PSIA)': evalRes ? evalRes.lowerThreshold : '',
-        'Mendekati Batas Bawah (+4.0 PSIA)': evalRes ? evalRes.earlyLower : '',
-        'Mendekati Batas Atas (-4.0 PSIA)': evalRes ? evalRes.earlyUpper : '',
+        'Batas Caution Bawah (-2.0 PSIA)': evalRes ? evalRes.cautionLower : '',
+        'Batas WW Bawah (-4.0 PSIA)': evalRes ? evalRes.earlyLower : '',
+        'Batas Caution Atas (+2.0 PSIA)': evalRes ? evalRes.cautionUpper : '',
+        'Batas WW Atas (+4.0 PSIA)': evalRes ? evalRes.earlyUpper : '',
         'Batas Atas 1.18x (PSIA)': evalRes ? evalRes.upperThreshold : '',
         'Status Evaluasi PT007': evalRes ? evalRes.statusLabel : 'NORMAL',
       };
@@ -583,7 +591,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
 
     const inputData: OperationalInput = {
       date,
-      time,
+      time: formatTimeWithSeconds(time, '00:00:00'),
       nhSpeed: !isNaN(parsedNHSpeed) && parsedNHSpeed > 0 ? parsedNHSpeed : null,
       T1_7: !isNaN(parsedT17) ? parsedT17 : null,
       P1_7: parsedP17,
@@ -708,15 +716,16 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
 
             <div>
               <label htmlFor="input-time" className="block text-xs font-semibold text-slate-700 mb-1">
-                Time (Waktu / Jam)
+                Time (Waktu / Jam &mdash; HH:MM:SS)
               </label>
               <input
                 id="input-time"
                 type="time"
+                step="1"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
                 required
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-sky-500 focus:border-sky-500 bg-white"
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-sky-500 focus:border-sky-500 bg-white font-mono"
               />
               {errors.time && <p className="text-[11px] text-rose-600 mt-1">{errors.time}</p>}
             </div>
@@ -916,8 +925,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                       <th className="py-1.5 px-2.5">PT006</th>
                       <th className="py-1.5 px-2.5 text-blue-700 font-bold">PB Synthesis</th>
                       <th className="py-1.5 px-2.5 text-rose-700">Bawah (0.82x)</th>
-                      <th className="py-1.5 px-2.5 text-amber-700">Mendekati Batas Bawah (+4.0 PSIA)</th>
-                      <th className="py-1.5 px-2.5 text-amber-700">Mendekati Batas Atas (-4.0 PSIA)</th>
+                      <th className="py-1.5 px-2.5 text-amber-700">Batas WW Bawah (-4.0 PSIA)</th>
+                      <th className="py-1.5 px-2.5 text-amber-700">Batas WW Atas (+4.0 PSIA)</th>
                       <th className="py-1.5 px-2.5 text-rose-700">Atas (1.18x)</th>
                     </tr>
                   </thead>
@@ -995,7 +1004,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                   </span>
                 </div>
                 <p className="text-amber-900 leading-relaxed text-xs">
-                  Data dengan tanggal <strong>{liveDuplicateMatch.existingRecord.date} {liveDuplicateMatch.existingRecord.time || ''}</strong> dan parameter teknis yang sama persis (Beban: <strong>{liveDuplicateMatch.existingRecord.realPower.toFixed(2)} MW</strong>, P1.7: <strong>{liveDuplicateMatch.existingRecord.P1_7.toFixed(2)}</strong>, P3.0: <strong>{liveDuplicateMatch.existingRecord.P3_0.toFixed(2)}</strong>) sudah tersimpan di riwayat.
+                  Data dengan tanggal <strong>{liveDuplicateMatch.existingRecord.date} {formatTimeWithSeconds(liveDuplicateMatch.existingRecord.time, '')}</strong> dan parameter teknis yang sama persis (Beban: <strong>{liveDuplicateMatch.existingRecord.realPower.toFixed(2)} MW</strong>, P1.7: <strong>{liveDuplicateMatch.existingRecord.P1_7.toFixed(2)}</strong>, P3.0: <strong>{liveDuplicateMatch.existingRecord.P3_0.toFixed(2)}</strong>) sudah tersimpan di riwayat.
                 </p>
                 <div className="p-2 bg-amber-100/70 border border-amber-300/80 rounded text-[11px] text-amber-950 font-medium flex items-center justify-between gap-2">
                   <span>
@@ -1045,12 +1054,15 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
         const pbIsWW =
           latestPbOverview?.evalRes?.zone === 'EARLY_UPPER' ||
           latestPbOverview?.evalRes?.zone === 'EARLY_LOWER';
-        const pbIsNormal = pbHasData && !pbIsWarning && !pbIsWW;
+        const pbIsCaution =
+          latestPbOverview?.evalRes?.zone === 'CAUTION_UPPER' ||
+          latestPbOverview?.evalRes?.zone === 'CAUTION_LOWER';
+        const pbIsNormal = pbHasData && !pbIsWarning && !pbIsWW && !pbIsCaution;
 
         const overallHasData = performaHasData || pbHasData;
         const overallIsWW = performaIsWW || pbIsWW;
         const overallIsWarning = !overallIsWW && pbIsWarning;
-        const overallIsCaution = !overallIsWW && !overallIsWarning && performaIsCaution;
+        const overallIsCaution = !overallIsWW && !overallIsWarning && (performaIsCaution || pbIsCaution);
         const overallIsNormal = overallHasData && !overallIsWW && !overallIsWarning && !overallIsCaution;
 
         const sectionStyle = !overallHasData
@@ -1107,11 +1119,17 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
           ? 'Warning'
           : pbIsWW
           ? 'Recommend Water Wash'
+          : pbIsCaution
+          ? 'Caution'
           : 'Normal';
 
         const wwSources: string[] = [];
         if (performaIsWW) wwSources.push('Performa Kompresor');
         if (pbIsWW) wwSources.push('PB Synthesis & PT007');
+
+        const cautionSources: string[] = [];
+        if (performaIsCaution) cautionSources.push('Performa Kompresor');
+        if (pbIsCaution) cautionSources.push('PB Synthesis & PT007');
 
         const summaryText = !overallHasData
           ? 'Belum ada data operasional untuk evaluasi status keseluruhan Performa Kompresor dan PB Synthesis.'
@@ -1120,7 +1138,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
           : overallIsWarning
           ? 'Peringatan batas operasi aktif dari evaluasi PB Synthesis & PT007 Testing.'
           : overallIsCaution
-          ? 'Perhatian diperlukan: Performa Kompresor berada pada status Caution.'
+          ? `Perhatian diperlukan: ${cautionSources.join(' dan ')} berada pada status Caution.`
           : 'Seluruh evaluasi monitoring (Performa Kompresor dan PB Synthesis) berada dalam kondisi Normal.';
 
         return (
@@ -1185,14 +1203,16 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                           ? 'bg-rose-950 text-white border-rose-900'
                           : pbIsWW
                           ? 'bg-rose-100 text-rose-900 border-rose-300'
+                          : pbIsCaution
+                          ? 'bg-amber-100 text-amber-900 border-amber-300'
                           : 'bg-emerald-100 text-emerald-900 border-emerald-300'
                       }`}
                     >
                       <span>PB Synthesis:</span>
                       <strong className="font-bold">
                         {pbStatusLabel}
-                        {latestPbOverview && latestPbOverview.totalCount > 1 && (pbIsWarning || pbIsWW)
-                          ? ` (${pbIsWarning ? latestPbOverview.warningCount : latestPbOverview.recommendWWCount}/${latestPbOverview.totalCount} data)`
+                        {latestPbOverview && latestPbOverview.totalCount > 1 && (pbIsWarning || pbIsWW || pbIsCaution)
+                          ? ` (${pbIsWarning ? latestPbOverview.warningCount : pbIsWW ? latestPbOverview.recommendWWCount : latestPbOverview.cautionCount}/${latestPbOverview.totalCount} data)`
                           : ''}
                       </strong>
                     </span>
@@ -1328,7 +1348,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                         </h4>
                         <span className={`text-xs font-medium ${isWW ? 'text-rose-700' : isCaution ? 'text-amber-700' : isNormal ? 'text-emerald-800' : 'text-slate-500'}`}>
                           {latestEfisiensiRecord
-                            ? `Data: ${latestEfisiensiRecord.date} ${latestEfisiensiRecord.time || ''}`
+                            ? `Data: ${latestEfisiensiRecord.date} ${formatTimeWithSeconds(latestEfisiensiRecord.time, '')}`
                             : efisiensiDateFilter !== 'ALL'
                             ? `Tidak ada data Performa Kompresor pada ${efisiensiDateFilter}`
                             : 'Belum ada data tercatat'}
@@ -1453,7 +1473,10 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
             const isRecommendWW =
               latestPbOverview?.evalRes?.zone === 'EARLY_UPPER' ||
               latestPbOverview?.evalRes?.zone === 'EARLY_LOWER';
-            const isNormal = latestPbOverview?.evalRes && !isWarning && !isRecommendWW;
+            const isCaution =
+              latestPbOverview?.evalRes?.zone === 'CAUTION_UPPER' ||
+              latestPbOverview?.evalRes?.zone === 'CAUTION_LOWER';
+            const isNormal = latestPbOverview?.evalRes && !isWarning && !isRecommendWW && !isCaution;
 
             const cardBgClass = !latestPbOverview?.evalRes
               ? 'border-slate-200 bg-slate-50/70'
@@ -1461,6 +1484,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               ? 'border-2 border-rose-900 bg-gradient-to-br from-rose-100/70 via-rose-200/50 to-rose-300/40 shadow-md shadow-rose-950/20 animate-pulse'
               : isRecommendWW
               ? 'border-2 border-rose-500 bg-gradient-to-br from-rose-50 via-rose-50/80 to-rose-100/50 shadow-sm shadow-rose-500/10 animate-pulse'
+              : isCaution
+              ? 'border-2 border-amber-400 bg-gradient-to-br from-amber-50 via-amber-50/80 to-amber-100/50 shadow-sm shadow-amber-500/10'
               : 'border-2 border-emerald-400 bg-gradient-to-br from-emerald-50 via-emerald-50/80 to-teal-50/50 shadow-sm shadow-emerald-500/10';
 
             const iconClass = !latestPbOverview?.evalRes
@@ -1469,12 +1494,16 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               ? 'bg-rose-950 text-white border border-rose-900'
               : isRecommendWW
               ? 'bg-rose-100 text-rose-800 border border-rose-300'
+              : isCaution
+              ? 'bg-amber-100 text-amber-800 border border-amber-300'
               : 'bg-emerald-100 text-emerald-800 border border-emerald-300';
 
             const badgeClass = isWarning
               ? 'bg-rose-950 text-white border-2 border-black shadow-md'
               : isRecommendWW
               ? 'bg-rose-600 text-white border-rose-700'
+              : isCaution
+              ? 'bg-amber-500 text-white border-amber-600'
               : 'bg-emerald-600 text-white border-emerald-700';
 
             const metricBorderClass = !latestPbOverview?.evalRes
@@ -1483,6 +1512,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               ? 'border-rose-300'
               : isRecommendWW
               ? 'border-rose-200'
+              : isCaution
+              ? 'border-amber-200'
               : 'border-emerald-200';
 
             const buttonClass = !latestPbOverview?.evalRes
@@ -1491,6 +1522,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               ? 'text-rose-950 bg-white hover:bg-rose-950 hover:text-white border-2 border-rose-900'
               : isRecommendWW
               ? 'text-rose-900 bg-white hover:bg-rose-600 hover:text-white border-2 border-rose-400 hover:border-rose-600'
+              : isCaution
+              ? 'text-amber-900 bg-white hover:bg-amber-500 hover:text-white border-2 border-amber-300 hover:border-amber-500'
               : 'text-emerald-900 bg-white hover:bg-emerald-600 hover:text-white border-2 border-emerald-300 hover:border-emerald-600';
 
             return (
@@ -1505,9 +1538,9 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                         <h4 className="text-sm sm:text-base font-bold text-slate-900">
                           PB Synthesis &amp; PT007 Testing
                         </h4>
-                        <span className={`text-xs font-medium block ${isWarning ? 'text-rose-950' : isRecommendWW ? 'text-rose-700' : isNormal ? 'text-emerald-800' : 'text-slate-500'}`}>
+                        <span className={`text-xs font-medium block ${isWarning ? 'text-rose-950' : isRecommendWW ? 'text-rose-700' : isCaution ? 'text-amber-800' : isNormal ? 'text-emerald-800' : 'text-slate-500'}`}>
                           {latestPbOverview?.record
-                            ? `${isWarning || isRecommendWW ? 'Data Terburuk' : 'Data Terbaru'}: ${latestPbOverview.record.date} ${latestPbOverview.record.time || ''} (dari ${latestPbOverview.totalCount} data)`
+                            ? `${isWarning || isRecommendWW || isCaution ? 'Data Terburuk' : 'Data Terbaru'}: ${latestPbOverview.record.date} ${formatTimeWithSeconds(latestPbOverview.record.time, '')} (dari ${latestPbOverview.totalCount} data)`
                             : pbDateOverviewFilter !== 'ALL'
                             ? `Tidak ada data PB Synthesis pada ${pbDateOverviewFilter}`
                             : 'Belum ada data tercatat'}
@@ -1526,6 +1559,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                             ? 'WARNING'
                             : isRecommendWW
                             ? 'RECOMMEND WATER WASH'
+                            : isCaution
+                            ? 'CAUTION'
                             : 'NORMAL'}
                         </span>
                       </div>
@@ -1573,7 +1608,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                   {/* Quick Metrics & Daily Status Breakdown */}
                   {latestPbOverview?.evalRes ? (
                     <div className="space-y-2 pt-1">
-                      {/* Daily Warning / Recommend Water Wash Count Summary */}
+                      {/* Daily Warning / Recommend Water Wash / Caution Count Summary */}
                       <div className="flex items-center justify-between gap-2 flex-wrap bg-white/80 px-2.5 py-1.5 rounded-lg border border-black/5 text-[11px]">
                         <span className="font-semibold text-slate-600">
                           Rekap {latestPbOverview.targetDate} ({latestPbOverview.totalCount} input):
@@ -1598,6 +1633,16 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                           >
                             <span>Recommend WW:</span>
                             <span>{latestPbOverview.recommendWWCount} data</span>
+                          </span>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold border ${
+                              latestPbOverview.cautionCount > 0
+                                ? 'bg-amber-500 text-white border-amber-600'
+                                : 'bg-slate-100 text-slate-500 border-slate-200'
+                            }`}
+                          >
+                            <span>Caution:</span>
+                            <span>{latestPbOverview.cautionCount} data</span>
                           </span>
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
                             <span>Normal:</span>
@@ -2218,7 +2263,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                                     ? 'bg-violet-600 text-white shadow-xs font-bold'
                                     : 'bg-white hover:bg-violet-50 text-violet-700 hover:text-violet-900 border border-slate-300 hover:border-violet-300'
                                 }`}
-                                title={`Inspect ${r.date} ${r.time || ''} di PB Synthesis`}
+                                title={`Inspect ${r.date} ${formatTimeWithSeconds(r.time, '')} di PB Synthesis`}
                               >
                                 <Eye className={`w-3 h-3 ${isSelected ? 'text-white' : 'text-violet-500'}`} />
                                 <span>{isSelected ? 'Active' : 'Inspect'}</span>
@@ -2228,7 +2273,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                             {/* Time */}
                             <td className="py-2 px-1.5 text-center whitespace-nowrap font-mono text-slate-600">
                               <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-[10px]">
-                                {r.time || '19:00'}
+                                {formatTimeWithSeconds(r.time, '19:00:00')}
                               </span>
                             </td>
 
@@ -2278,13 +2323,15 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                               )}
                             </td>
 
-                            {/* PT007 Status: NORMAL (green), EARLY (amber), OVER (rose) */}
+                            {/* PT007 Status: NORMAL (green), CAUTION (amber), WW (rose), WARNING (rose-950) */}
                             <td className="py-2 px-1.5 text-center whitespace-nowrap">
                               {evalRes ? (
                                 <span
                                   className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold border ${
                                     evalRes.zone === 'NORMAL'
                                       ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                      : evalRes.zone === 'CAUTION_UPPER' || evalRes.zone === 'CAUTION_LOWER'
+                                      ? 'bg-amber-100 text-amber-800 border-amber-300 font-bold'
                                       : evalRes.zone === 'EARLY_UPPER' || evalRes.zone === 'EARLY_LOWER'
                                       ? 'bg-rose-100 text-rose-800 border-rose-300 font-bold'
                                       : 'bg-rose-950 text-white border-rose-950 font-black shadow-2xs'
@@ -2293,6 +2340,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                                 >
                                   {evalRes.zone === 'NORMAL'
                                     ? 'NORMAL'
+                                    : evalRes.zone === 'CAUTION_UPPER' || evalRes.zone === 'CAUTION_LOWER'
+                                    ? 'CAUTION'
                                     : evalRes.zone === 'EARLY_UPPER' || evalRes.zone === 'EARLY_LOWER'
                                     ? 'RECOMMEND WW'
                                     : 'WARNING'}
@@ -2443,7 +2492,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                 {recordToDelete.time && (
                   <div className="flex items-center justify-between text-slate-700">
                     <span className="font-semibold">Waktu / Jam:</span>
-                    <span className="font-mono font-bold text-slate-900">{recordToDelete.time}</span>
+                    <span className="font-mono font-bold text-slate-900">{formatTimeWithSeconds(recordToDelete.time, '')}</span>
                   </div>
                 )}
                 {recordToDelete.count && recordToDelete.count > 1 && (
@@ -2462,7 +2511,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               <div className="text-xs text-rose-800 bg-rose-50/80 p-3 rounded-lg border border-rose-200 mb-5 leading-relaxed">
                 {recordToDelete.isDailyAverage
                   ? `Apakah Anda yakin ingin menghapus seluruh pembacaan data untuk tanggal ${recordToDelete.date}? Seluruh data pada tanggal ini akan dihapus secara permanen.`
-                  : `Apakah Anda yakin ingin menghapus data pembacaan tanggal ${recordToDelete.date} pukul ${recordToDelete.time || '-'}? Data ini akan dihapus dari riwayat operasional.`}
+                  : `Apakah Anda yakin ingin menghapus data pembacaan tanggal ${recordToDelete.date} pukul ${recordToDelete.time ? formatTimeWithSeconds(recordToDelete.time, '-') : '-'}? Data ini akan dihapus dari riwayat operasional.`}
               </div>
 
               <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">

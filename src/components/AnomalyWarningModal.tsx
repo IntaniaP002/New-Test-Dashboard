@@ -40,8 +40,18 @@ export const AnomalyWarningModal: React.FC<AnomalyWarningModalProps> = ({
     return reports.filter((r) => r.date === selectedDate);
   }, [reports, selectedDate]);
 
+  // Detect if anomalies include startup / low-load turbine ramp-up rows (realPower < 19 MW & P3.0 between 40-200 PSIA)
+  const hasStartupRampRows = useMemo(() => {
+    return reports.some((r) => {
+      const pw = Number(String(r.rowData.realPower).replace(',', '.'));
+      const p3 = Number(String(r.rowData.P3_0).replace(',', '.'));
+      return !isNaN(pw) && !isNaN(p3) && pw > 0 && pw < 19 && p3 >= 40 && p3 < 200;
+    });
+  }, [reports]);
+
   if (!isOpen || reports.length === 0) return null;
 
+  const MAX_ANOMALY_PREVIEW = 100;
   const totalIssues = reports.reduce((acc, r) => acc + r.issues.length, 0);
 
   // Helper to check if a specific field is flagged as an anomaly in this report
@@ -124,9 +134,9 @@ export const AnomalyWarningModal: React.FC<AnomalyWarningModalProps> = ({
 
           {/* FULL SPREADSHEET TABLE OF EXACT ANOMALY ROWS */}
           <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-xs">
-            <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-200 flex items-center justify-between">
+            <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
               <span className="text-xs font-bold text-slate-800">
-                Data Aktual Baris Terdeteksi Anomali ({displayedReports.length} Baris)
+                Data Aktual Baris Terdeteksi Anomali ({displayedReports.length} Baris{displayedReports.length > MAX_ANOMALY_PREVIEW ? ` — menampilkan ${MAX_ANOMALY_PREVIEW} pertama` : ''})
               </span>
               <span className="text-[11px] text-slate-500 font-medium">
                 Kolom berlatar merah (<span className="text-rose-700 font-bold bg-rose-50 px-1 border border-rose-200 rounded">merah</span>) menandakan nilai anomali
@@ -137,7 +147,7 @@ export const AnomalyWarningModal: React.FC<AnomalyWarningModalProps> = ({
                 <thead className="bg-slate-50 text-slate-700 border-b border-slate-200 sticky top-0 font-semibold text-[11px]">
                   <tr>
                     {mode === 'bulk' && <th className="py-2 px-3 whitespace-nowrap">Baris</th>}
-                    <th className="py-2 px-3 whitespace-nowrap">Tanggal & Waktu</th>
+                    <th className="py-2 px-3 whitespace-nowrap">Tanggal &amp; Waktu</th>
                     <th className="py-2 px-3 whitespace-nowrap text-right">P1.7 (PSIA)</th>
                     <th className="py-2 px-3 whitespace-nowrap text-right">P3.0 (PSIA)</th>
                     <th className="py-2 px-3 whitespace-nowrap text-right">PR (Calc)</th>
@@ -153,7 +163,7 @@ export const AnomalyWarningModal: React.FC<AnomalyWarningModalProps> = ({
                       </td>
                     </tr>
                   ) : (
-                    displayedReports.map((rep, idx) => {
+                    displayedReports.slice(0, MAX_ANOMALY_PREVIEW).map((rep, idx) => {
                       const p1Anomaly = isFieldAnomalous(rep, 'P1_7');
                       const p3Anomaly = isFieldAnomalous(rep, 'P3_0');
                       const powerAnomaly = isFieldAnomalous(rep, 'realPower');
@@ -221,8 +231,14 @@ export const AnomalyWarningModal: React.FC<AnomalyWarningModalProps> = ({
             </div>
           </div>
 
+          {hasStartupRampRows && (
+            <div className="p-3 bg-sky-50 border border-sky-200 rounded-lg text-xs text-sky-950">
+              <strong>Info Data Startup / Beban Rendah (&lt; 19 MW):</strong> Data saat turbin sedang startup atau naik beban memang memiliki <strong>P3.0 di bawah 200 PSIA</strong> (misal 70–199 PSIA). Klik <strong>&quot;{submitAnywayLabel}&quot;</strong> agar seluruh data ramp-up tetap tersimpan dan tidak terhapus.
+            </div>
+          )}
+
           <div className="text-[11px] text-slate-500 pt-1">
-            <strong>Catatan Operasional:</strong> Pilih <em>&quot;Hapus Baris Anomali &amp; Lanjutkan&quot;</em> untuk membuang baris anomali dan mengimpor sisa data bersih, atau <em>&quot;Tetap Simpan Semua&quot;</em> jika data ini adalah pembacaan lapangan yang valid.
+            <strong>Catatan Operasional:</strong> Pilih <em>&quot;{submitAnywayLabel}&quot;</em> untuk menyimpan seluruh data lapangan (termasuk saat startup/beban rendah), atau <em>&quot;Hapus Baris Anomali &amp; Lanjutkan&quot;</em> untuk membuang baris yang berada di luar 200–385 PSIA.
           </div>
         </div>
 
@@ -237,29 +253,27 @@ export const AnomalyWarningModal: React.FC<AnomalyWarningModalProps> = ({
               Periksa Kembali
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => {
-              onConfirmSubmitAnyway();
-              onClose();
-            }}
-            className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-slate-700 bg-white border border-amber-300 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer shadow-2xs"
-          >
-            <span>{submitAnywayLabel}</span>
-          </button>
           {onExcludeAnomaliesAndContinue && (
             <button
               type="button"
               onClick={() => {
                 onExcludeAnomaliesAndContinue();
-                onClose();
               }}
-              className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-white bg-sky-700 hover:bg-sky-800 rounded-lg transition-colors cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
+              className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shadow-2xs"
             >
-              <Check className="w-4 h-4" />
               <span>Hapus Baris Anomali &amp; Lanjutkan</span>
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => {
+              onConfirmSubmitAnyway();
+            }}
+            className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg transition-colors cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
+          >
+            <Check className="w-4 h-4" />
+            <span>{submitAnywayLabel}</span>
+          </button>
         </div>
       </div>
     </div>

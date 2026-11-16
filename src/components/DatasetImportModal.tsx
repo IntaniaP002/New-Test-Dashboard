@@ -30,8 +30,9 @@ import {
   cleanNumericValue,
   standardizeDate,
   standardizeTime,
+  formatTimeWithSeconds,
 } from '../utils/dataNormalizer';
-import { isTimeInRange19to21 } from '../utils/calculations';
+import { isTimeInRange19to21, parseNHSpeed } from '../utils/calculations';
 
 interface DatasetImportModalProps {
   isOpen: boolean;
@@ -233,7 +234,17 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
       if (p3Raw === null) continue;
 
       const powerRaw = powerIdx >= 0 ? getNum(row[powerIdx], fmtRow[powerIdx]) : null;
-      const nhRaw = nhIdx >= 0 ? getNum(row[nhIdx], fmtRow[nhIdx]) ?? undefined : undefined;
+      let nhRaw: number | undefined = undefined;
+      if (nhIdx >= 0) {
+        if (typeof row[nhIdx] === 'number' && !isNaN(row[nhIdx]) && isFinite(row[nhIdx])) {
+          nhRaw = row[nhIdx];
+        } else {
+          const parsedNH = parseNHSpeed(String(row[nhIdx] || fmtRow[nhIdx] || ''));
+          if (!isNaN(parsedNH) && isFinite(parsedNH)) {
+            nhRaw = parsedNH;
+          }
+        }
+      }
       const t17Raw = t17Idx >= 0 ? getNum(row[t17Idx], fmtRow[t17Idx]) ?? undefined : undefined;
       const pbRaw = pbIdx >= 0 ? getNum(row[pbIdx], fmtRow[pbIdx]) ?? undefined : undefined;
 
@@ -310,6 +321,7 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
 
       const normalizeHeaderCell = (val: any) =>
         String(val ?? '')
+          .replace(/[\uFEFF\u200B-\u200D]/g, '')
           .replace(/[\r\n]+/g, ' ')
           .replace(/\s+/g, ' ')
           .trim()
@@ -475,6 +487,16 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
         return;
       }
 
+      const decodeTextBytes = (rawBytes: Uint8Array): string => {
+        if (rawBytes.length >= 2 && rawBytes[0] === 0xff && rawBytes[1] === 0xfe) {
+          return new TextDecoder('utf-16le').decode(rawBytes);
+        }
+        if (rawBytes.length >= 2 && rawBytes[0] === 0xfe && rawBytes[1] === 0xff) {
+          return new TextDecoder('utf-16be').decode(rawBytes);
+        }
+        return new TextDecoder('utf-8').decode(rawBytes);
+      };
+
       const bytes = new Uint8Array(buffer);
       const hasZipMagic = bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b; // .xlsx / .xlsm
       const hasOleMagic = bytes.length >= 4 && bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0; // .xls
@@ -486,49 +508,61 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
         file.type.includes('excel');
 
       if (isExcel) {
-        const workbook = XLSX.read(bytes, {
-          type: 'array',
-          cellDates: false,
-        });
-
-        if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
-          setParseError('Berkas Excel tidak memiliki sheet yang valid.');
-          return;
-        }
-
         let bestRecords: OperationalInput[] = [];
         let fallbackSheet: UnmappedSheetState | null = null;
         let fallbackCols: ColumnIndices | null = null;
 
-        for (const sName of workbook.SheetNames) {
-          const ws = workbook.Sheets[sName];
-          if (!ws || !ws['!ref']) continue;
+        try {
+          const workbook = XLSX.read(bytes, {
+            type: 'array',
+            cellDates: false,
+          });
 
-          // Attempt 1: Direct worksheet extraction (safe for multiline headers & Excel serials)
-          const parsedDirect = parseWorksheetDirectly(ws, sName);
-          if (parsedDirect.records.length > bestRecords.length) {
-            bestRecords = parsedDirect.records;
-          }
-          if (
-            parsedDirect.sheetInfo &&
-            (!fallbackSheet || parsedDirect.sheetInfo.rawRows.length > fallbackSheet.rawRows.length)
-          ) {
-            fallbackSheet = parsedDirect.sheetInfo;
-            fallbackCols = parsedDirect.detectedCols || null;
-          }
+          if (workbook.SheetNames && workbook.SheetNames.length > 0) {
+            for (const sName of workbook.SheetNames) {
+              const ws = workbook.Sheets[sName];
+              if (!ws || !ws['!ref']) continue;
 
-          // Attempt 2: CSV normalization fallback
+              // Attempt 1: Direct worksheet extraction (safe for multiline headers & Excel serials)
+              const parsedDirect = parseWorksheetDirectly(ws, sName);
+              if (parsedDirect.records.length > bestRecords.length) {
+                bestRecords = parsedDirect.records;
+              }
+              if (
+                parsedDirect.sheetInfo &&
+                (!fallbackSheet || parsedDirect.sheetInfo.rawRows.length > fallbackSheet.rawRows.length)
+              ) {
+                fallbackSheet = parsedDirect.sheetInfo;
+                fallbackCols = parsedDirect.detectedCols || null;
+              }
+
+              // Attempt 2: CSV normalization fallback
+              try {
+                const csv = XLSX.utils.sheet_to_csv(ws);
+                const res = autoNormalizeDiamondData(csv, file.name);
+                if (res.extractedRecords.length > bestRecords.length) {
+                  bestRecords = res.extractedRecords;
+                }
+              } catch {
+                // ignore fallback error
+              }
+            }
+          }
+        } catch {
+          // Will fall through to plain-text decoding if file is actually a text/CSV/TSV exported with .xls extension
+        }
+
+        // Attempt 3: If SheetJS yielded 0 rows and file is not binary ZIP/OLE (e.g., semicolon CSV/TSV saved with .xls extension)
+        if (bestRecords.length === 0 && !hasZipMagic && !hasOleMagic) {
           try {
-            const csv = XLSX.utils.sheet_to_csv(ws);
-            const res = autoNormalizeDiamondData(csv, file.name);
+            const rawText = decodeTextBytes(bytes);
+            const res = autoNormalizeDiamondData(rawText, file.name);
             if (res.extractedRecords.length > bestRecords.length) {
               bestRecords = res.extractedRecords;
             }
           } catch {
-            // ignore fallback error
+            // ignore
           }
-
-          if (bestRecords.length > 0) break;
         }
 
         if (bestRecords.length === 0) {
@@ -550,8 +584,8 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
 
         setPreviewRows(bestRecords);
       } else {
-        // Plain CSV / Text file
-        const text = new TextDecoder('utf-8').decode(bytes);
+        // Plain CSV / TSV / Text file
+        const text = decodeTextBytes(bytes);
         parseCsvContent(text, file.name);
       }
     } catch (err: unknown) {
@@ -616,13 +650,19 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
   const executeImportExcludingAnomalies = () => {
     if (displayedRows.length === 0) return;
     const anomalousIndices = new Set(detectedAnomalies.map((a) => a.recordIndex));
-    let cleanRows = displayedRows.filter((_, idx) => !anomalousIndices.has(idx + 1));
-    if (skipDuplicates && duplicateIndices.size > 0) {
-      cleanRows = cleanRows.filter((_, idx) => !duplicateIndices.has(idx));
+    const cleanRows = displayedRows.filter((_, idx) => {
+      const isAnomaly = anomalousIndices.has(idx + 1);
+      const isDup = skipDuplicates && duplicateIndices.has(idx);
+      return !isAnomaly && !isDup;
+    });
+    if (cleanRows.length === 0) {
+      setShowAnomalyModal(false);
+      setParseError(
+        'Semua baris data pada file ini berada di bawah rentang normal 200–385 PSIA (misalnya data startup / beban rendah), sehingga tidak ada baris tersisa jika baris anomali dihapus. Klik "Sinkronkan & Impor Data" lalu pilih "Tetap Simpan Semua" untuk mengimpor seluruh data.'
+      );
+      return;
     }
-    if (cleanRows.length > 0) {
-      onImportData(cleanRows);
-    }
+    onImportData(cleanRows);
     setShowAnomalyModal(false);
     onClose();
   };
@@ -631,7 +671,7 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
     if (displayedRows.length === 0) return;
     const rows = displayedRows.map((r) => ({
       'Tanggal (YYYY-MM-DD)': r.date,
-      'Waktu (HH:MM)': r.time,
+      'Waktu (HH:MM:SS)': formatTimeWithSeconds(r.time),
       'Beban (MW)': r.realPower,
       'NH Speed (RPM)': r.nhSpeed ?? null,
       'T1.7 (°F)': r.T1_7 ?? null,
@@ -649,7 +689,7 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
     const templateRows = [
       {
         'Tanggal (YYYY-MM-DD)': '2026-10-24',
-        'Waktu (HH:MM)': '19:00',
+        'Waktu (HH:MM:SS)': '19:00:00',
         'Beban (MW)': 21.60,
         'NH Speed (RPM)': 11670,
         'T1.7 (°F)': 85.5,
@@ -658,7 +698,7 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
       },
       {
         'Tanggal (YYYY-MM-DD)': '2026-10-25',
-        'Waktu (HH:MM)': '19:00',
+        'Waktu (HH:MM:SS)': '19:00:00',
         'Beban (MW)': 18.90,
         'NH Speed (RPM)': 11399,
         'T1.7 (°F)': 84.8,
@@ -1137,8 +1177,8 @@ export const DatasetImportModal: React.FC<DatasetImportModalProps> = ({
                               )}
                             </div>
                           </td>
-                          <td className="py-1.5 px-3 text-slate-600 whitespace-nowrap">
-                            {r.time}
+                          <td className="py-1.5 px-3 text-slate-600 whitespace-nowrap font-mono">
+                            {formatTimeWithSeconds(r.time)}
                           </td>
                           <td className="py-1.5 px-3 text-slate-800 font-semibold">
                             {r.realPower.toFixed(2)}

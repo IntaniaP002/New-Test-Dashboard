@@ -1,6 +1,7 @@
 import React from 'react';
 import { Copy, AlertTriangle, X, Check, ArrowRight } from 'lucide-react';
 import { OperationalRecord } from '../types';
+import { formatTimeWithSeconds } from '../utils/dataNormalizer';
 
 interface DuplicateWarningModalProps {
   isOpen: boolean;
@@ -100,10 +101,10 @@ export const DuplicateWarningModal: React.FC<DuplicateWarningModalProps> = ({
                 <tr>
                   <td className="py-2 px-3 font-sans font-medium text-slate-700">Tanggal &amp; Waktu</td>
                   <td className="py-2 px-3 text-right font-bold text-amber-900 bg-amber-50/30">
-                    {candidateData.date} {candidateData.time}
+                    {candidateData.date} {formatTimeWithSeconds(candidateData.time)}
                   </td>
                   <td className="py-2 px-3 text-right font-bold text-slate-800">
-                    {existingRecord.date} {existingRecord.time || '—'}
+                    {existingRecord.date} {existingRecord.time ? formatTimeWithSeconds(existingRecord.time, '—') : '—'}
                   </td>
                 </tr>
                 <tr>

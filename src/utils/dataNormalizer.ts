@@ -75,19 +75,21 @@ export const FIELD_PATTERNS: Record<string, string[]> = {
 };
 
 /**
- * Split a CSV line respecting quoted values containing commas
+ * Split a CSV line respecting quoted values containing delimiters
  */
 export function splitCsvLine(line: string, delimiter: string): string[] {
-  if (delimiter !== ',') {
-    return line.split(delimiter).map(c => c.replace(/["']/g, '').trim());
-  }
   const result: string[] = [];
   let current = '';
   let inQuotes = false;
   for (let i = 0; i < line.length; i++) {
     const char = line[i];
     if (char === '"') {
-      inQuotes = !inQuotes;
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
     } else if (char === delimiter && !inQuotes) {
       result.push(current.trim().replace(/^"|"$/g, ''));
       current = '';
@@ -100,22 +102,44 @@ export function splitCsvLine(line: string, delimiter: string): string[] {
 }
 
 /**
- * Detect CSV delimiter (comma, semicolon, or tab)
+ * Detect CSV delimiter (tab, semicolon, or comma) safely even when Indonesian comma decimals (e.g. "82,2") are present
  */
 export function detectDelimiter(text: string): string {
-  const firstLines = text.split(/\r?\n/).slice(0, 5).filter(l => l.trim().length > 0);
-  if (firstLines.length === 0) return ',';
+  const sampleLines = text
+    .replace(/^\uFEFF/, '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+    .slice(0, 25);
 
-  const commaCounts = firstLines.map(l => (l.match(/,/g) || []).length);
-  const semicolonCounts = firstLines.map(l => (l.match(/;/g) || []).length);
-  const tabCounts = firstLines.map(l => (l.match(/\t/g) || []).length);
+  if (sampleLines.length === 0) return ',';
 
-  const avgComma = commaCounts.reduce((a, b) => a + b, 0) / firstLines.length;
-  const avgSemicolon = semicolonCounts.reduce((a, b) => a + b, 0) / firstLines.length;
-  const avgTab = tabCounts.reduce((a, b) => a + b, 0) / firstLines.length;
+  // Count unquoted delimiters per line
+  const countOutsideQuotes = (line: string, delim: string): number => {
+    let count = 0;
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') inQuotes = !inQuotes;
+      else if (!inQuotes && ch === delim) count++;
+    }
+    return count;
+  };
 
-  if (avgTab > avgComma && avgTab > avgSemicolon) return '\t';
-  if (avgSemicolon > avgComma) return ';';
+  const tabCounts = sampleLines.map((l) => countOutsideQuotes(l, '\t'));
+  const semiCounts = sampleLines.map((l) => countOutsideQuotes(l, ';'));
+  const commaCounts = sampleLines.map((l) => countOutsideQuotes(l, ','));
+
+  const avgTab = tabCounts.reduce((a, b) => a + b, 0) / sampleLines.length;
+  const avgSemi = semiCounts.reduce((a, b) => a + b, 0) / sampleLines.length;
+  const avgComma = commaCounts.reduce((a, b) => a + b, 0) / sampleLines.length;
+
+  // Prefer tab when multi-column tab structure exists
+  if (avgTab >= 1 && avgTab >= avgSemi && avgTab >= avgComma) return '\t';
+  // Prefer semicolon when semicolons exist consistently (even if Indonesian decimal commas appear equally often)
+  if (avgSemi >= 1 && (avgSemi >= avgComma || sampleLines.some((l) => countOutsideQuotes(l, ';') >= 2 && /;\d+,\d+/.test(l)))) {
+    return ';';
+  }
   return ',';
 }
 
@@ -308,16 +332,17 @@ export function standardizeDate(raw: string | number | Date | undefined): string
 }
 
 /**
- * Standardize time strings (supports HH:MM:SS, HH.MM.SS, HH:MM, HH.MM, AM/PM, and Excel serial time fractions)
+ * Standardize time strings to 3-segment HH:MM:SS (00:00:00) format
+ * (supports HH:MM:SS, HH.MM.SS, HH:MM, HH.MM, AM/PM, and Excel serial time fractions)
  */
 export function standardizeTime(raw: string | number | Date | undefined): string {
-  if (raw === undefined || raw === null || raw === '') return '12:00';
+  if (raw === undefined || raw === null || raw === '') return '12:00:00';
 
   if (raw instanceof Date && !isNaN(raw.getTime())) {
     const hh = String(raw.getHours()).padStart(2, '0');
     const mm = String(raw.getMinutes()).padStart(2, '0');
     const ss = String(raw.getSeconds()).padStart(2, '0');
-    return ss !== '00' ? `${hh}:${mm}:${ss}` : `${hh}:${mm}`;
+    return `${hh}:${mm}:${ss}`;
   }
 
   // Handle Excel serial time (0 <= x < 1) or Excel serial datetime (x >= 35000 with fractional part)
@@ -334,7 +359,7 @@ export function standardizeTime(raw: string | number | Date | undefined): string
       const hh = String(Math.floor(totalSeconds / 3600) % 24).padStart(2, '0');
       const mm = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
       const ss = String(totalSeconds % 60).padStart(2, '0');
-      return ss !== '00' ? `${hh}:${mm}:${ss}` : `${hh}:${mm}`;
+      return `${hh}:${mm}:${ss}`;
     }
   }
 
@@ -351,12 +376,12 @@ export function standardizeTime(raw: string | number | Date | undefined): string
   if (amPmMatch) {
     let h = parseInt(amPmMatch[1], 10);
     const m = amPmMatch[2];
-    const s = amPmMatch[3];
+    const s = amPmMatch[3] ? amPmMatch[3].padStart(2, '0') : '00';
     const meridiem = amPmMatch[4].toUpperCase();
     if (meridiem === 'PM' && h < 12) h += 12;
     if (meridiem === 'AM' && h === 12) h = 0;
     const hh = String(h).padStart(2, '0');
-    return s && s !== '00' ? `${hh}:${m}:${s}` : `${hh}:${m}`;
+    return `${hh}:${m}:${s}`;
   }
 
   // Extract HH:MM:SS or HH.MM.SS
@@ -373,16 +398,30 @@ export function standardizeTime(raw: string | number | Date | undefined): string
   if (match) {
     const hh = match[1].padStart(2, '0');
     const mm = match[2];
-    return `${hh}:${mm}`;
+    return `${hh}:${mm}:00`;
   }
 
-  // Integer hour like "20" -> "20:00"
+  // Integer hour like "20" -> "20:00:00"
   const hrOnly = trimmed.match(/^(\d{1,2})$/);
   if (hrOnly) {
-    return `${hrOnly[1].padStart(2, '0')}:00`;
+    return `${hrOnly[1].padStart(2, '0')}:00:00`;
   }
 
-  return '12:00';
+  return '12:00:00';
+}
+
+/**
+ * Formats an existing stored/displayed time string to 3-segment HH:MM:SS (00:00:00),
+ * preserving descriptive labels like "Daily Average" / "Daily Median".
+ */
+export function formatTimeWithSeconds(raw?: string | null, fallback: string = '19:00:00'): string {
+  if (!raw || !raw.trim()) return fallback;
+  const trimmed = raw.trim();
+  if (/average|median|daily/i.test(trimmed)) return trimmed;
+  if (/^\d/.test(trimmed)) {
+    return standardizeTime(trimmed);
+  }
+  return trimmed;
 }
 
 /**
@@ -394,8 +433,9 @@ export function autoNormalizeDiamondData(
   fileName?: string,
   manualMappingOverrides?: Record<string, number> // targetField -> colIndex
 ): ColumnMappingResult {
-  const delimiter = detectDelimiter(text);
-  const lines = text
+  const sanitizedText = text.replace(/[\uFEFF\u200B-\u200D]/g, '');
+  const delimiter = detectDelimiter(sanitizedText);
+  const lines = sanitizedText
     .split(/\r?\n/)
     .map(l => l.trim())
     .filter(l => l.length > 0);
@@ -415,7 +455,7 @@ export function autoNormalizeDiamondData(
   // Helper to safely determine if a candidate cell matches a target field pattern (ignoring pure numbers, dates, times, and empty strings)
   const isCandidateHeaderCell = (cellValue: string, patterns: string[]): boolean => {
     if (!cellValue) return false;
-    const trimmed = cellValue.replace(/["']/g, '').trim().toLowerCase();
+    const trimmed = cellValue.replace(/["']/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
     if (trimmed.length < 2) return false;
 
     // Check if cell is a pure number, ISO/slash date, or time format -> definitely data, not a header
@@ -432,10 +472,10 @@ export function autoNormalizeDiamondData(
     });
   };
 
-  // Dynamically scan the first 25 lines to find the true header row (the line matching the highest number of known fields)
+  // Dynamically scan the first 30 non-empty lines to find the true header row (the line matching the highest number of known fields)
   let bestHeaderRowIndex = 0;
   let maxMatchedFields = -1;
-  const maxScanLines = Math.min(25, lines.length);
+  const maxScanLines = Math.min(30, lines.length);
 
   for (let l = 0; l < maxScanLines; l++) {
     const candidateCells = splitCsvLine(lines[l], delimiter);
@@ -456,7 +496,7 @@ export function autoNormalizeDiamondData(
   // Header inspection using the detected true header row
   const headerLine = lines[bestHeaderRowIndex];
   const rawHeaders = splitCsvLine(headerLine, delimiter);
-  const lowerHeaders = rawHeaders.map(h => h.toLowerCase().trim());
+  const lowerHeaders = rawHeaders.map(h => h.replace(/\s+/g, ' ').toLowerCase().trim());
 
   // Find column index for each field
   const findColumn = (targetField: string, patterns: string[]): { index: number; colName: string; conf: 'high' | 'medium' } => {
@@ -555,7 +595,13 @@ export function autoNormalizeDiamondData(
 
     const tVal = colT17.index >= 0 ? cleanNumericValue(cells[colT17.index]) : undefined;
     const p1Val = colP17.index >= 0 ? cleanNumericValue(cells[colP17.index]) : null;
-    const p3Val = colP30.index >= 0 ? cleanNumericValue(cells[colP30.index]) : null;
+    let p3Val = colP30.index >= 0 ? cleanNumericValue(cells[colP30.index]) : null;
+    if (p3Val === null && colPR.index >= 0 && p1Val !== null) {
+      const prVal = cleanNumericValue(cells[colPR.index]);
+      if (prVal !== null) {
+        p3Val = Number((prVal * p1Val).toFixed(4));
+      }
+    }
     const pwVal = colPower.index >= 0 ? cleanNumericValue(cells[colPower.index]) : null;
     const nhVal = colNHSpeed.index >= 0 ? cleanNumericValue(cells[colNHSpeed.index]) : undefined;
 
