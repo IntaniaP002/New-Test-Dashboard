@@ -26,6 +26,8 @@ import {
   Copy,
   Sparkles,
   Zap,
+  BookOpen,
+  X,
 } from 'lucide-react';
 import {
   BaselineConfig,
@@ -68,6 +70,8 @@ interface OperatorInputViewProps {
   onSetBaselineRecord?: (record: OperationalRecord) => void;
   onOpenBaselineConfig?: () => void;
   onOpenImport?: () => void;
+  showInstructions?: boolean;
+  onSetShowInstructions?: (show: boolean) => void;
 }
 
 interface DeleteTargetInfo {
@@ -98,14 +102,16 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
   onSetBaselineRecord,
   onOpenBaselineConfig,
   onOpenImport,
+  showInstructions: propShowInstructions,
+  onSetShowInstructions,
 }) => {
   const today = new Date().toISOString().slice(0, 10);
   const nowTime = new Date().toTimeString().slice(0, 8);
 
   const [date, setDate] = useState(today);
   const [time, setTime] = useState(nowTime);
-  const [nhSpeed, setNhSpeed] = useState<string>('11670');
-  const [T1_7, setT1_7] = useState<string>('85.5');
+  const [nhSpeed, setNhSpeed] = useState<string>('');
+  const [T1_7, setT1_7] = useState<string>('');
   const [P1_7, setP1_7] = useState<string>('');
   const [P3_0, setP3_0] = useState<string>('');
   const [realPower, setRealPower] = useState<string>('');
@@ -120,6 +126,15 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
   const [pendingAnomalyReport, setPendingAnomalyReport] = useState<RecordAnomalyReport | null>(null);
   const [showDuplicateModal, setShowDuplicateModal] = useState<boolean>(false);
   const [showRefTable, setShowRefTable] = useState<boolean>(false);
+  const [localShowInstructions, setLocalShowInstructions] = useState<boolean>(true);
+  const showInstructions = propShowInstructions ?? localShowInstructions;
+  const setShowInstructions = (val: boolean) => {
+    if (onSetShowInstructions) {
+      onSetShowInstructions(val);
+    } else {
+      setLocalShowInstructions(val);
+    }
+  };
 
   // Download official Excel operational template
   const handleDownloadExcelTemplate = () => {
@@ -436,10 +451,29 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     XLSX.writeFile(wb, `PB_Synthesis_History_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
+  // Helper: normalize comma/dot decimal strings so ',' becomes '.' (e.g. "14,65" -> "14.65")
+  const normalizeDotDecimal = (raw: string): string => {
+    const trimmed = raw.trim();
+    if (!trimmed) return '';
+    if (trimmed.includes(',') && trimmed.includes('.')) {
+      if (trimmed.lastIndexOf(',') > trimmed.lastIndexOf('.')) {
+        return trimmed.replace(/\./g, '').replace(/,/g, '.');
+      }
+      return trimmed.replace(/,/g, '');
+    }
+    return trimmed.replace(/,/g, '.');
+  };
+
+  const isStrictDecimalToken = (normalized: string): boolean => {
+    return /^[+-]?(\d+\.?\d*|\.\d+)$/.test(normalized);
+  };
+
   // Automatic calculation of PR = P3.0 / P1.7 (handles comma decimals e.g. 238,32)
   const calculatedPR = useMemo(() => {
-    const p3 = parseFloat(P3_0.trim().replace(',', '.'));
-    const p1 = parseFloat(P1_7.trim().replace(',', '.'));
+    const n3 = normalizeDotDecimal(P3_0);
+    const n1 = normalizeDotDecimal(P1_7);
+    const p3 = isStrictDecimalToken(n3) ? parseFloat(n3) : NaN;
+    const p1 = isStrictDecimalToken(n1) ? parseFloat(n1) : NaN;
     if (!isNaN(p3) && !isNaN(p1) && p1 > 0 && p3 > 0) {
       return calculatePressureRatio(p3, p1);
     }
@@ -448,11 +482,15 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
 
   // Real-time evaluation of PB Synthesis using NH Speed, T1.7, P1.7, P3.0, and Real Power
   const livePBOpEval = useMemo(() => {
-    const b = parseFloat(realPower.trim().replace(',', '.'));
+    const nb = normalizeDotDecimal(realPower);
+    const nt = normalizeDotDecimal(T1_7);
+    const n1 = normalizeDotDecimal(P1_7);
+    const n3 = normalizeDotDecimal(P3_0);
+    const b = isStrictDecimalToken(nb) ? parseFloat(nb) : NaN;
     const nh = parseNHSpeed(nhSpeed);
-    const t = parseFloat(T1_7.trim().replace(',', '.'));
-    const p1 = parseFloat(P1_7.trim().replace(',', '.'));
-    const p3 = parseFloat(P3_0.trim().replace(',', '.'));
+    const t = isStrictDecimalToken(nt) ? parseFloat(nt) : NaN;
+    const p1 = isStrictDecimalToken(n1) ? parseFloat(n1) : NaN;
+    const p3 = isStrictDecimalToken(n3) ? parseFloat(n3) : NaN;
     if (isNaN(b) || b <= 0 || isNaN(nh) || nh <= 0 || isNaN(t) || isNaN(p1) || p1 <= 0 || isNaN(p3) || p3 <= 0) {
       return null;
     }
@@ -461,10 +499,14 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
 
   // Candidate operational data for exact duplicate detection
   const candidateData = useMemo(() => {
-    const pw = parseFloat(realPower.trim().replace(',', '.'));
-    const p1 = parseFloat(P1_7.trim().replace(',', '.'));
-    const p3 = parseFloat(P3_0.trim().replace(',', '.'));
-    const t = parseFloat(T1_7.trim().replace(',', '.'));
+    const nb = normalizeDotDecimal(realPower);
+    const nt = normalizeDotDecimal(T1_7);
+    const n1 = normalizeDotDecimal(P1_7);
+    const n3 = normalizeDotDecimal(P3_0);
+    const pw = isStrictDecimalToken(nb) ? parseFloat(nb) : NaN;
+    const p1 = isStrictDecimalToken(n1) ? parseFloat(n1) : NaN;
+    const p3 = isStrictDecimalToken(n3) ? parseFloat(n3) : NaN;
+    const t = isStrictDecimalToken(nt) ? parseFloat(nt) : NaN;
     const nh = parseNHSpeed(nhSpeed);
 
     if (
@@ -495,32 +537,48 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     return findExactDuplicate(candidateData, records);
   }, [candidateData, records]);
 
-  const validate = (): boolean => {
+  const validate = (vals?: {
+    nhSpeed?: string;
+    T1_7?: string;
+    P1_7?: string;
+    P3_0?: string;
+    realPower?: string;
+  }): boolean => {
+    const vNh = vals?.nhSpeed ?? nhSpeed;
+    const vT17 = vals?.T1_7 ?? T1_7;
+    const vP17 = vals?.P1_7 ?? P1_7;
+    const vP30 = vals?.P3_0 ?? P3_0;
+    const vPower = vals?.realPower ?? realPower;
+
     const errs: Record<string, string> = {};
     if (!date) errs.date = 'Date is required';
     if (!time) errs.time = 'Time is required';
 
-    const nh = parseNHSpeed(nhSpeed);
+    const nh = parseNHSpeed(vNh);
     if (isNaN(nh) || nh <= 0) {
       errs.nhSpeed = 'NH Speed harus berupa angka RPM positif (contoh: 11670)';
     }
 
-    const t = parseFloat(T1_7.trim().replace(',', '.'));
+    const nT = normalizeDotDecimal(vT17);
+    const t = isStrictDecimalToken(nT) ? parseFloat(nT) : NaN;
     if (isNaN(t)) {
       errs.T1_7 = 'T1.7 harus berupa angka temperatur (°F)';
     }
 
-    const p1 = parseFloat(P1_7.trim().replace(',', '.'));
+    const nP1 = normalizeDotDecimal(vP17);
+    const p1 = isStrictDecimalToken(nP1) ? parseFloat(nP1) : NaN;
     if (isNaN(p1) || p1 <= 0) {
       errs.P1_7 = 'P1.7 (PT006) harus berupa angka positif';
     }
 
-    const p3 = parseFloat(P3_0.trim().replace(',', '.'));
+    const nP3 = normalizeDotDecimal(vP30);
+    const p3 = isStrictDecimalToken(nP3) ? parseFloat(nP3) : NaN;
     if (isNaN(p3) || p3 <= 0) {
       errs.P3_0 = 'P3.0 (PT007) harus berupa angka positif';
     }
 
-    const pw = parseFloat(realPower.trim().replace(',', '.'));
+    const nPw = normalizeDotDecimal(vPower);
+    const pw = isStrictDecimalToken(nPw) ? parseFloat(nPw) : NaN;
     if (isNaN(pw) || pw <= 0) {
       errs.realPower = 'Real Power (Beban) harus berupa angka positif';
     }
@@ -556,7 +614,22 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
+
+    // Auto-correct decimal separator ',' -> '.' right after clicking submit
+    const normT17 = normalizeDotDecimal(T1_7);
+    const normP17 = normalizeDotDecimal(P1_7);
+    const normP30 = normalizeDotDecimal(P3_0);
+    const normPower = normalizeDotDecimal(realPower);
+    const parsedNH = parseNHSpeed(nhSpeed);
+    const normNH = !isNaN(parsedNH) && parsedNH > 0 ? String(parsedNH) : normalizeDotDecimal(nhSpeed);
+
+    setNhSpeed(normNH);
+    setT1_7(normT17);
+    setP1_7(normP17);
+    setP3_0(normP30);
+    setRealPower(normPower);
+
+    if (!validate({ nhSpeed: normNH, T1_7: normT17, P1_7: normP17, P3_0: normP30, realPower: normPower })) return;
 
     // 1. Check for exact duplicate input to notify operator and prevent accidental double-entry:
     if (liveDuplicateMatch) {
@@ -566,9 +639,9 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
 
     // 2. Check for potential anomalies based on user operational rules:
     const anomalyReport = validateRecordAnomalies({
-      P1_7,
-      P3_0,
-      realPower,
+      P1_7: normP17,
+      P3_0: normP30,
+      realPower: normPower,
       date,
       time,
     });
@@ -579,7 +652,13 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
       return;
     }
 
-    await executeSubmitRecord();
+    await executeSubmitRecord({
+      nhSpeed: normNH,
+      T1_7: normT17,
+      P1_7: normP17,
+      P3_0: normP30,
+      realPower: normPower,
+    });
   };
 
   // Called when operator confirms in DuplicateWarningModal that they want to proceed saving the duplicate
@@ -603,16 +682,22 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     await executeSubmitRecord();
   };
 
-  const executeSubmitRecord = async () => {
+  const executeSubmitRecord = async (overrideVals?: {
+    nhSpeed?: string;
+    T1_7?: string;
+    P1_7?: string;
+    P3_0?: string;
+    realPower?: string;
+  }) => {
     setIsSubmitting(true);
     setSubmitMessage(null);
 
-    const parseNum = (val: string) => parseFloat(val.trim().replace(',', '.'));
-    const parsedNHSpeed = parseNHSpeed(nhSpeed);
-    const parsedT17 = parseNum(T1_7);
-    const parsedP17 = parseNum(P1_7);
-    const parsedP30 = parseNum(P3_0);
-    const parsedPower = parseNum(realPower);
+    const parseNum = (val: string) => parseFloat(normalizeDotDecimal(val));
+    const parsedNHSpeed = parseNHSpeed(overrideVals?.nhSpeed ?? nhSpeed);
+    const parsedT17 = parseNum(overrideVals?.T1_7 ?? T1_7);
+    const parsedP17 = parseNum(overrideVals?.P1_7 ?? P1_7);
+    const parsedP30 = parseNum(overrideVals?.P3_0 ?? P3_0);
+    const parsedPower = parseNum(overrideVals?.realPower ?? realPower);
 
     const inputData: OperationalInput = {
       date,
@@ -632,13 +717,16 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     try {
       const res = await onRecordSubmitted(inputData, setAsBaseline);
       if (res.success) {
+        const summaryValues = `NH: ${parsedNHSpeed} RPM • T1.7: ${parsedT17}°F • P1.7: ${parsedP17} PSIA • P3.0: ${parsedP30} PSIA • Beban: ${parsedPower} MW`;
         setSubmitMessage({
           type: 'success',
           text: setAsBaseline
-            ? 'Data operasional berhasil disimpan dan dikalibrasi sebagai Baseline Reference.'
-            : 'Data operasional berhasil disimpan ke riwayat dan siap dimonitor di PB Synthesis.',
+            ? `Data operasional (${summaryValues}) berhasil disimpan dan dikalibrasi sebagai Baseline Reference.`
+            : `Data operasional (${summaryValues}) berhasil disimpan ke riwayat dan siap dimonitor di PB Synthesis.`,
         });
-        // Reset reading inputs
+        // Reset reading inputs so e.g. placeholders show cleanly
+        setNhSpeed('');
+        setT1_7('');
         setP1_7('');
         setP3_0('');
         setRealPower('');
@@ -660,6 +748,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
 
   return (
     <div className="space-y-8">
+      <div className="flex flex-col-reverse lg:flex-row lg:items-start gap-6">
+        <div className="flex-1 min-w-0 space-y-8">
       {/* 1. TOP SECTION: MERGED OPERATOR INPUT FORM */}
       <section className="bg-white rounded-md border border-slate-200 p-6 shadow-xs">
         <div className="border-b border-slate-200 pb-3 mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -670,6 +760,17 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {!showInstructions && (
+              <button
+                type="button"
+                onClick={() => setShowInstructions(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-sky-900 bg-white border border-sky-300 rounded hover:bg-sky-50 transition-colors shadow-2xs cursor-pointer"
+                title="Tampilkan kembali Petunjuk Penggunaan"
+              >
+                <BookOpen className="w-4 h-4 text-sky-700" />
+                <span>Petunjuk Penggunaan</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={handleDownloadExcelTemplate}
@@ -766,6 +867,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               <input
                 id="input-nh-speed"
                 type="text"
+                inputMode="decimal"
                 value={nhSpeed}
                 onChange={(e) => setNhSpeed(e.target.value)}
                 placeholder="e.g. 11670"
@@ -775,9 +877,11 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               {errors.nhSpeed ? (
                 <p className="text-[11px] text-rose-600 mt-1">{errors.nhSpeed}</p>
               ) : (
-                <span className="text-[10px] text-slate-500 mt-0.5 block">
-                  {livePBOpEval ? `Koreksi: ${livePBOpEval.nhSpeedCorrected} RPM` : 'Standar: ~11,000–12,000 RPM'}
-                </span>
+                livePBOpEval && (
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">
+                    Koreksi: {livePBOpEval.nhSpeedCorrected} RPM
+                  </span>
+                )
               )}
             </div>
 
@@ -788,8 +892,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               </label>
               <input
                 id="input-t17"
-                type="number"
-                step="0.1"
+                type="text"
+                inputMode="decimal"
                 value={T1_7}
                 onChange={(e) => setT1_7(e.target.value)}
                 placeholder="e.g. 85.5"
@@ -812,8 +916,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               </label>
               <input
                 id="input-p17"
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 value={P1_7}
                 onChange={(e) => setP1_7(e.target.value)}
                 placeholder="e.g. 14.65"
@@ -834,8 +938,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               </label>
               <input
                 id="input-p30"
-                type="number"
-                step="0.1"
+                type="text"
+                inputMode="decimal"
                 value={P3_0}
                 onChange={(e) => setP3_0(e.target.value)}
                 placeholder="e.g. 265.79"
@@ -858,8 +962,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               </label>
               <input
                 id="input-power"
-                type="number"
-                step="0.1"
+                type="text"
+                inputMode="decimal"
                 value={realPower}
                 onChange={(e) => setRealPower(e.target.value)}
                 placeholder="e.g. 21.60"
@@ -1482,7 +1586,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                   className={`mt-4 inline-flex items-center justify-between px-4 py-2.5 rounded-lg text-xs sm:text-sm font-bold shadow-2xs transition-all cursor-pointer group ${buttonClass}`}
                 >
                   <span className="flex items-center gap-1.5">
-                    <span>Buka Halaman Performa Kompresor (Dashboard)</span>
+                    <span>Buka Halaman Performa Kompresor</span>
                   </span>
                   <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                 </button>
@@ -1720,7 +1824,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                   className={`mt-4 inline-flex items-center justify-between px-4 py-2.5 rounded-lg text-xs sm:text-sm font-bold shadow-2xs transition-all cursor-pointer group ${buttonClass}`}
                 >
                   <span className="flex items-center gap-1.5">
-                    <span>Buka Halaman PB Synthesis (Kurva Operasi)</span>
+                    <span>Buka Halaman PB Synthesis</span>
                   </span>
                   <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                 </button>
@@ -2667,6 +2771,62 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
           </div>
         )}
       </section>
+        </div>
+
+        {/* RIGHT SIDEBAR: PETUNJUK PENGGUNAAN (DISMISSIBLE) */}
+        {showInstructions && (
+          <aside className="w-full lg:w-[340px] xl:w-[370px] shrink-0 lg:sticky lg:top-32 bg-white rounded-md border border-sky-200 shadow-xs overflow-hidden">
+            <div className="px-4 py-3 bg-sky-50 border-b border-sky-200 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-sky-700 shrink-0" />
+                <h3 className="text-sm font-bold text-slate-900">Petunjuk Penggunaan</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInstructions(false)}
+                className="p-1 text-slate-500 hover:text-slate-900 hover:bg-sky-100 rounded transition-colors cursor-pointer"
+                title="Tutup Petunjuk Penggunaan"
+                aria-label="Tutup Petunjuk Penggunaan"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4 text-xs text-slate-700 leading-relaxed">
+              <ol className="list-decimal pl-4 space-y-2 marker:font-semibold marker:text-slate-700">
+                <li>
+                  Isi bagian &ldquo;Input Data Operasi&rdquo;{' '}
+                  <strong className="font-bold text-slate-950">ketika beban 8, 9, 10, 11, 12, dan 13 MW</strong>
+                </li>
+                <li>
+                  Isi bagian &ldquo;Input Data Operasi&rdquo; ketika{' '}
+                  <strong className="font-bold text-slate-950">pukul 19.00; 20.00; 21.00</strong> (ketika beban puncak)
+                </li>
+                <li>Klik Submit</li>
+                <li>Lihat hasil monitoring</li>
+                <li>
+                  Klik &ldquo;Buka Halaman Performa Kompresor&rdquo; atau &ldquo;Buka Halaman PB Synthesis&rdquo; untuk
+                  monitoring lebih lanjut
+                </li>
+              </ol>
+
+              <div className="bg-amber-50/70 border border-amber-200 rounded-md p-3.5 space-y-2">
+                <p className="font-bold text-slate-950">
+                  *Jika melakukan input pada hari pelaksanaan water washing
+                </p>
+                <ol className="list-decimal pl-4 space-y-1.5 marker:font-semibold marker:text-slate-700">
+                  <li>Setelah klik Submit, cek bagian &ldquo;Input History - Performa Kompresor&rdquo;</li>
+                  <li>Klik &ldquo;Baseline&rdquo; agar data tersebut menjadi baseline monitoring performa kompresor</li>
+                  <li>
+                    Klik &ldquo;Tag WW&rdquo; agar dapat menunjukkan recovery atas water washing yang dilakukan pada menu
+                    &ldquo;Performa Kompresor&rdquo; bagian bawah
+                  </li>
+                </ol>
+              </div>
+            </div>
+          </aside>
+        )}
+      </div>
 
       {/* Anomaly Confirmation Modal */}
       <AnomalyWarningModal

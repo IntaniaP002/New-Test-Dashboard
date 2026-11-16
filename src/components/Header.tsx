@@ -5,6 +5,7 @@ import {
   Trash2,
   Compass,
   Activity,
+  BookOpen,
 } from 'lucide-react';
 import { ActiveNavTab, OperationalRecord, OverallWaterWashStatus } from '../types';
 
@@ -15,6 +16,8 @@ interface HeaderProps {
   onOpenBaselineConfig?: () => void;
   recordsCount: number;
   onClearData: () => void;
+  showInstructions?: boolean;
+  onToggleInstructions?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -24,6 +27,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenBaselineConfig,
   recordsCount,
   onClearData,
+  showInstructions,
+  onToggleInstructions,
 }) => {
   const getStatusBadge = (status?: OverallWaterWashStatus) => {
     switch (status) {
@@ -133,29 +138,47 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* 3 Main Navigation Tabs */}
       <div className="max-w-[1800px] mx-auto px-3 sm:px-5 lg:px-6">
-        <nav className="flex space-x-2 border-t border-slate-100 py-1" aria-label="Tabs">
-          {navItems.map((item) => {
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                id={`nav-tab-${item.id}`}
-                type="button"
-                onClick={() => onTabChange(item.id)}
-                className={`px-4 py-2.5 text-xs font-semibold rounded-t-md transition-colors flex items-center gap-2 border-b-2 ${
-                  isActive
-                    ? 'border-slate-900 text-slate-900 bg-slate-50'
-                    : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300'
-                }`}
-              >
-                <span className={isActive ? 'text-slate-900' : 'text-slate-400'}>
-                  {item.icon}
-                </span>
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 py-1">
+          <nav className="flex space-x-2" aria-label="Tabs">
+            {navItems.map((item) => {
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  id={`nav-tab-${item.id}`}
+                  type="button"
+                  onClick={() => onTabChange(item.id)}
+                  className={`px-4 py-2.5 text-xs font-semibold rounded-t-md transition-colors flex items-center gap-2 border-b-2 ${
+                    isActive
+                      ? 'border-slate-900 text-slate-900 bg-slate-50'
+                      : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300'
+                  }`}
+                >
+                  <span className={isActive ? 'text-slate-900' : 'text-slate-400'}>
+                    {item.icon}
+                  </span>
+                  {item.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          {activeTab === 'input' && onToggleInstructions && (
+            <button
+              type="button"
+              onClick={onToggleInstructions}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded border transition-colors shadow-2xs cursor-pointer ${
+                showInstructions
+                  ? 'text-sky-900 bg-sky-50 border-sky-200 hover:bg-sky-100'
+                  : 'text-white bg-sky-700 border-sky-800 hover:bg-sky-800'
+              }`}
+              title={showInstructions ? 'Sembunyikan Petunjuk Penggunaan' : 'Buka Petunjuk Penggunaan'}
+            >
+              <BookOpen className="w-3.5 h-3.5 shrink-0" />
+              <span>{showInstructions ? 'Petunjuk Penggunaan' : 'Buka Petunjuk Penggunaan'}</span>
+            </button>
+          )}
+        </div>
       </div>
     </header>
   );

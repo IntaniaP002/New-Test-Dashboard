@@ -51,6 +51,8 @@ export default function App() {
     return 'input';
   });
 
+  const [showInstructions, setShowInstructions] = useState<boolean>(true);
+
   // Thresholds State
   const [thresholds, setThresholds] = useState<ThresholdConfig>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.THRESHOLDS);
@@ -712,6 +714,8 @@ export default function App() {
         recordsCount={evaluatedRecords.length}
         onClearData={handleClearData}
         onOpenBaselineConfig={() => setIsBaselineModalOpen(true)}
+        showInstructions={showInstructions}
+        onToggleInstructions={() => setShowInstructions((v) => !v)}
       />
 
       {/* Notification Toast for Smart Import & Deduplication */}
@@ -796,6 +800,8 @@ export default function App() {
             onSetBaselineRecord={handleSetBaselineRecord}
             onOpenBaselineConfig={() => setIsBaselineModalOpen(true)}
             onOpenImport={() => setIsImportModalOpen(true)}
+            showInstructions={showInstructions}
+            onSetShowInstructions={setShowInstructions}
           />
         )}
         {activeTab === 'pbSynthesis' && (
