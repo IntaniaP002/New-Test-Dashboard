@@ -762,7 +762,7 @@ export default function App() {
       )}
 
       {/* Main Content Workspace */}
-      <main className="flex-1 max-w-[1800px] w-full mx-auto p-3 sm:p-5 lg:p-6">
+      <main className="flex-1 max-w-[2400px] w-full mx-auto px-4 sm:px-6 lg:px-10 py-4 sm:py-5">
         {activeTab === 'dashboard' && (
           <DashboardView
             latestRecord={latestRecord ?? undefined}
@@ -884,8 +884,8 @@ export default function App() {
       )}
 
       {/* Engineering Footer */}
-      <footer className="border-t border-slate-200 bg-white py-3.5 px-4 text-center text-xs text-slate-500">
-        <div className="max-w-[1800px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+      <footer className="border-t border-slate-200 bg-white py-3.5 px-4 sm:px-6 lg:px-10 text-center text-xs text-slate-500">
+        <div className="max-w-[2400px] w-full mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>
             Water Washing Monitoring • Decision Logic: {WATER_WASH_DECISION_RULES.minIndicatorsMet}-out-of-3 Parameter Rule
           </span>
