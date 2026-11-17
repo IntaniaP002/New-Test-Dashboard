@@ -44,7 +44,6 @@ interface DashboardViewProps {
   selectedRecordId?: string | null;
   onSelectRecord?: (recordId: string | null) => void;
   onNavigate: (tab: 'dashboard' | 'input') => void;
-  onOpenImport?: () => void;
   onOpenBaselineConfig?: () => void;
 }
 
@@ -59,7 +58,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   selectedRecordId,
   onSelectRecord,
   onNavigate,
-  onOpenImport,
   onOpenBaselineConfig,
 }) => {
   const [selectedEvent, setSelectedEvent] = useState<WaterWashEvent | null>(null);
@@ -303,27 +301,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Missing Baseline Notice */}
-      {!hasBaseline && (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-md text-xs text-amber-900 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Info className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>
-              Baseline reference values are not set. Input your first operational reading or import data to establish baseline.
-            </span>
-          </div>
-          {onOpenImport && (
-            <button
-              type="button"
-              onClick={onOpenImport}
-              className="px-3 py-1 font-semibold text-xs bg-amber-700 text-white rounded hover:bg-amber-800 transition-colors"
-            >
-              Import Data
-            </button>
-          )}
-        </div>
-      )}
-
       {/* Historical Inspection / Time-Movement Controller */}
       {historyList.length > 0 && (
         <div className={`p-4 rounded-md border text-xs flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs transition-all ${

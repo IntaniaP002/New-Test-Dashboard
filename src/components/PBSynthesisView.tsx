@@ -7,7 +7,6 @@ import {
   Clock,
   Filter,
   Download,
-  Upload,
   ArrowDownUp,
   Gauge,
   Sliders,
@@ -26,6 +25,10 @@ import {
   ZoomOut,
   RotateCcw,
   Layers,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  History,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -55,7 +58,6 @@ interface PBSynthesisViewProps {
   onDeleteRecord?: (recordId: string) => void;
   selectedRecordId?: string | null;
   onSelectRecord?: (recordId: string | null) => void;
-  onOpenImport?: () => void;
 }
 
 const STORAGE_KEY_PB_OP_EXTRA = 'pb_synthesis_uploaded_records_v6';
@@ -67,7 +69,6 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
   onDeleteRecord,
   selectedRecordId: propSelectedRecordId,
   onSelectRecord,
-  onOpenImport,
 }) => {
   // Extra uploaded/imported records stored locally if user uploads directly on this page
   const [extraUploadedRecords, setExtraUploadedRecords] = useState<PBOperationInputRecord[]>(() => {
@@ -245,24 +246,61 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
     selectedRecordId,
   ]);
 
+  // Chronologically sorted records (oldest -> newest) for Prev / Next stepping and Latest detection
+  const chronologicalRecords = useMemo<PBOperationInputRecord[]>(() => {
+    return [...allMonitoredRecords].sort(
+      (a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time)
+    );
+  }, [allMonitoredRecords]);
+
+  const latestChronologicalRecord = useMemo<PBOperationInputRecord | null>(() => {
+    return chronologicalRecords.length > 0
+      ? chronologicalRecords[chronologicalRecords.length - 1]
+      : null;
+  }, [chronologicalRecords]);
+
   // Set default selection to latest record when records change if none selected
   useEffect(() => {
-    if (allMonitoredRecords.length > 0) {
-      if (!selectedRecordId || !allMonitoredRecords.some((r) => r.id === selectedRecordId)) {
-        handleSelectRecord(allMonitoredRecords[allMonitoredRecords.length - 1].id);
+    if (chronologicalRecords.length > 0 && latestChronologicalRecord) {
+      if (!selectedRecordId || !chronologicalRecords.some((r) => r.id === selectedRecordId)) {
+        handleSelectRecord(latestChronologicalRecord.id);
       }
     } else {
       handleSelectRecord(null);
     }
-  }, [allMonitoredRecords, selectedRecordId]);
+  }, [chronologicalRecords, latestChronologicalRecord, selectedRecordId]);
 
   // Active Monitored Record
   const activeRecord = useMemo<PBOperationInputRecord | null>(() => {
     if (!selectedRecordId) {
-      return allMonitoredRecords.length > 0 ? allMonitoredRecords[allMonitoredRecords.length - 1] : null;
+      return latestChronologicalRecord;
     }
-    return allMonitoredRecords.find((r) => r.id === selectedRecordId) || null;
-  }, [selectedRecordId, allMonitoredRecords]);
+    return chronologicalRecords.find((r) => r.id === selectedRecordId) || latestChronologicalRecord;
+  }, [selectedRecordId, chronologicalRecords, latestChronologicalRecord]);
+
+  const isHistorical = Boolean(
+    activeRecord && latestChronologicalRecord && activeRecord.id !== latestChronologicalRecord.id
+  );
+
+  const currentIndex = useMemo(() => {
+    if (!activeRecord || chronologicalRecords.length === 0) return -1;
+    return chronologicalRecords.findIndex((r) => r.id === activeRecord.id);
+  }, [activeRecord, chronologicalRecords]);
+
+  const hasPrevious = currentIndex > 0;
+  const hasNext = currentIndex >= 0 && currentIndex < chronologicalRecords.length - 1;
+
+  const handlePrevRecord = () => {
+    if (hasPrevious) {
+      handleSelectRecord(chronologicalRecords[currentIndex - 1].id);
+    }
+  };
+
+  const handleNextRecord = () => {
+    if (hasNext) {
+      handleSelectRecord(chronologicalRecords[currentIndex + 1].id);
+    }
+  };
 
   // Evaluation of the active monitored record
   const activeEvaluation = useMemo<PBOperationEvaluation | null>(() => {
@@ -565,70 +603,108 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* 1. TOP MONITORING CONTROLLER BAR */}
-      <section className="bg-white rounded-xl border border-violet-200 p-4 sm:p-5 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 bg-violet-600 text-white rounded-md shadow-2xs">
-                <Target className="w-4 h-4" />
-              </span>
-              <h2 className="text-base font-bold text-slate-900 tracking-tight">
-                Monitoring Evaluasi PB Synthesis &amp; Batas Operasi PT007
-              </h2>
+      {/* Operational Data Scope / Time-Movement Controller (matching Performa Kompresor) */}
+      {chronologicalRecords.length > 0 && (
+        <div
+          className={`p-4 rounded-md border text-xs flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-xs transition-all ${
+            isHistorical
+              ? 'bg-sky-50/80 border-sky-300 text-sky-950'
+              : 'bg-white border-slate-200 text-slate-700'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className={`w-8 h-8 rounded flex items-center justify-center shrink-0 shadow-2xs ${
+                isHistorical ? 'bg-sky-600 text-white' : 'bg-slate-900 text-sky-400'
+              }`}
+            >
+              {isHistorical ? <History className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
             </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Evaluasi langsung titik data operasional (PT007 terhadap Normal 0.82x – 1.18x, Caution 0 s/d ±2.0 PSIA, Recommend Water Wash &gt;±2.0 s/d ±4.0 PSIA, dan Warning &gt;±4.0 PSIA). Semua input data dimasukkan di halaman <strong>Dashboard</strong>.
-            </p>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-slate-900 text-xs">
+                  {isHistorical ? 'Viewing Historical Snapshot:' : 'Operational Data Scope:'}
+                </span>
+                {isHistorical ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-sky-600 text-white shadow-2xs">
+                    <History className="w-3 h-3" /> {activeRecord?.date}{' '}
+                    {formatTimeWithSeconds(activeRecord?.time, '19:00:00')}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-600 text-white shadow-2xs">
+                    <Check className="w-3 h-3 stroke-[3]" /> Latest Reading ({latestChronologicalRecord?.date}{' '}
+                    {formatTimeWithSeconds(latestChronologicalRecord?.time, '19:00:00')})
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
 
-          {onOpenImport && (
-            <button
-              type="button"
-              onClick={onOpenImport}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-300 rounded transition-colors shadow-2xs cursor-pointer self-start md:self-auto shrink-0"
-              title="Upload & impor dataset Excel (.xlsx) atau CSV"
-            >
-              <Upload className="w-3.5 h-3.5 text-sky-600" />
-              <span>Import Dataset (.xlsx)</span>
-            </button>
-          )}
-        </div>
-
-        {/* Record Selector Dropdown / Bar */}
-        {allMonitoredRecords.length > 0 && (
-          <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-violet-50/40 p-3 rounded-lg">
-            <div className="flex items-center gap-2">
-              <Eye className="w-4 h-4 text-violet-700 shrink-0" />
-              <label htmlFor="select-monitored-record" className="text-xs font-bold text-violet-950">
-                Pilih Titik Data Operasi untuk Dimonitor:
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            {/* Quick Data Selector Dropdown */}
+            <div className="flex items-center gap-1.5 min-w-0">
+              <label
+                htmlFor="select-monitored-record"
+                className="text-[11px] font-semibold text-slate-600 whitespace-nowrap"
+              >
+                Jump to Data:
               </label>
-            </div>
-            <div className="flex items-center gap-2">
               <select
                 id="select-monitored-record"
-                value={selectedRecordId || ''}
+                value={activeRecord?.id || ''}
                 onChange={(e) => handleSelectRecord(e.target.value)}
-                className="w-full sm:w-80 px-3 py-1.5 text-xs border border-violet-300 rounded bg-white font-mono font-bold text-slate-900 shadow-2xs focus:ring-1 focus:ring-violet-500"
+                className="text-xs bg-white border border-slate-300 rounded px-2.5 py-1.5 text-slate-800 font-medium focus:ring-1 focus:ring-sky-500 focus:outline-none shadow-2xs max-w-full cursor-pointer"
               >
-                {[...allMonitoredRecords].reverse().map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.date} {r.time} • Beban: {r.beban.toFixed(2)} MW • PT007: {r.pt007.toFixed(2)} PSIA ({r.zone === 'NORMAL' ? 'Normal' : 'Warning/Crossing'})
-                  </option>
-                ))}
+                {[...chronologicalRecords].reverse().map((r, idx) => {
+                  const isLatest = idx === 0;
+                  return (
+                    <option key={r.id} value={r.id}>
+                      {r.date} {formatTimeWithSeconds(r.time, '19:00:00')} {isLatest ? '★ (Latest)' : ''} — Beban: {r.beban.toFixed(2)} MW • PT007: {r.pt007.toFixed(2)} PSIA ({r.zone === 'NORMAL' ? 'Normal' : r.zone === 'CAUTION_UPPER' || r.zone === 'CAUTION_LOWER' ? 'Caution' : r.zone === 'EARLY_UPPER' || r.zone === 'EARLY_LOWER' ? 'Recommend WW' : 'Warning'})
+                    </option>
+                  );
+                })}
               </select>
+            </div>
+
+            {/* Stepper buttons (Previous / Next movement) */}
+            <div className="inline-flex rounded-md shadow-2xs shrink-0">
               <button
                 type="button"
-                onClick={() => handleSelectRecord(allMonitoredRecords[allMonitoredRecords.length - 1].id)}
-                className="px-2.5 py-1.5 text-xs font-bold text-violet-700 bg-white border border-violet-200 rounded hover:bg-violet-100 transition-colors shrink-0 shadow-2xs cursor-pointer"
-                title="Pilih data rekaman paling baru"
+                onClick={handlePrevRecord}
+                disabled={!hasPrevious}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-l hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                title="Step backward to previous operational reading"
               >
-                Terkini
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Prev</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleNextRecord}
+                disabled={!hasNext}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border-y border-r border-slate-300 rounded-r hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                title="Step forward to next operational reading"
+              >
+                <span className="hidden sm:inline">Next</span>
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
+
+            {/* Reset to Latest button */}
+            {isHistorical && latestChronologicalRecord && (
+              <button
+                type="button"
+                onClick={() => handleSelectRecord(latestChronologicalRecord.id)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-sky-800 bg-white border border-sky-300 rounded hover:bg-sky-100/60 transition-colors shadow-2xs whitespace-nowrap cursor-pointer"
+                title="Reset PB Synthesis view to the latest operational reading"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-sky-600" />
+                <span>Return to Latest</span>
+              </button>
+            )}
           </div>
-        )}
-      </section>
+        </div>
+      )}
 
       {/* 2. DIRECT MONITORING RESULT SECTION */}
       {activeEvaluation ? (
@@ -840,7 +916,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
           <Target className="w-10 h-10 text-slate-300 mx-auto" />
           <h3 className="text-base font-bold text-slate-800">Belum Ada Data Operasi untuk Dievaluasi</h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
-            Masukkan data operasional di halaman <strong>Dashboard</strong> (atau upload berkas Excel/CSV) untuk memonitor titik operasi aktual terhadap batas PB Synthesis.
+            Masukkan atau impor data operasional di halaman <strong>Dashboard</strong> untuk memonitor titik operasi aktual terhadap batas PB Synthesis.
           </p>
           <div className="pt-2">
             <button
@@ -2004,7 +2080,7 @@ export const PBSynthesisView: React.FC<PBSynthesisViewProps> = ({
         {filteredRecords.length === 0 ? (
           <div className="p-8 text-center text-xs text-slate-500">
             {allMonitoredRecords.length === 0
-              ? 'Belum ada data input tercatat. Masukkan data di halaman Dashboard atau unggah berkas Excel/CSV di atas.'
+              ? 'Belum ada data input tercatat. Silakan masukkan atau impor berkas Excel/CSV di halaman Dashboard.'
               : 'Tidak ada rekaman data operasi yang cocok dengan filter.'}
           </div>
         ) : (

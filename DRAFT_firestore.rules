@@ -1,0 +1,346 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Global Security Primitives
+    // -------------------------------------------------------------------------
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Supports frictionless Anonymous operator sessions (explicitly requested)
+    // as well as verified Google/email accounts if enabled.
+    function isAuthenticatedOperator() {
+      return isSignedIn() && (
+        request.auth.token.firebase.sign_in_provider == 'anonymous' ||
+        request.auth.token.email_verified == true
+      );
+    }
+
+    function isOptionalNumber(data, field) {
+      return !(field in data) || data[field] == null || (data[field] is number && data[field] >= -1000000 && data[field] <= 10000000);
+    }
+
+    function isOptionalBool(data, field) {
+      return !(field in data) || data[field] == null || data[field] is bool;
+    }
+
+    function isOptionalString(data, field, maxLen) {
+      return !(field in data) || data[field] == null || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    // -------------------------------------------------------------------------
+    // Entity Validation Blueprints
+    // -------------------------------------------------------------------------
+    function isValidOperationalRecord(data) {
+      return data.keys().hasAll([
+          'id',
+          'workspaceId',
+          'date',
+          'time',
+          'timestamp',
+          'P1_7',
+          'P3_0',
+          'realPower',
+          'createdByUid',
+          'updatedByUid',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'workspaceId',
+          'date',
+          'time',
+          'timestamp',
+          'T1_7',
+          'P1_7',
+          'P3_0',
+          'realPower',
+          'pbSynthesis',
+          'pbSynthesisDB',
+          'fNH',
+          'nhSpeed',
+          'x1',
+          'y1',
+          'x2',
+          'y2',
+          'upperMultiplier',
+          'lowerMultiplier',
+          'pt006',
+          'isDrivebackWWRecommended',
+          'isPbBaseline',
+          'isWaterWashEvent',
+          'waterWashEventNumber',
+          'notes',
+          'createdByUid',
+          'updatedByUid',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.workspaceId is string &&
+        data.workspaceId.size() <= 64 &&
+        data.workspaceId == 'gt-ww-plant-main' &&
+        data.date is string &&
+        data.date.size() <= 20 &&
+        data.date.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+        data.time is string &&
+        data.time.size() >= 1 &&
+        data.time.size() <= 32 &&
+        data.timestamp is number &&
+        data.timestamp >= 0 &&
+        data.P1_7 is number &&
+        data.P1_7 >= -100000 &&
+        data.P1_7 <= 1000000 &&
+        data.P3_0 is number &&
+        data.P3_0 >= -100000 &&
+        data.P3_0 <= 1000000 &&
+        data.realPower is number &&
+        data.realPower >= -100000 &&
+        data.realPower <= 1000000 &&
+        isOptionalNumber(data, 'T1_7') &&
+        isOptionalNumber(data, 'pbSynthesis') &&
+        isOptionalNumber(data, 'pbSynthesisDB') &&
+        isOptionalNumber(data, 'fNH') &&
+        isOptionalNumber(data, 'nhSpeed') &&
+        isOptionalNumber(data, 'x1') &&
+        isOptionalNumber(data, 'y1') &&
+        isOptionalNumber(data, 'x2') &&
+        isOptionalNumber(data, 'y2') &&
+        isOptionalNumber(data, 'upperMultiplier') &&
+        isOptionalNumber(data, 'lowerMultiplier') &&
+        isOptionalNumber(data, 'pt006') &&
+        isOptionalBool(data, 'isDrivebackWWRecommended') &&
+        isOptionalBool(data, 'isPbBaseline') &&
+        isOptionalBool(data, 'isWaterWashEvent') &&
+        isOptionalNumber(data, 'waterWashEventNumber') &&
+        isOptionalString(data, 'notes', 500) &&
+        isValidId(data.createdByUid) &&
+        isValidId(data.updatedByUid) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidPlantBaseline(data) {
+      return data.keys().hasAll([
+          'workspaceId',
+          'isConfigured',
+          'updatedByUid',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'workspaceId',
+          'isConfigured',
+          'T1_7',
+          'P1_7',
+          'P3_0',
+          'PR',
+          'realPower',
+          'referenceDescription',
+          'setAt',
+          'sourceRecordId',
+          'date',
+          'time',
+          'updatedByUid',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.workspaceId is string &&
+        data.workspaceId.size() <= 64 &&
+        data.workspaceId == 'gt-ww-plant-main' &&
+        data.isConfigured is bool &&
+        isOptionalNumber(data, 'T1_7') &&
+        isOptionalNumber(data, 'P1_7') &&
+        isOptionalNumber(data, 'P3_0') &&
+        isOptionalNumber(data, 'PR') &&
+        isOptionalNumber(data, 'realPower') &&
+        isOptionalString(data, 'referenceDescription', 500) &&
+        isOptionalString(data, 'setAt', 64) &&
+        isOptionalString(data, 'sourceRecordId', 128) &&
+        isOptionalString(data, 'date', 20) &&
+        isOptionalString(data, 'time', 32) &&
+        isValidId(data.updatedByUid) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidPlantThresholds(data) {
+      return data.keys().hasAll([
+          'workspaceId',
+          'prWWThreshold',
+          'p3WWThreshold',
+          'powerWWThreshold',
+          'updatedByUid',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'workspaceId',
+          'prWWThreshold',
+          'p3WWThreshold',
+          'powerWWThreshold',
+          'updatedByUid',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.workspaceId is string &&
+        data.workspaceId.size() <= 64 &&
+        data.workspaceId == 'gt-ww-plant-main' &&
+        data.prWWThreshold is number &&
+        data.prWWThreshold >= 0 &&
+        data.prWWThreshold <= 100 &&
+        data.p3WWThreshold is number &&
+        data.p3WWThreshold >= 0 &&
+        data.p3WWThreshold <= 100 &&
+        data.powerWWThreshold is number &&
+        data.powerWWThreshold >= 0 &&
+        data.powerWWThreshold <= 100 &&
+        isValidId(data.updatedByUid) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // -------------------------------------------------------------------------
+    // Collection Rules
+    // -------------------------------------------------------------------------
+    match /operational_records/{recordId} {
+      allow get: if isAuthenticatedOperator() &&
+        isValidId(recordId) &&
+        existing().workspaceId == 'gt-ww-plant-main';
+
+      allow list: if isAuthenticatedOperator() &&
+        existing().workspaceId == 'gt-ww-plant-main';
+
+      allow create: if isAuthenticatedOperator() &&
+        isValidId(recordId) &&
+        isValidOperationalRecord(incoming()) &&
+        incoming().id == recordId &&
+        incoming().createdByUid == request.auth.uid &&
+        incoming().updatedByUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isAuthenticatedOperator() &&
+        isValidId(recordId) &&
+        isValidOperationalRecord(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().workspaceId == existing().workspaceId &&
+        incoming().createdByUid == existing().createdByUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedByUid == request.auth.uid &&
+        incoming().updatedAt == request.time &&
+        (
+          // Action: Toggle Water Wash Tag
+          incoming().diff(existing()).affectedKeys().hasOnly(['isWaterWashEvent', 'notes', 'updatedAt', 'updatedByUid']) ||
+          // Action: Update PB Synthesis & Driveback Parameters
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'P1_7', 'P3_0', 'pbSynthesis', 'pbSynthesisDB', 'fNH', 'pt006',
+            'nhSpeed', 'x1', 'y1', 'x2', 'y2', 'upperMultiplier', 'lowerMultiplier',
+            'isPbBaseline', 'updatedAt', 'updatedByUid'
+          ]) ||
+          // Action: Toggle PB Synthesis Active Baseline Flag
+          incoming().diff(existing()).affectedKeys().hasOnly(['isPbBaseline', 'updatedAt', 'updatedByUid']) ||
+          // Action: Smart Upsert Operational Values from Excel Import
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'date', 'time', 'timestamp', 'T1_7', 'P1_7', 'P3_0', 'realPower',
+            'pbSynthesis', 'pbSynthesisDB', 'fNH', 'nhSpeed', 'x1', 'y1', 'x2', 'y2',
+            'upperMultiplier', 'lowerMultiplier', 'pt006', 'isDrivebackWWRecommended',
+            'isPbBaseline', 'isWaterWashEvent', 'waterWashEventNumber', 'notes',
+            'updatedAt', 'updatedByUid'
+          ])
+        );
+
+      allow delete: if isAuthenticatedOperator() &&
+        isValidId(recordId) &&
+        existing().workspaceId == 'gt-ww-plant-main';
+    }
+
+    match /plant_baselines/{configId} {
+      allow get: if isAuthenticatedOperator() &&
+        isValidId(configId) &&
+        configId == 'active';
+
+      allow list: if false;
+
+      allow create: if isAuthenticatedOperator() &&
+        isValidId(configId) &&
+        configId == 'active' &&
+        isValidPlantBaseline(incoming()) &&
+        incoming().updatedByUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isAuthenticatedOperator() &&
+        isValidId(configId) &&
+        configId == 'active' &&
+        isValidPlantBaseline(incoming()) &&
+        incoming().workspaceId == existing().workspaceId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedByUid == request.auth.uid &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'isConfigured', 'T1_7', 'P1_7', 'P3_0', 'PR', 'realPower',
+          'referenceDescription', 'setAt', 'sourceRecordId', 'date', 'time',
+          'updatedByUid', 'updatedAt'
+        ]);
+
+      allow delete: if isAuthenticatedOperator() &&
+        isValidId(configId) &&
+        configId == 'active';
+    }
+
+    match /plant_thresholds/{configId} {
+      allow get: if isAuthenticatedOperator() &&
+        isValidId(configId) &&
+        configId == 'active';
+
+      allow list: if false;
+
+      allow create: if isAuthenticatedOperator() &&
+        isValidId(configId) &&
+        configId == 'active' &&
+        isValidPlantThresholds(incoming()) &&
+        incoming().updatedByUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isAuthenticatedOperator() &&
+        isValidId(configId) &&
+        configId == 'active' &&
+        isValidPlantThresholds(incoming()) &&
+        incoming().workspaceId == existing().workspaceId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedByUid == request.auth.uid &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'prWWThreshold', 'p3WWThreshold', 'powerWWThreshold',
+          'updatedByUid', 'updatedAt'
+        ]);
+
+      allow delete: if isAuthenticatedOperator() &&
+        isValidId(configId) &&
+        configId == 'active';
+    }
+  }
+}

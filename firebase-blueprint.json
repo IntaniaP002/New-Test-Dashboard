@@ -1,0 +1,304 @@
+{
+  "entities": {
+    "OperationalRecord": {
+      "title": "OperationalRecord",
+      "description": "Shared gas turbine and compressor operational reading synced across all dashboard devices.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Unique sanitized operational record identifier."
+        },
+        "workspaceId": {
+          "type": "string",
+          "enum": ["gt-ww-plant-main"],
+          "maxLength": 64,
+          "description": "Shared plant monitoring workspace identifier."
+        },
+        "date": {
+          "type": "string",
+          "maxLength": 20,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "description": "Operational date in YYYY-MM-DD format."
+        },
+        "time": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Operational time string (HH:MM or HH:MM:SS)."
+        },
+        "timestamp": {
+          "type": "number",
+          "description": "Epoch milliseconds for chronological ordering."
+        },
+        "T1_7": {
+          "type": "number",
+          "description": "Optional Compressor Inlet Temperature (°F)."
+        },
+        "P1_7": {
+          "type": "number",
+          "description": "Compressor Inlet Pressure (PSIA)."
+        },
+        "P3_0": {
+          "type": "number",
+          "description": "Compressor Discharge Pressure (PSIA)."
+        },
+        "realPower": {
+          "type": "number",
+          "description": "Gas Turbine Real Power (MW)."
+        },
+        "pbSynthesis": {
+          "type": "number",
+          "description": "Optional PB Synthesis (NH) in PSIA."
+        },
+        "pbSynthesisDB": {
+          "type": "number",
+          "description": "Optional PB Synthesis Driveback in PSIA."
+        },
+        "fNH": {
+          "type": "number",
+          "description": "Optional f(NH) curve interpolated Y value."
+        },
+        "nhSpeed": {
+          "type": "number",
+          "description": "Optional NH Speed (RPM)."
+        },
+        "x1": {
+          "type": "number",
+          "description": "Optional interpolation X1."
+        },
+        "y1": {
+          "type": "number",
+          "description": "Optional interpolation Y1."
+        },
+        "x2": {
+          "type": "number",
+          "description": "Optional interpolation X2."
+        },
+        "y2": {
+          "type": "number",
+          "description": "Optional interpolation Y2."
+        },
+        "upperMultiplier": {
+          "type": "number",
+          "description": "Optional upper band multiplier."
+        },
+        "lowerMultiplier": {
+          "type": "number",
+          "description": "Optional lower band multiplier."
+        },
+        "pt006": {
+          "type": "number",
+          "description": "Optional Inlet Pressure PT006 (PSIA)."
+        },
+        "isDrivebackWWRecommended": {
+          "type": "boolean",
+          "description": "Whether driveback Water Wash recommendation is active."
+        },
+        "isPbBaseline": {
+          "type": "boolean",
+          "description": "Whether this record is tagged as active PB Synthesis baseline."
+        },
+        "isWaterWashEvent": {
+          "type": "boolean",
+          "description": "Whether a Water Wash event occurred on this date."
+        },
+        "waterWashEventNumber": {
+          "type": "number",
+          "description": "Optional sequential Water Wash event number."
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Optional operational notes or WW event tag."
+        },
+        "createdByUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID of the operator session that created the record."
+        },
+        "updatedByUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID of the operator session that last updated the record."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when last updated."
+        }
+      },
+      "required": [
+        "id",
+        "workspaceId",
+        "date",
+        "time",
+        "timestamp",
+        "P1_7",
+        "P3_0",
+        "realPower",
+        "createdByUid",
+        "updatedByUid",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PlantBaseline": {
+      "title": "PlantBaseline",
+      "description": "Shared active compressor baseline calibration reference.",
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "enum": ["gt-ww-plant-main"],
+          "maxLength": 64,
+          "description": "Shared plant monitoring workspace identifier."
+        },
+        "isConfigured": {
+          "type": "boolean",
+          "description": "Whether a valid baseline reference is active."
+        },
+        "T1_7": {
+          "type": "number",
+          "description": "Optional baseline T1.7 (°F)."
+        },
+        "P1_7": {
+          "type": "number",
+          "description": "Baseline P1.7 (PSIA)."
+        },
+        "P3_0": {
+          "type": "number",
+          "description": "Baseline P3.0 (PSIA)."
+        },
+        "PR": {
+          "type": "number",
+          "description": "Baseline Pressure Ratio."
+        },
+        "realPower": {
+          "type": "number",
+          "description": "Baseline Real Power (MW)."
+        },
+        "referenceDescription": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Human-readable baseline reference description."
+        },
+        "setAt": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "ISO timestamp when baseline was calibrated."
+        },
+        "sourceRecordId": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Record ID serving as baseline source."
+        },
+        "date": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "Date of baseline record."
+        },
+        "time": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Time label of baseline record."
+        },
+        "updatedByUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID of operator session that updated baseline."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when baseline doc was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when baseline doc was last updated."
+        }
+      },
+      "required": [
+        "workspaceId",
+        "isConfigured",
+        "updatedByUid",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PlantThresholds": {
+      "title": "PlantThresholds",
+      "description": "Shared Water Wash deterioration threshold configuration.",
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "enum": ["gt-ww-plant-main"],
+          "maxLength": 64,
+          "description": "Shared plant monitoring workspace identifier."
+        },
+        "prWWThreshold": {
+          "type": "number",
+          "description": "PR deterioration threshold (%)."
+        },
+        "p3WWThreshold": {
+          "type": "number",
+          "description": "P3.0 deterioration threshold (%)."
+        },
+        "powerWWThreshold": {
+          "type": "number",
+          "description": "Real Power deterioration threshold (%)."
+        },
+        "updatedByUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID of operator session that updated thresholds."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when updated."
+        }
+      },
+      "required": [
+        "workspaceId",
+        "prWWThreshold",
+        "p3WWThreshold",
+        "powerWWThreshold",
+        "updatedByUid",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/operational_records/{recordId}": {
+      "schema": { "$ref": "#/entities/OperationalRecord" },
+      "description": "Shared operational readings for turbine and compressor performance and PB Synthesis."
+    },
+    "/plant_baselines/{configId}": {
+      "schema": { "$ref": "#/entities/PlantBaseline" },
+      "description": "Shared active compressor baseline reference document (configId = 'active')."
+    },
+    "/plant_thresholds/{configId}": {
+      "schema": { "$ref": "#/entities/PlantThresholds" },
+      "description": "Shared Water Wash threshold configuration document (configId = 'active')."
+    }
+  }
+}
