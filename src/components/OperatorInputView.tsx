@@ -750,423 +750,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     <div className="space-y-8">
       <div className="flex flex-col-reverse lg:flex-row lg:items-start gap-6">
         <div className="flex-1 min-w-0 space-y-8">
-      {/* 1. TOP SECTION: MERGED OPERATOR INPUT FORM */}
-      <section className="bg-white rounded-md border border-slate-200 p-6 shadow-xs">
-        <div className="border-b border-slate-200 pb-3 mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 tracking-tight">Input Data Operasi</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Masukkan 7 parameter operasi terintegrasi (Tanggal, Waktu, NH Speed, T1.7, P1.7, P3.0, Real Power) atau unggah berkas CSV / Excel.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0 flex-wrap">
-            {!showInstructions && (
-              <button
-                type="button"
-                onClick={() => setShowInstructions(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-sky-900 bg-white border border-sky-300 rounded hover:bg-sky-50 transition-colors shadow-2xs cursor-pointer"
-                title="Tampilkan kembali Petunjuk Penggunaan"
-              >
-                <BookOpen className="w-4 h-4 text-sky-700" />
-                <span>Petunjuk Penggunaan</span>
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={handleDownloadExcelTemplate}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded hover:bg-emerald-100 transition-colors shadow-2xs cursor-pointer"
-              title="Download format template Excel untuk upload data operasi"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-              <span>Excel Template</span>
-            </button>
-            {onOpenImport && (
-              <button
-                type="button"
-                onClick={onOpenImport}
-                className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold text-sky-900 bg-sky-50 border border-sky-300 rounded hover:bg-sky-100 transition-colors shadow-2xs cursor-pointer"
-                title="Upload or paste raw operational exports with automatic column detection and standardization"
-              >
-                <Upload className="w-4 h-4 text-sky-700" />
-                <span>Upload Data Excel/CSV</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {submitMessage && (
-          <div
-            className={`p-3.5 rounded-md mb-5 text-xs font-medium flex items-center justify-between ${
-              submitMessage.type === 'success'
-                ? 'bg-emerald-50 border border-emerald-300 text-emerald-900'
-                : 'bg-rose-50 border border-rose-300 text-rose-900'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              {submitMessage.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              )}
-              <span>{submitMessage.text}</span>
-            </div>
-            {submitMessage.type === 'success' && (
-              <button
-                type="button"
-                onClick={() => onNavigate('dashboard')}
-                className="text-xs font-semibold text-emerald-800 underline hover:text-emerald-950"
-              >
-                Lihat Performa Kompresor
-              </button>
-            )}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Group 1: Tanggal & Waktu */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="input-date" className="block text-xs font-semibold text-slate-700 mb-1">
-                Date (Tanggal Operasi)
-              </label>
-              <input
-                id="input-date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                required
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-sky-500 focus:border-sky-500 bg-white"
-              />
-              {errors.date && <p className="text-[11px] text-rose-600 mt-1">{errors.date}</p>}
-            </div>
-
-            <div>
-              <label htmlFor="input-time" className="block text-xs font-semibold text-slate-700 mb-1">
-                Time (Waktu / Jam &mdash; HH:MM:SS)
-              </label>
-              <input
-                id="input-time"
-                type="time"
-                step="1"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                required
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-sky-500 focus:border-sky-500 bg-white font-mono"
-              />
-              {errors.time && <p className="text-[11px] text-rose-600 mt-1">{errors.time}</p>}
-            </div>
-          </div>
-
-          {/* Group 2: Kecepatan & Tekanan Turbin/Kompresor (NH Speed, T1.7, P1.7, P3.0) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
-            {/* NH Speed */}
-            <div>
-              <label htmlFor="input-nh-speed" className="block text-xs font-semibold text-violet-900 mb-1">
-                NH Speed (RPM)
-              </label>
-              <input
-                id="input-nh-speed"
-                type="text"
-                inputMode="decimal"
-                value={nhSpeed}
-                onChange={(e) => setNhSpeed(e.target.value)}
-                placeholder="e.g. 11670"
-                required
-                className="w-full px-3 py-2 text-xs border border-violet-300 rounded focus:ring-1 focus:ring-violet-500 focus:border-violet-500 bg-violet-50/20 font-mono font-bold text-violet-950"
-              />
-              {errors.nhSpeed ? (
-                <p className="text-[11px] text-rose-600 mt-1">{errors.nhSpeed}</p>
-              ) : (
-                livePBOpEval && (
-                  <span className="text-[10px] text-slate-500 mt-0.5 block">
-                    Koreksi: {livePBOpEval.nhSpeedCorrected} RPM
-                  </span>
-                )
-              )}
-            </div>
-
-            {/* T1.7 Inlet Temperature */}
-            <div>
-              <label htmlFor="input-t17" className="block text-xs font-semibold text-rose-900 mb-1">
-                T1.7 (°F)
-              </label>
-              <input
-                id="input-t17"
-                type="text"
-                inputMode="decimal"
-                value={T1_7}
-                onChange={(e) => setT1_7(e.target.value)}
-                placeholder="e.g. 85.5"
-                required
-                className="w-full px-3 py-2 text-xs border border-rose-300 rounded focus:ring-1 focus:ring-rose-500 focus:border-rose-500 bg-rose-50/20 font-mono font-bold text-slate-900"
-              />
-              {errors.T1_7 ? (
-                <p className="text-[11px] text-rose-600 mt-1">{errors.T1_7}</p>
-              ) : (
-                <span className="text-[10px] text-slate-500 mt-0.5 block">
-                  {livePBOpEval ? `θ=${livePBOpEval.theta} (√θ=${livePBOpEval.sqrtTheta})` : 'Compressor Inlet Temp'}
-                </span>
-              )}
-            </div>
-
-            {/* P1.7 (PT006) */}
-            <div>
-              <label htmlFor="input-p17" className="block text-xs font-semibold text-slate-700 mb-1">
-                P1.7 / PT006 (PSIA)
-              </label>
-              <input
-                id="input-p17"
-                type="text"
-                inputMode="decimal"
-                value={P1_7}
-                onChange={(e) => setP1_7(e.target.value)}
-                placeholder="e.g. 14.65"
-                required
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-sky-500 focus:border-sky-500 bg-white font-mono"
-              />
-              {errors.P1_7 ? (
-                <p className="text-[11px] text-rose-600 mt-1">{errors.P1_7}</p>
-              ) : (
-                <span className="text-[10px] text-slate-500 mt-0.5 block">Compressor Inlet Pressure</span>
-              )}
-            </div>
-
-            {/* P3.0 (PT007) */}
-            <div>
-              <label htmlFor="input-p30" className="block text-xs font-semibold text-purple-900 mb-1">
-                P3.0 / PT007 (PSIA)
-              </label>
-              <input
-                id="input-p30"
-                type="text"
-                inputMode="decimal"
-                value={P3_0}
-                onChange={(e) => setP3_0(e.target.value)}
-                placeholder="e.g. 265.79"
-                required
-                className="w-full px-3 py-2 text-xs border-2 border-purple-400 rounded focus:ring-1 focus:ring-purple-500 focus:border-purple-500 bg-purple-50/30 font-mono font-black text-purple-950"
-              />
-              {errors.P3_0 ? (
-                <p className="text-[11px] text-rose-600 mt-1">{errors.P3_0}</p>
-              ) : (
-                <span className="text-[10px] text-purple-700 mt-0.5 block font-semibold">Compressor Discharge Pressure</span>
-              )}
-            </div>
-          </div>
-
-          {/* Group 3: Output & Performance (Real Power) */}
-          <div className="pt-1">
-            <div>
-              <label htmlFor="input-power" className="block text-xs font-semibold text-slate-700 mb-1">
-                Real Power / Beban (MW)
-              </label>
-              <input
-                id="input-power"
-                type="text"
-                inputMode="decimal"
-                value={realPower}
-                onChange={(e) => setRealPower(e.target.value)}
-                placeholder="e.g. 21.60"
-                required
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-sky-500 focus:border-sky-500 bg-white font-mono"
-              />
-              {errors.realPower && <p className="text-[11px] text-rose-600 mt-1">{errors.realPower}</p>}
-            </div>
-          </div>
-
-          {/* Live Dynamic Computation Banner (PR & PB Synthesis Evaluation) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded flex items-center justify-between text-xs">
-              <span className="text-slate-600">
-                Calculated Pressure Ratio (PR = P3.0 / P1.7):
-              </span>
-              <span className="font-mono font-bold text-slate-900 text-sm">
-                {calculatedPR !== null ? calculatedPR.toFixed(4) : '— (Auto-calculated)'}
-              </span>
-            </div>
-
-            <div className="p-3 bg-violet-50/70 border border-violet-200 rounded flex flex-col justify-between text-xs space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-violet-900 font-semibold">
-                  Kalkulasi PB Synthesis (Kurva f(NH) x P1.7):
-                </span>
-                <span className="font-mono font-bold text-violet-950 text-sm">
-                  {livePBOpEval ? `${livePBOpEval.pbSynthesis} PSIA (Y=${livePBOpEval.fNH})` : '— (Auto-calculated)'}
-                </span>
-              </div>
-              <div className="flex items-center justify-end pt-1 border-t border-violet-200/60">
-                <button
-                  type="button"
-                  onClick={() => setShowRefTable((v) => !v)}
-                  className="text-[11px] text-violet-700 hover:text-violet-950 font-semibold flex items-center gap-1 cursor-pointer"
-                >
-                  <Sliders className="w-3 h-3 text-violet-600" />
-                  <span>{showRefTable ? 'Sembunyikan Tabel Referensi' : 'Tabel Referensi f(NH)'}</span>
-                  {showRefTable ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Hidden Information: Tabel Referensi */}
-          {showRefTable && (
-            <div className="p-3.5 bg-violet-50/50 border border-violet-200 rounded-lg space-y-3 animate-in fade-in">
-              <div className="flex items-center justify-between border-b border-violet-200/70 pb-2">
-                <span className="text-xs font-bold text-violet-950 flex items-center gap-1.5">
-                  <Sliders className="w-3.5 h-3.5 text-violet-600" />
-                  <span>Tabel Referensi Speedronic f(NH) &amp; Kurva Operasi (Beban 1 &ndash; 23 MW)</span>
-                </span>
-                <span className="text-[10px] bg-violet-100 text-violet-800 font-bold px-2 py-0.5 rounded">
-                  Informasi Tersembunyi
-                </span>
-              </div>
-
-              {/* 8 Titik Speedronic */}
-              <div>
-                <span className="text-[11px] font-semibold text-slate-700 block mb-1">
-                  8 Titik Referensi Speedronic f(NH) Resmi:
-                </span>
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
-                  {DEFAULT_SPEEDRONIC_CURVE_POINTS.map((pt, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setNhSpeed(String(pt.x))}
-                      className="p-1.5 bg-white rounded border border-violet-200 text-center hover:bg-violet-100 transition-colors cursor-pointer"
-                      title="Klik untuk mengisi NH Speed"
-                    >
-                      <span className="text-[10px] text-slate-400 block font-mono">No. {idx + 1}</span>
-                      <span className="text-[11px] font-bold text-violet-950 block font-mono">{(pt.x / 1000).toFixed(3)}</span>
-                      <span className="text-[10px] text-violet-700 font-semibold block font-mono">Y = {pt.y}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 23 Titik Kurva PB Synthesis */}
-              <div className="overflow-auto max-h-48 bg-white rounded border border-violet-200">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 sticky top-0 z-10 [&_th:not([class*='bg-'])]:bg-slate-50 [&_th]:shadow-[inset_0_-1px_0_#e2e8f0] text-[11px]">
-                    <tr>
-                      <th className="py-1.5 px-2.5">Beban (MW)</th>
-                      <th className="py-1.5 px-2.5">NH Speed</th>
-                      <th className="py-1.5 px-2.5">Y (f(NH))</th>
-                      <th className="py-1.5 px-2.5">PT006</th>
-                      <th className="py-1.5 px-2.5 text-blue-700 font-bold">PB Synthesis</th>
-                      <th className="py-1.5 px-2.5 text-rose-700">Bawah (0.82x)</th>
-                      <th className="py-1.5 px-2.5 text-amber-700">Batas WW Bawah (-4.0 PSIA)</th>
-                      <th className="py-1.5 px-2.5 text-amber-700">Batas WW Atas (+4.0 PSIA)</th>
-                      <th className="py-1.5 px-2.5 text-rose-700">Atas (1.18x)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono text-[10px]">
-                    {DEFAULT_PB_OPERATION_CURVE_POINTS.map((pt, i) => (
-                      <tr key={i} className="hover:bg-violet-50/40">
-                        <td className="py-1 px-2.5 font-bold text-slate-900">{pt.beban.toFixed(2)}</td>
-                        <td className="py-1 px-2.5 text-violet-700">{(pt.nhSpeed / 1000).toFixed(3)}</td>
-                        <td className="py-1 px-2.5 font-bold">{pt.yInterpolated.toFixed(2)}</td>
-                        <td className="py-1 px-2.5 text-slate-600">{pt.pt006.toFixed(2)}</td>
-                        <td className="py-1 px-2.5 font-bold text-blue-700 bg-blue-50/50">{pt.pbSynthesis.toFixed(2)}</td>
-                        <td className="py-1 px-2.5 text-rose-700">{pt.lowerThreshold.toFixed(2)}</td>
-                        <td className="py-1 px-2.5 text-amber-700">{pt.earlyLower.toFixed(2)}</td>
-                        <td className="py-1 px-2.5 text-amber-700">{pt.earlyUpper.toFixed(2)}</td>
-                        <td className="py-1 px-2.5 text-rose-700">{pt.upperThreshold.toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Optional Water Wash tag */}
-          <div className="pt-2 space-y-2.5 border-t border-slate-100">
-            {/* Water Wash Event Checkbox */}
-            <div className="flex items-center gap-2">
-              <input
-                id="input-is-ww"
-                type="checkbox"
-                checked={isWaterWashEvent}
-                onChange={(e) => setIsWaterWashEvent(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
-              />
-              <label htmlFor="input-is-ww" className="text-xs font-medium text-slate-700 cursor-pointer">
-                Water Wash performed on this date
-              </label>
-            </div>
-
-            {/* Baseline Reference Checkbox */}
-            <div className="flex items-start gap-2">
-              <input
-                id="input-is-baseline"
-                type="checkbox"
-                checked={setAsBaseline}
-                onChange={(e) => setSetAsBaseline(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 mt-0.5"
-              />
-              <div>
-                <label htmlFor="input-is-baseline" className="text-xs font-semibold text-slate-800 cursor-pointer">
-                  Set this data as Baseline Reference
-                </label>
-                <p className="text-[11px] text-slate-500">
-                  {baseline.isConfigured
-                    ? 'Check if this reading represents a newly calibrated clean condition post-wash or overhaul.'
-                    : 'Recommended for your first real reading: Future readings will calculate deterioration % against this baseline.'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Exact Duplicate Warning Banner (Inline) */}
-          {liveDuplicateMatch && (
-            <div className="p-3.5 bg-amber-50/95 border-2 border-amber-400 rounded-lg text-amber-950 text-xs flex items-start gap-3 shadow-xs animate-in fade-in duration-150">
-              <div className="p-1.5 bg-amber-200/80 rounded-full text-amber-800 shrink-0 mt-0.5">
-                <AlertTriangle className="w-4 h-4 text-amber-700" />
-              </div>
-              <div className="space-y-1.5 flex-1">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <span className="font-extrabold text-amber-950 text-xs uppercase tracking-wide flex items-center gap-1.5">
-                    <span>⚠️ Peringatan: Data Duplikat Terdeteksi!</span>
-                  </span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-200 text-amber-900 border border-amber-300">
-                    Data Sudah Pernah Diinput
-                  </span>
-                </div>
-                <p className="text-amber-900 leading-relaxed text-xs">
-                  Data dengan tanggal <strong>{liveDuplicateMatch.existingRecord.date} {formatTimeWithSeconds(liveDuplicateMatch.existingRecord.time, '')}</strong> dan parameter teknis yang sama persis (Beban: <strong>{liveDuplicateMatch.existingRecord.realPower.toFixed(2)} MW</strong>, P1.7: <strong>{liveDuplicateMatch.existingRecord.P1_7.toFixed(2)}</strong>, P3.0: <strong>{liveDuplicateMatch.existingRecord.P3_0.toFixed(2)}</strong>) sudah tersimpan di riwayat.
-                </p>
-                <div className="p-2 bg-amber-100/70 border border-amber-300/80 rounded text-[11px] text-amber-950 font-medium flex items-center justify-between gap-2">
-                  <span>
-                    💡 <strong>Pemberitahuan:</strong> Jika Anda tetap menyimpan data ini, maka catatan data akan menjadi ganda (<strong>doubled</strong>).
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowDuplicateModal(true)}
-                    className="underline font-bold text-amber-900 hover:text-amber-950 shrink-0 cursor-pointer"
-                  >
-                    Lihat Detail Perbandingan
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Submit Button */}
-          <div className="pt-2 flex justify-end">
-            <button
-              id="btn-submit-data"
-              type="submit"
-              disabled={isSubmitting}
-              className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-semibold text-white bg-slate-900 rounded hover:bg-slate-800 disabled:opacity-50 transition-colors shadow-xs cursor-pointer"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{isSubmitting ? 'Recording...' : 'Submit'}</span>
-            </button>
-          </div>
-        </form>
-      </section>
-
-      {/* 1.5 OVERALL MONITORING STATUS (PERFORMA KOMPRESOR + PB SYNTHESIS) */}
+      {/* 1. OVERALL MONITORING STATUS (PERFORMA KOMPRESOR + PB SYNTHESIS) */}
       {(() => {
         const performaHasData = Boolean(latestEfisiensiRecord);
         const performaIsWW = latestEfisiensiRecord?.overallStatus === 'RECOMMEND WATER WASH';
@@ -1645,6 +1229,38 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
               ? 'border-amber-200'
               : 'border-emerald-200';
 
+            const pt007BoxClass = isWarning
+              ? 'bg-rose-100/90 border-rose-400'
+              : isRecommendWW
+              ? 'bg-rose-50/95 border-rose-300'
+              : isCaution
+              ? 'bg-amber-50/95 border-amber-300'
+              : 'bg-emerald-50/95 border-emerald-300';
+
+            const pt007LabelClass = isWarning
+              ? 'text-rose-950'
+              : isRecommendWW
+              ? 'text-rose-900'
+              : isCaution
+              ? 'text-amber-900'
+              : 'text-emerald-900';
+
+            const pt007ValueClass = isWarning
+              ? 'text-rose-950'
+              : isRecommendWW
+              ? 'text-rose-950'
+              : isCaution
+              ? 'text-amber-950'
+              : 'text-emerald-950';
+
+            const pt007UnitClass = isWarning
+              ? 'text-rose-800'
+              : isRecommendWW
+              ? 'text-rose-700'
+              : isCaution
+              ? 'text-amber-700'
+              : 'text-emerald-700';
+
             const buttonClass = !latestPbOverview?.evalRes
               ? 'text-slate-700 bg-white border-slate-300 hover:bg-slate-50'
               : isWarning
@@ -1786,10 +1402,10 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                           <strong className="text-slate-900 font-bold text-xs sm:text-sm">{latestPbOverview.evalRes.beban.toFixed(2)}</strong>
                           <span className="text-[10px] text-slate-500 block font-sans">Turbin</span>
                         </div>
-                        <div className="p-2.5 bg-purple-50/90 rounded-lg border border-purple-300 shadow-2xs">
-                          <span className="text-[10px] text-purple-900 font-sans block font-bold">★ PT007</span>
-                          <strong className="text-purple-950 font-black text-xs sm:text-sm">{latestPbOverview.evalRes.pt007.toFixed(2)}</strong>
-                          <span className="text-[10px] text-purple-700 block font-sans font-semibold">PSIA</span>
+                        <div className={`p-2.5 rounded-lg border shadow-2xs ${pt007BoxClass}`}>
+                          <span className={`text-[10px] font-sans block font-bold ${pt007LabelClass}`}>★ PT007</span>
+                          <strong className={`font-black text-xs sm:text-sm ${pt007ValueClass}`}>{latestPbOverview.evalRes.pt007.toFixed(2)}</strong>
+                          <span className={`text-[10px] block font-sans font-semibold ${pt007UnitClass}`}>PSIA</span>
                         </div>
                         <div className={`p-2.5 bg-white/95 rounded-lg border ${metricBorderClass} shadow-2xs`}>
                           <span className="text-[10px] text-slate-500 font-sans block">PB Synthesis</span>
@@ -1832,6 +1448,422 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
             );
           })()}
         </div>
+      </section>
+
+      {/* 2. OPERATOR INPUT FORM: INPUT DATA OPERASI */}
+      <section className="bg-white rounded-md border border-slate-200 p-6 shadow-xs">
+        <div className="border-b border-slate-200 pb-3 mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 tracking-tight">Input Data Operasi</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Masukkan 7 parameter operasi terintegrasi (Tanggal, Waktu, NH Speed, T1.7, P1.7, P3.0, Real Power) atau unggah berkas CSV / Excel.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {!showInstructions && (
+              <button
+                type="button"
+                onClick={() => setShowInstructions(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-sky-900 bg-white border border-sky-300 rounded hover:bg-sky-50 transition-colors shadow-2xs cursor-pointer"
+                title="Tampilkan kembali Petunjuk Penggunaan"
+              >
+                <BookOpen className="w-4 h-4 text-sky-700" />
+                <span>Petunjuk Penggunaan</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleDownloadExcelTemplate}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded hover:bg-emerald-100 transition-colors shadow-2xs cursor-pointer"
+              title="Download format template Excel untuk upload data operasi"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              <span>Excel Template</span>
+            </button>
+            {onOpenImport && (
+              <button
+                type="button"
+                onClick={onOpenImport}
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold text-sky-900 bg-sky-50 border border-sky-300 rounded hover:bg-sky-100 transition-colors shadow-2xs cursor-pointer"
+                title="Upload or paste raw operational exports with automatic column detection and standardization"
+              >
+                <Upload className="w-4 h-4 text-sky-700" />
+                <span>Upload Data Excel/CSV</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {submitMessage && (
+          <div
+            className={`p-3.5 rounded-md mb-5 text-xs font-medium flex items-center justify-between ${
+              submitMessage.type === 'success'
+                ? 'bg-emerald-50 border border-emerald-300 text-emerald-900'
+                : 'bg-rose-50 border border-rose-300 text-rose-900'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {submitMessage.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              )}
+              <span>{submitMessage.text}</span>
+            </div>
+            {submitMessage.type === 'success' && (
+              <button
+                type="button"
+                onClick={() => onNavigate('dashboard')}
+                className="text-xs font-semibold text-emerald-800 underline hover:text-emerald-950"
+              >
+                Lihat Performa Kompresor
+              </button>
+            )}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Group 1: Tanggal & Waktu */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="input-date" className="block text-xs font-semibold text-slate-700 mb-1">
+                Date (Tanggal Operasi)
+              </label>
+              <input
+                id="input-date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                required
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-sky-500 focus:border-sky-500 bg-white"
+              />
+              {errors.date && <p className="text-[11px] text-rose-600 mt-1">{errors.date}</p>}
+            </div>
+
+            <div>
+              <label htmlFor="input-time" className="block text-xs font-semibold text-slate-700 mb-1">
+                Time (Waktu / Jam &mdash; HH:MM:SS)
+              </label>
+              <input
+                id="input-time"
+                type="time"
+                step="1"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                required
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-sky-500 focus:border-sky-500 bg-white font-mono"
+              />
+              {errors.time && <p className="text-[11px] text-rose-600 mt-1">{errors.time}</p>}
+            </div>
+          </div>
+
+          {/* Group 2: Kecepatan & Tekanan Turbin/Kompresor (NH Speed, T1.7, P1.7, P3.0) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+            {/* NH Speed */}
+            <div>
+              <label htmlFor="input-nh-speed" className="block text-xs font-semibold text-slate-700 mb-1">
+                NH Speed (RPM)
+              </label>
+              <input
+                id="input-nh-speed"
+                type="text"
+                inputMode="decimal"
+                value={nhSpeed}
+                onChange={(e) => setNhSpeed(e.target.value)}
+                placeholder="e.g. 11670"
+                required
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-sky-500 focus:border-sky-500 bg-white font-mono"
+              />
+              {errors.nhSpeed ? (
+                <p className="text-[11px] text-rose-600 mt-1">{errors.nhSpeed}</p>
+              ) : (
+                livePBOpEval && (
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">
+                    Koreksi: {livePBOpEval.nhSpeedCorrected} RPM
+                  </span>
+                )
+              )}
+            </div>
+
+            {/* T1.7 Inlet Temperature */}
+            <div>
+              <label htmlFor="input-t17" className="block text-xs font-semibold text-slate-700 mb-1">
+                T1.7 (°F)
+              </label>
+              <input
+                id="input-t17"
+                type="text"
+                inputMode="decimal"
+                value={T1_7}
+                onChange={(e) => setT1_7(e.target.value)}
+                placeholder="e.g. 85.5"
+                required
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-sky-500 focus:border-sky-500 bg-white font-mono"
+              />
+              {errors.T1_7 ? (
+                <p className="text-[11px] text-rose-600 mt-1">{errors.T1_7}</p>
+              ) : (
+                <span className="text-[10px] text-slate-500 mt-0.5 block">
+                  {livePBOpEval ? `θ=${livePBOpEval.theta} (√θ=${livePBOpEval.sqrtTheta})` : 'Compressor Inlet Temp'}
+                </span>
+              )}
+            </div>
+
+            {/* P1.7 (PT006) */}
+            <div>
+              <label htmlFor="input-p17" className="block text-xs font-semibold text-slate-700 mb-1">
+                P1.7 / PT006 (PSIA)
+              </label>
+              <input
+                id="input-p17"
+                type="text"
+                inputMode="decimal"
+                value={P1_7}
+                onChange={(e) => setP1_7(e.target.value)}
+                placeholder="e.g. 14.65"
+                required
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-sky-500 focus:border-sky-500 bg-white font-mono"
+              />
+              {errors.P1_7 ? (
+                <p className="text-[11px] text-rose-600 mt-1">{errors.P1_7}</p>
+              ) : (
+                <span className="text-[10px] text-slate-500 mt-0.5 block">Compressor Inlet Pressure</span>
+              )}
+            </div>
+
+            {/* P3.0 (PT007) */}
+            <div>
+              <label htmlFor="input-p30" className="block text-xs font-semibold text-slate-700 mb-1">
+                P3.0 / PT007 (PSIA)
+              </label>
+              <input
+                id="input-p30"
+                type="text"
+                inputMode="decimal"
+                value={P3_0}
+                onChange={(e) => setP3_0(e.target.value)}
+                placeholder="e.g. 265.79"
+                required
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-sky-500 focus:border-sky-500 bg-white font-mono"
+              />
+              {errors.P3_0 ? (
+                <p className="text-[11px] text-rose-600 mt-1">{errors.P3_0}</p>
+              ) : (
+                <span className="text-[10px] text-slate-500 mt-0.5 block">Compressor Discharge Pressure</span>
+              )}
+            </div>
+          </div>
+
+          {/* Group 3: Output & Performance (Real Power) */}
+          <div className="pt-1">
+            <div>
+              <label htmlFor="input-power" className="block text-xs font-semibold text-slate-700 mb-1">
+                Real Power / Beban (MW)
+              </label>
+              <input
+                id="input-power"
+                type="text"
+                inputMode="decimal"
+                value={realPower}
+                onChange={(e) => setRealPower(e.target.value)}
+                placeholder="e.g. 21.60"
+                required
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-sky-500 focus:border-sky-500 bg-white font-mono"
+              />
+              {errors.realPower && <p className="text-[11px] text-rose-600 mt-1">{errors.realPower}</p>}
+            </div>
+          </div>
+
+          {/* Live Dynamic Computation Banner (PR & PB Synthesis Evaluation) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded flex items-center justify-between text-xs">
+              <span className="text-slate-600">
+                Calculated Pressure Ratio (PR = P3.0 / P1.7):
+              </span>
+              <span className="font-mono font-bold text-slate-900 text-sm">
+                {calculatedPR !== null ? calculatedPR.toFixed(4) : '— (Auto-calculated)'}
+              </span>
+            </div>
+
+            <div className="p-3 bg-violet-50/70 border border-violet-200 rounded flex flex-col justify-between text-xs space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-violet-900 font-semibold">
+                  Kalkulasi PB Synthesis (Kurva f(NH) x P1.7):
+                </span>
+                <span className="font-mono font-bold text-violet-950 text-sm">
+                  {livePBOpEval ? `${livePBOpEval.pbSynthesis} PSIA (Y=${livePBOpEval.fNH})` : '— (Auto-calculated)'}
+                </span>
+              </div>
+              <div className="flex items-center justify-end pt-1 border-t border-violet-200/60">
+                <button
+                  type="button"
+                  onClick={() => setShowRefTable((v) => !v)}
+                  className="text-[11px] text-violet-700 hover:text-violet-950 font-semibold flex items-center gap-1 cursor-pointer"
+                >
+                  <Sliders className="w-3 h-3 text-violet-600" />
+                  <span>{showRefTable ? 'Sembunyikan Tabel Referensi' : 'Tabel Referensi f(NH)'}</span>
+                  {showRefTable ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Hidden Information: Tabel Referensi */}
+          {showRefTable && (
+            <div className="p-3.5 bg-violet-50/50 border border-violet-200 rounded-lg space-y-3 animate-in fade-in">
+              <div className="flex items-center justify-between border-b border-violet-200/70 pb-2">
+                <span className="text-xs font-bold text-violet-950 flex items-center gap-1.5">
+                  <Sliders className="w-3.5 h-3.5 text-violet-600" />
+                  <span>Tabel Referensi Speedronic f(NH) &amp; Kurva Operasi (Beban 1 &ndash; 23 MW)</span>
+                </span>
+                <span className="text-[10px] bg-violet-100 text-violet-800 font-bold px-2 py-0.5 rounded">
+                  Informasi Tersembunyi
+                </span>
+              </div>
+
+              {/* 8 Titik Speedronic */}
+              <div>
+                <span className="text-[11px] font-semibold text-slate-700 block mb-1">
+                  8 Titik Referensi Speedronic f(NH) Resmi:
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+                  {DEFAULT_SPEEDRONIC_CURVE_POINTS.map((pt, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setNhSpeed(String(pt.x))}
+                      className="p-1.5 bg-white rounded border border-violet-200 text-center hover:bg-violet-100 transition-colors cursor-pointer"
+                      title="Klik untuk mengisi NH Speed"
+                    >
+                      <span className="text-[10px] text-slate-400 block font-mono">No. {idx + 1}</span>
+                      <span className="text-[11px] font-bold text-violet-950 block font-mono">{(pt.x / 1000).toFixed(3)}</span>
+                      <span className="text-[10px] text-violet-700 font-semibold block font-mono">Y = {pt.y}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 23 Titik Kurva PB Synthesis */}
+              <div className="overflow-auto max-h-48 bg-white rounded border border-violet-200">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 sticky top-0 z-10 [&_th:not([class*='bg-'])]:bg-slate-50 [&_th]:shadow-[inset_0_-1px_0_#e2e8f0] text-[11px]">
+                    <tr>
+                      <th className="py-1.5 px-2.5">Beban (MW)</th>
+                      <th className="py-1.5 px-2.5">NH Speed</th>
+                      <th className="py-1.5 px-2.5">Y (f(NH))</th>
+                      <th className="py-1.5 px-2.5">PT006</th>
+                      <th className="py-1.5 px-2.5 text-blue-700 font-bold">PB Synthesis</th>
+                      <th className="py-1.5 px-2.5 text-rose-700">Bawah (0.82x)</th>
+                      <th className="py-1.5 px-2.5 text-amber-700">Batas WW Bawah (-4.0 PSIA)</th>
+                      <th className="py-1.5 px-2.5 text-amber-700">Batas WW Atas (+4.0 PSIA)</th>
+                      <th className="py-1.5 px-2.5 text-rose-700">Atas (1.18x)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono text-[10px]">
+                    {DEFAULT_PB_OPERATION_CURVE_POINTS.map((pt, i) => (
+                      <tr key={i} className="hover:bg-violet-50/40">
+                        <td className="py-1 px-2.5 font-bold text-slate-900">{pt.beban.toFixed(2)}</td>
+                        <td className="py-1 px-2.5 text-violet-700">{(pt.nhSpeed / 1000).toFixed(3)}</td>
+                        <td className="py-1 px-2.5 font-bold">{pt.yInterpolated.toFixed(2)}</td>
+                        <td className="py-1 px-2.5 text-slate-600">{pt.pt006.toFixed(2)}</td>
+                        <td className="py-1 px-2.5 font-bold text-blue-700 bg-blue-50/50">{pt.pbSynthesis.toFixed(2)}</td>
+                        <td className="py-1 px-2.5 text-rose-700">{pt.lowerThreshold.toFixed(2)}</td>
+                        <td className="py-1 px-2.5 text-amber-700">{pt.earlyLower.toFixed(2)}</td>
+                        <td className="py-1 px-2.5 text-amber-700">{pt.earlyUpper.toFixed(2)}</td>
+                        <td className="py-1 px-2.5 text-rose-700">{pt.upperThreshold.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Optional Water Wash tag */}
+          <div className="pt-2 space-y-2.5 border-t border-slate-100">
+            {/* Water Wash Event Checkbox */}
+            <div className="flex items-center gap-2">
+              <input
+                id="input-is-ww"
+                type="checkbox"
+                checked={isWaterWashEvent}
+                onChange={(e) => setIsWaterWashEvent(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+              />
+              <label htmlFor="input-is-ww" className="text-xs font-medium text-slate-700 cursor-pointer">
+                Water Wash performed on this date
+              </label>
+            </div>
+
+            {/* Baseline Reference Checkbox */}
+            <div className="flex items-start gap-2">
+              <input
+                id="input-is-baseline"
+                type="checkbox"
+                checked={setAsBaseline}
+                onChange={(e) => setSetAsBaseline(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 mt-0.5"
+              />
+              <div>
+                <label htmlFor="input-is-baseline" className="text-xs font-semibold text-slate-800 cursor-pointer">
+                  Set this data as Baseline Reference
+                </label>
+                <p className="text-[11px] text-slate-500">
+                  {baseline.isConfigured
+                    ? 'Check if this reading represents a newly calibrated clean condition post-wash or overhaul.'
+                    : 'Recommended for your first real reading: Future readings will calculate deterioration % against this baseline.'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Exact Duplicate Warning Banner (Inline) */}
+          {liveDuplicateMatch && (
+            <div className="p-3.5 bg-amber-50/95 border-2 border-amber-400 rounded-lg text-amber-950 text-xs flex items-start gap-3 shadow-xs animate-in fade-in duration-150">
+              <div className="p-1.5 bg-amber-200/80 rounded-full text-amber-800 shrink-0 mt-0.5">
+                <AlertTriangle className="w-4 h-4 text-amber-700" />
+              </div>
+              <div className="space-y-1.5 flex-1">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="font-extrabold text-amber-950 text-xs uppercase tracking-wide flex items-center gap-1.5">
+                    <span>⚠️ Peringatan: Data Duplikat Terdeteksi!</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-200 text-amber-900 border border-amber-300">
+                    Data Sudah Pernah Diinput
+                  </span>
+                </div>
+                <p className="text-amber-900 leading-relaxed text-xs">
+                  Data dengan tanggal <strong>{liveDuplicateMatch.existingRecord.date} {formatTimeWithSeconds(liveDuplicateMatch.existingRecord.time, '')}</strong> dan parameter teknis yang sama persis (Beban: <strong>{liveDuplicateMatch.existingRecord.realPower.toFixed(2)} MW</strong>, P1.7: <strong>{liveDuplicateMatch.existingRecord.P1_7.toFixed(2)}</strong>, P3.0: <strong>{liveDuplicateMatch.existingRecord.P3_0.toFixed(2)}</strong>) sudah tersimpan di riwayat.
+                </p>
+                <div className="p-2 bg-amber-100/70 border border-amber-300/80 rounded text-[11px] text-amber-950 font-medium flex items-center justify-between gap-2">
+                  <span>
+                    💡 <strong>Pemberitahuan:</strong> Jika Anda tetap menyimpan data ini, maka catatan data akan menjadi ganda (<strong>doubled</strong>).
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowDuplicateModal(true)}
+                    className="underline font-bold text-amber-900 hover:text-amber-950 shrink-0 cursor-pointer"
+                  >
+                    Lihat Detail Perbandingan
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Submit Button */}
+          <div className="pt-2 flex justify-end">
+            <button
+              id="btn-submit-data"
+              type="submit"
+              disabled={isSubmitting}
+              className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-semibold text-white bg-slate-900 rounded hover:bg-slate-800 disabled:opacity-50 transition-colors shadow-xs cursor-pointer"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>{isSubmitting ? 'Recording...' : 'Submit'}</span>
+            </button>
+          </div>
+        </form>
       </section>
 
       {/* 3. INPUT HISTORY (DIVIDED INTO WATER WASHING & PB SYNTHESIS SECTIONS) */}
@@ -2100,8 +2132,8 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                       <tr>
                         <th className="py-2 px-2.5 whitespace-nowrap">Date</th>
                         <th className="py-2 px-1.5 text-center whitespace-nowrap">Navigasi</th>
-                        <th className="py-2 px-2 text-right whitespace-nowrap">P1.7 (PSIA)</th>
-                        <th className="py-2 px-2 text-right whitespace-nowrap">P3.0 (PSIA)</th>
+                        <th className="py-2 px-2 text-right whitespace-nowrap">PT006 (PSIA)</th>
+                        <th className="py-2 px-2 text-right whitespace-nowrap">PT007 (PSIA)</th>
                         <th className="py-2 px-2 text-right whitespace-nowrap">PR</th>
                         <th className="py-2 px-2 text-right whitespace-nowrap">Power (MW)</th>
                         <th className="py-2 px-1.5 text-center whitespace-nowrap">Perf. Index</th>
@@ -2532,7 +2564,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                         <th className="py-2 px-2 whitespace-nowrap">Date</th>
                         <th className="py-2 px-1.5 text-center whitespace-nowrap">Navigasi</th>
                         <th className="py-2 px-1.5 text-center whitespace-nowrap">Time</th>
-                        <th className="py-2 px-1.5 text-right whitespace-nowrap">P1.7 (PSIA)</th>
+                        <th className="py-2 px-1.5 text-right whitespace-nowrap">PT006 (PSIA)</th>
                         <th className="py-2 px-1.5 text-right whitespace-nowrap">PT007 (PSIA)</th>
                         <th className="py-2 px-1.5 text-right whitespace-nowrap">PR</th>
                         <th className="py-2 px-1.5 text-right whitespace-nowrap">Power (MW)</th>
