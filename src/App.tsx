@@ -54,6 +54,7 @@ import {
   subscribeOperationalRecords,
   subscribePlantBaseline,
   subscribePlantThresholds,
+  updateOperationalRecordInCloud,
   updateRecordPBSynthesisBatchInCloud,
   updateWaterWashTagsInCloud,
   upsertOperationalRecordsBatchInCloud,
@@ -856,6 +857,54 @@ export default function App() {
     );
   };
 
+  // Edit an existing operational record and sync to cloud
+  const handleEditRecord = async (
+    recordId: string,
+    updatedInput: OperationalInput
+  ): Promise<{ success: boolean; message: string }> => {
+    const uid = ensureOperatorUid();
+    if (!uid) {
+      return {
+        success: false,
+        message: 'Database cloud belum terhubung. Selesaikan aktivasi koneksi terlebih dahulu.',
+      };
+    }
+
+    try {
+      await updateOperationalRecordInCloud(recordId, updatedInput, uid);
+
+      if (baseline.isConfigured && baseline.sourceRecordId === recordId) {
+        const pr =
+          updatedInput.P1_7 > 0 ? Number((updatedInput.P3_0 / updatedInput.P1_7).toFixed(4)) : null;
+        await savePlantBaselineInCloud(
+          {
+            ...baseline,
+            date: updatedInput.date,
+            time: updatedInput.time,
+            T1_7: updatedInput.T1_7,
+            P1_7: updatedInput.P1_7,
+            P3_0: updatedInput.P3_0,
+            PR: pr,
+            realPower: updatedInput.realPower,
+            referenceDescription: `Operational baseline established from record on ${updatedInput.date} ${updatedInput.time}`,
+            setAt: new Date().toISOString(),
+          },
+          uid
+        );
+      }
+
+      setImportNotification({
+        type: 'success',
+        text: `Data operasional (${updatedInput.date} ${updatedInput.time}) berhasil diperbarui!`,
+        details: 'Perubahan otomatis tersinkronisasi di Performa Kompresor, PB Synthesis, dan semua perangkat.',
+      });
+      return { success: true, message: 'Data berhasil diperbarui.' };
+    } catch (err) {
+      handleCloudMutationError(err, 'Gagal memperbarui data di cloud database.');
+      return { success: false, message: 'Gagal memperbarui data di cloud database.' };
+    }
+  };
+
   // Set an existing operational record as the active baseline
   const handleSetBaselineRecord = (record: OperationalRecord) => {
     const uid = ensureOperatorUid();
@@ -1091,6 +1140,7 @@ export default function App() {
             onNavigate={setActiveTab}
             onToggleWaterWash={handleToggleWaterWashRecord}
             onClearAllWaterWash={handleClearAllWaterWash}
+            onEditRecord={handleEditRecord}
             onDeleteRecord={handleDeleteRecord}
             onClearAllData={handleClearData}
             onDeduplicateRecords={handleDeduplicateRecords}

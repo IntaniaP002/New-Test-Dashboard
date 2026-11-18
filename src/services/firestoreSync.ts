@@ -306,6 +306,20 @@ export async function createOperationalRecordInCloud(
   }
 }
 
+export async function updateOperationalRecordInCloud(
+  recordId: string,
+  input: OperationalInput,
+  uid: string
+): Promise<void> {
+  const safeId = sanitizeDocId(recordId);
+  const path = `${COLLECTION_RECORDS}/${safeId}`;
+  try {
+    await updateDoc(doc(db, COLLECTION_RECORDS, safeId), buildOperationalUpdatablePayload(input, uid));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
 export async function savePlantBaselineInCloud(
   baseline: BaselineConfig,
   uid: string

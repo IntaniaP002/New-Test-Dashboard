@@ -28,6 +28,7 @@ import {
   Zap,
   BookOpen,
   X,
+  Pencil,
 } from 'lucide-react';
 import {
   BaselineConfig,
@@ -64,6 +65,7 @@ interface OperatorInputViewProps {
   onNavigate: (tab: 'dashboard' | 'input' | 'pbSynthesis') => void;
   onToggleWaterWash?: (recordId: string) => void;
   onClearAllWaterWash?: () => void;
+  onEditRecord?: (recordId: string, updated: OperationalInput) => Promise<{ success: boolean; message: string }>;
   onDeleteRecord?: (recordId: string) => void;
   onClearAllData?: () => void;
   onDeduplicateRecords?: () => void;
@@ -83,6 +85,14 @@ interface DeleteTargetInfo {
   details?: string;
 }
 
+interface EditTargetContext {
+  sourceSection: 'performa' | 'pb_synthesis';
+  rowDate: string;
+  candidates: OperationalRecord[];
+  averagedIds: string[];
+  selectedId: string;
+}
+
 export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
   onRecordSubmitted,
   baseline,
@@ -96,6 +106,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
   onNavigate,
   onToggleWaterWash,
   onClearAllWaterWash,
+  onEditRecord,
   onDeleteRecord,
   onClearAllData,
   onDeduplicateRecords,
@@ -187,6 +198,19 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
   const [pbPageSize, setPbPageSize] = useState<number>(50);
   const [pbCurrentPage, setPbCurrentPage] = useState<number>(1);
   const [recordToDelete, setRecordToDelete] = useState<DeleteTargetInfo | null>(null);
+  const [editTarget, setEditTarget] = useState<EditTargetContext | null>(null);
+  const [editDate, setEditDate] = useState<string>('');
+  const [editTime, setEditTime] = useState<string>('');
+  const [editNhSpeed, setEditNhSpeed] = useState<string>('');
+  const [editT17, setEditT17] = useState<string>('');
+  const [editP17, setEditP17] = useState<string>('');
+  const [editP30, setEditP30] = useState<string>('');
+  const [editRealPower, setEditRealPower] = useState<string>('');
+  const [editIsWW, setEditIsWW] = useState<boolean>(false);
+  const [editNotes, setEditNotes] = useState<string>('');
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({});
+  const [editSubmitError, setEditSubmitError] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
 
   // Monitoring Overview Filter State (separate for each card + sync option)
   const [syncMonitoringDates, setSyncMonitoringDates] = useState<boolean>(true);
@@ -496,6 +520,165 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
     }
     return evaluatePBOperationPoint(b, nh, t, p1, p3);
   }, [realPower, nhSpeed, T1_7, P1_7, P3_0]);
+
+  // Live edit modal PR & PB Synthesis preview
+  const editCalculatedPR = useMemo(() => {
+    const n3 = normalizeDotDecimal(editP30);
+    const n1 = normalizeDotDecimal(editP17);
+    const p3 = isStrictDecimalToken(n3) ? parseFloat(n3) : NaN;
+    const p1 = isStrictDecimalToken(n1) ? parseFloat(n1) : NaN;
+    if (!isNaN(p3) && !isNaN(p1) && p1 > 0 && p3 > 0) {
+      return calculatePressureRatio(p3, p1);
+    }
+    return null;
+  }, [editP30, editP17]);
+
+  const editLivePBOpEval = useMemo(() => {
+    const nb = normalizeDotDecimal(editRealPower);
+    const nt = normalizeDotDecimal(editT17);
+    const n1 = normalizeDotDecimal(editP17);
+    const n3 = normalizeDotDecimal(editP30);
+    const b = isStrictDecimalToken(nb) ? parseFloat(nb) : NaN;
+    const nh = parseNHSpeed(editNhSpeed);
+    const t = isStrictDecimalToken(nt) ? parseFloat(nt) : NaN;
+    const p1 = isStrictDecimalToken(n1) ? parseFloat(n1) : NaN;
+    const p3 = isStrictDecimalToken(n3) ? parseFloat(n3) : NaN;
+    if (isNaN(b) || b <= 0 || isNaN(nh) || nh <= 0 || isNaN(t) || isNaN(p1) || p1 <= 0 || isNaN(p3) || p3 <= 0) {
+      return null;
+    }
+    return evaluatePBOperationPoint(b, nh, t, p1, p3);
+  }, [editRealPower, editNhSpeed, editT17, editP17, editP30]);
+
+  const loadRecordIntoEditForm = (rec: OperationalRecord) => {
+    setEditDate(rec.date);
+    setEditTime(formatTimeWithSeconds(rec.time, '19:00:00'));
+    setEditNhSpeed(rec.nhSpeed !== undefined && rec.nhSpeed !== null ? String(rec.nhSpeed) : '');
+    setEditT17(rec.T1_7 !== undefined && rec.T1_7 !== null ? String(rec.T1_7) : '');
+    setEditP17(String(rec.P1_7 ?? ''));
+    setEditP30(String(rec.P3_0 ?? ''));
+    setEditRealPower(String(rec.realPower ?? ''));
+    setEditIsWW(Boolean(rec.isWaterWashEvent));
+    setEditNotes(rec.notes || '');
+    setEditErrors({});
+    setEditSubmitError(null);
+  };
+
+  const openEditForPerformaRow = (row: OperationalRecord) => {
+    const dayRecords = records
+      .filter((rec) => rec.date === row.date)
+      .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+    const candidates = dayRecords.length > 0 ? dayRecords : [row];
+    const averagedIds = row.sourceRecordIds && row.sourceRecordIds.length > 0 ? row.sourceRecordIds : [row.id];
+    const preferredId = !row.id.startsWith('daily-')
+      ? row.id
+      : averagedIds[0] || candidates[0].id;
+    const initialRec = candidates.find((c) => c.id === preferredId) || candidates[0];
+    setEditTarget({
+      sourceSection: 'performa',
+      rowDate: row.date,
+      candidates,
+      averagedIds,
+      selectedId: initialRec.id,
+    });
+    loadRecordIntoEditForm(initialRec);
+  };
+
+  const openEditForPbRow = (row: OperationalRecord) => {
+    setEditTarget({
+      sourceSection: 'pb_synthesis',
+      rowDate: row.date,
+      candidates: [row],
+      averagedIds: [row.id],
+      selectedId: row.id,
+    });
+    loadRecordIntoEditForm(row);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTarget || !onEditRecord) return;
+
+    const activeRecord =
+      editTarget.candidates.find((c) => c.id === editTarget.selectedId) || editTarget.candidates[0];
+    if (!activeRecord) return;
+
+    const normT17 = normalizeDotDecimal(editT17);
+    const normP17 = normalizeDotDecimal(editP17);
+    const normP30 = normalizeDotDecimal(editP30);
+    const normPower = normalizeDotDecimal(editRealPower);
+    const parsedNH = parseNHSpeed(editNhSpeed);
+    const normNH = !isNaN(parsedNH) && parsedNH > 0 ? String(parsedNH) : normalizeDotDecimal(editNhSpeed);
+
+    const errs: Record<string, string> = {};
+    if (!editDate || !/^\d{4}-\d{2}-\d{2}$/.test(editDate)) {
+      errs.date = 'Tanggal wajib diisi (YYYY-MM-DD)';
+    }
+    if (!editTime.trim()) {
+      errs.time = 'Waktu wajib diisi (contoh: 19:00:00)';
+    }
+    if (normNH.trim() !== '' && (isNaN(parsedNH) || parsedNH <= 0)) {
+      errs.nhSpeed = 'NH Speed harus berupa angka RPM positif (contoh: 11670)';
+    }
+    const parsedT17 = isStrictDecimalToken(normT17) ? parseFloat(normT17) : NaN;
+    if (normT17.trim() !== '' && isNaN(parsedT17)) {
+      errs.T1_7 = 'T1.7 harus berupa angka temperatur (°F)';
+    }
+    const parsedP17 = isStrictDecimalToken(normP17) ? parseFloat(normP17) : NaN;
+    if (isNaN(parsedP17) || parsedP17 <= 0) {
+      errs.P1_7 = 'PT006 (P1.7) harus berupa angka positif';
+    }
+    const parsedP30 = isStrictDecimalToken(normP30) ? parseFloat(normP30) : NaN;
+    if (isNaN(parsedP30) || parsedP30 <= 0) {
+      errs.P3_0 = 'PT007 (P3.0) harus berupa angka positif';
+    }
+    const parsedPower = isStrictDecimalToken(normPower) ? parseFloat(normPower) : NaN;
+    if (isNaN(parsedPower) || parsedPower <= 0) {
+      errs.realPower = 'Real Power (MW) harus berupa angka positif';
+    }
+
+    setEditErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+
+    const updatedInput: OperationalInput = {
+      date: editDate,
+      time: formatTimeWithSeconds(editTime, '19:00:00'),
+      nhSpeed: normNH.trim() !== '' && !isNaN(parsedNH) && parsedNH > 0 ? parsedNH : null,
+      T1_7: normT17.trim() !== '' && !isNaN(parsedT17) ? parsedT17 : null,
+      P1_7: parsedP17,
+      P3_0: parsedP30,
+      pt006: parsedP17,
+      realPower: parsedPower,
+      pbSynthesis: editLivePBOpEval?.pbSynthesis ?? activeRecord.pbSynthesis ?? null,
+      pbSynthesisDB: activeRecord.pbSynthesisDB ?? null,
+      fNH: editLivePBOpEval?.fNH ?? activeRecord.fNH ?? null,
+      x1: activeRecord.x1 ?? null,
+      y1: activeRecord.y1 ?? null,
+      x2: activeRecord.x2 ?? null,
+      y2: activeRecord.y2 ?? null,
+      upperMultiplier: activeRecord.upperMultiplier ?? null,
+      lowerMultiplier: activeRecord.lowerMultiplier ?? null,
+      isDrivebackWWRecommended: activeRecord.isDrivebackWWRecommended ?? false,
+      isPbBaseline: activeRecord.isPbBaseline ?? false,
+      isWaterWashEvent: editIsWW,
+      waterWashEventNumber: activeRecord.waterWashEventNumber ?? null,
+      notes: editNotes.trim() || (editIsWW ? 'Water Wash Event' : undefined),
+    };
+
+    setIsSavingEdit(true);
+    setEditSubmitError(null);
+    try {
+      const res = await onEditRecord(activeRecord.id, updatedInput);
+      if (res.success) {
+        setEditTarget(null);
+      } else {
+        setEditSubmitError(res.message || 'Gagal memperbarui data.');
+      }
+    } catch {
+      setEditSubmitError('Terjadi kesalahan saat menyimpan perubahan.');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
 
   // Candidate operational data for exact duplicate detection
   const candidateData = useMemo(() => {
@@ -2139,7 +2322,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                         <th className="py-2 px-1.5 text-center whitespace-nowrap">Perf. Index</th>
                         <th className="py-2 px-1.5 text-center whitespace-nowrap">Baseline</th>
                         <th className="py-2 px-1.5 text-center whitespace-nowrap">WW Status</th>
-                        {onDeleteRecord && <th className="py-2 px-1 text-center whitespace-nowrap">Aksi</th>}
+                        {(onEditRecord || onDeleteRecord) && <th className="py-2 px-1.5 text-center whitespace-nowrap">Aksi</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-xs">
@@ -2289,27 +2472,48 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                               )}
                             </td>
 
-                            {/* Action: Trash Icon */}
-                            {onDeleteRecord && (
-                              <td className="py-2 px-1 text-center whitespace-nowrap">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setRecordToDelete({
-                                      id: r.id,
-                                      date: r.date,
-                                      time: r.time,
-                                      isDailyAverage: true,
-                                      count: r.hourlyObservationsCount,
-                                      details: `Beban: ${r.realPower.toFixed(2)} MW | P3.0: ${r.P3_0.toFixed(2)} PSIA | PR: ${r.PR?.toFixed(4) || '-'}`,
-                                    });
-                                  }}
-                                  className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer inline-flex items-center justify-center"
-                                  title="Hapus data harian ini (dengan konfirmasi)"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                            {/* Action: Edit & Delete Icons */}
+                            {(onEditRecord || onDeleteRecord) && (
+                              <td className="py-2 px-1.5 text-center whitespace-nowrap">
+                                <div className="inline-flex items-center justify-center gap-0.5">
+                                  {onEditRecord && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openEditForPerformaRow(r);
+                                      }}
+                                      className="p-1 text-slate-400 hover:text-sky-600 rounded hover:bg-sky-50 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                      title={
+                                        r.id.startsWith('daily-') && (r.hourlyObservationsCount ?? 0) > 1
+                                          ? `Edit entri data pada tanggal ${r.date}`
+                                          : 'Edit data ini'
+                                      }
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                  {onDeleteRecord && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setRecordToDelete({
+                                          id: r.id,
+                                          date: r.date,
+                                          time: r.time,
+                                          isDailyAverage: true,
+                                          count: r.hourlyObservationsCount,
+                                          details: `Beban: ${r.realPower.toFixed(2)} MW | P3.0: ${r.P3_0.toFixed(2)} PSIA | PR: ${r.PR?.toFixed(4) || '-'}`,
+                                        });
+                                      }}
+                                      className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                      title="Hapus data harian ini (dengan konfirmasi)"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
                               </td>
                             )}
                           </tr>
@@ -2573,7 +2777,7 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                         <th className="py-2 px-1 text-center whitespace-nowrap">f(NH)</th>
                         <th className="py-2 px-1.5 text-center whitespace-nowrap">PB Syn</th>
                         <th className="py-2 px-1.5 text-center whitespace-nowrap">Status</th>
-                        {onDeleteRecord && <th className="py-2 px-1 text-center whitespace-nowrap">Aksi</th>}
+                        {(onEditRecord || onDeleteRecord) && <th className="py-2 px-1.5 text-center whitespace-nowrap">Aksi</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-xs">
@@ -2712,26 +2916,43 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                               )}
                             </td>
 
-                            {/* Action: Trash Icon */}
-                            {onDeleteRecord && (
-                              <td className="py-2 px-1 text-center whitespace-nowrap">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setRecordToDelete({
-                                      id: r.id,
-                                      date: r.date,
-                                      time: r.time,
-                                      isDailyAverage: false,
-                                      details: `Beban: ${r.realPower.toFixed(2)} MW | PT006: ${r.P1_7.toFixed(2)} PSIA | PT007: ${r.P3_0.toFixed(2)} PSIA`,
-                                    });
-                                  }}
-                                  className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer inline-flex items-center justify-center"
-                                  title="Hapus baris data ini (dengan konfirmasi)"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                            {/* Action: Edit & Delete Icons */}
+                            {(onEditRecord || onDeleteRecord) && (
+                              <td className="py-2 px-1.5 text-center whitespace-nowrap">
+                                <div className="inline-flex items-center justify-center gap-0.5">
+                                  {onEditRecord && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openEditForPbRow(r);
+                                      }}
+                                      className="p-1 text-slate-400 hover:text-violet-600 rounded hover:bg-violet-50 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                      title="Edit baris data ini"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                  {onDeleteRecord && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setRecordToDelete({
+                                          id: r.id,
+                                          date: r.date,
+                                          time: r.time,
+                                          isDailyAverage: false,
+                                          details: `Beban: ${r.realPower.toFixed(2)} MW | PT006: ${r.P1_7.toFixed(2)} PSIA | PT007: ${r.P3_0.toFixed(2)} PSIA`,
+                                        });
+                                      }}
+                                      className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                      title="Hapus baris data ini (dengan konfirmasi)"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
                               </td>
                             )}
                           </tr>
@@ -2956,6 +3177,257 @@ export const OperatorInputView: React.FC<OperatorInputViewProps> = ({
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Operational Record Modal */}
+      {editTarget && (
+        <div
+          id="edit-record-modal-backdrop"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+          onClick={() => !isSavingEdit && setEditTarget(null)}
+        >
+          <div
+            id="edit-record-modal"
+            className="bg-white rounded-xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden max-h-[92vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-sky-100 text-sky-700 rounded-lg shrink-0">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Edit Data Operasional
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    {editTarget.sourceSection === 'performa'
+                      ? `Performa Kompresor • Tanggal ${editTarget.rowDate}`
+                      : `PB Synthesis • Tanggal ${editTarget.rowDate}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isSavingEdit}
+                onClick={() => setEditTarget(null)}
+                className="p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-200/70 transition-colors cursor-pointer disabled:opacity-50"
+                title="Tutup"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="p-5 space-y-4 overflow-y-auto text-xs">
+              {/* If editing from a Daily Average row with multiple entries on that day, let operator choose which exact timestamp reading to edit */}
+              {editTarget.candidates.length > 1 && (
+                <div className="p-3 bg-sky-50/80 border border-sky-200 rounded-lg space-y-1.5">
+                  <label className="block text-[11px] font-bold text-sky-950">
+                    Tanggal {editTarget.rowDate} memiliki {editTarget.candidates.length} data pembacaan — pilih jam yang ingin diedit:
+                  </label>
+                  <select
+                    value={editTarget.selectedId}
+                    onChange={(e) => {
+                      const nextId = e.target.value;
+                      const picked = editTarget.candidates.find((c) => c.id === nextId);
+                      if (!picked) return;
+                      setEditTarget((prev) => (prev ? { ...prev, selectedId: nextId } : null));
+                      loadRecordIntoEditForm(picked);
+                    }}
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-sky-300 rounded font-medium text-slate-900 cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-sky-500/30"
+                  >
+                    {editTarget.candidates.map((c) => {
+                      const isInAvg = editTarget.averagedIds.includes(c.id);
+                      return (
+                        <option key={c.id} value={c.id}>
+                          {formatTimeWithSeconds(c.time, '-')} — {c.realPower.toFixed(2)} MW | PT006: {c.P1_7.toFixed(2)} | PT007: {c.P3_0.toFixed(2)}
+                          {isInAvg ? ' (Rata-Rata Harian)' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+
+              {editSubmitError && (
+                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 flex items-center gap-2 text-xs">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>{editSubmitError}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Tanggal (Date)
+                  </label>
+                  <input
+                    type="date"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className={`w-full px-3 py-1.5 text-xs bg-white border rounded font-mono text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-sky-500/30 ${
+                      editErrors.date ? 'border-rose-400' : 'border-slate-300'
+                    }`}
+                  />
+                  {editErrors.date && <p className="text-[11px] text-rose-600 mt-1">{editErrors.date}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Waktu (Time HH:MM:SS)
+                  </label>
+                  <input
+                    type="text"
+                    value={editTime}
+                    onChange={(e) => setEditTime(e.target.value)}
+                    placeholder="19:00:00"
+                    className={`w-full px-3 py-1.5 text-xs bg-white border rounded font-mono text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-sky-500/30 ${
+                      editErrors.time ? 'border-rose-400' : 'border-slate-300'
+                    }`}
+                  />
+                  {editErrors.time && <p className="text-[11px] text-rose-600 mt-1">{editErrors.time}</p>}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    NH Speed (RPM)
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={editNhSpeed}
+                    onChange={(e) => setEditNhSpeed(e.target.value)}
+                    placeholder="e.g. 11670"
+                    className={`w-full px-3 py-1.5 text-xs bg-white border rounded font-mono text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-sky-500/30 ${
+                      editErrors.nhSpeed ? 'border-rose-400' : 'border-slate-300'
+                    }`}
+                  />
+                  {editErrors.nhSpeed && <p className="text-[11px] text-rose-600 mt-1">{editErrors.nhSpeed}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    T1.7 (°F)
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={editT17}
+                    onChange={(e) => setEditT17(e.target.value)}
+                    placeholder="e.g. 85.5"
+                    className={`w-full px-3 py-1.5 text-xs bg-white border rounded font-mono text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-sky-500/30 ${
+                      editErrors.T1_7 ? 'border-rose-400' : 'border-slate-300'
+                    }`}
+                  />
+                  {editErrors.T1_7 && <p className="text-[11px] text-rose-600 mt-1">{editErrors.T1_7}</p>}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    PT006 / P1.7 (PSIA)
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={editP17}
+                    onChange={(e) => setEditP17(e.target.value)}
+                    placeholder="e.g. 14.65"
+                    className={`w-full px-3 py-1.5 text-xs bg-white border rounded font-mono text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-sky-500/30 ${
+                      editErrors.P1_7 ? 'border-rose-400' : 'border-slate-300'
+                    }`}
+                  />
+                  {editErrors.P1_7 && <p className="text-[11px] text-rose-600 mt-1">{editErrors.P1_7}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    PT007 / P3.0 (PSIA)
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={editP30}
+                    onChange={(e) => setEditP30(e.target.value)}
+                    placeholder="e.g. 265.79"
+                    className={`w-full px-3 py-1.5 text-xs bg-white border rounded font-mono text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-sky-500/30 ${
+                      editErrors.P3_0 ? 'border-rose-400' : 'border-slate-300'
+                    }`}
+                  />
+                  {editErrors.P3_0 && <p className="text-[11px] text-rose-600 mt-1">{editErrors.P3_0}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Real Power (MW)
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={editRealPower}
+                    onChange={(e) => setEditRealPower(e.target.value)}
+                    placeholder="e.g. 21.60"
+                    className={`w-full px-3 py-1.5 text-xs bg-white border rounded font-mono text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-sky-500/30 ${
+                      editErrors.realPower ? 'border-rose-400' : 'border-slate-300'
+                    }`}
+                  />
+                  {editErrors.realPower && <p className="text-[11px] text-rose-600 mt-1">{editErrors.realPower}</p>}
+                </div>
+              </div>
+
+              {/* Live Calculated Preview */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-600 font-medium">Calculated PR:</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {editCalculatedPR !== null ? editCalculatedPR.toFixed(4) : '—'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-600 font-medium">PB Synthesis:</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {editLivePBOpEval ? `${editLivePBOpEval.pbSynthesis.toFixed(2)} (${editLivePBOpEval.statusLabel})` : '—'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-0.5">
+                <input
+                  id="edit-ww-checkbox"
+                  type="checkbox"
+                  checked={editIsWW}
+                  onChange={(e) => setEditIsWW(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-slate-300 text-sky-600 cursor-pointer"
+                />
+                <label htmlFor="edit-ww-checkbox" className="text-xs font-medium text-slate-700 cursor-pointer">
+                  Water Wash performed on this entry
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  disabled={isSavingEdit}
+                  onClick={() => setEditTarget(null)}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Batal (Cancel)
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="px-4 py-1.5 text-xs font-semibold text-white bg-sky-700 hover:bg-sky-800 rounded transition-colors shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-60"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{isSavingEdit ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
